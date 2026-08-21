@@ -1,0 +1,205 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with authorization level, access credentials and activity status.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID or local identifier" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "Full name or nickname" },
+        "photoURL": { "type": "string", "description": "Profile picture URL" },
+        "role": { "type": "string", "enum": ["admin", "operador", "estoquista", "visitante"], "description": "Authorization level role" },
+        "customPin": { "type": "string", "description": "Optional 4-digit quick access PIN for cashier switch" },
+        "isActive": { "type": "boolean", "description": "Whether user account is active" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account registration timestamp" },
+        "lastLoginAt": { "type": "string", "format": "date-time", "description": "Last login timestamp" }
+      },
+      "required": ["uid", "email", "displayName", "role", "isActive", "createdAt"]
+    },
+    "SavedListing": {
+      "title": "SavedListing",
+      "description": "A customized product listing exported to Shopee, synchronized to the cloud.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the listing" },
+        "release": { "type": "object", "description": "Release metadata from Discogs or manual entry" },
+        "condition": { "type": "object", "description": "Visual and physical grading/details of media, sleeve, and inserts" },
+        "pricing": { "type": "object", "description": "Pricing breakdown, commissions, exchange rates, and cost of goods" },
+        "shopee": { "type": "object", "description": "Final optimized Shopee Title, Description, and Price ready for copying" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the listing was created" },
+        "drawer": { "type": "string", "description": "Storage location or drawer ID of the physical item" },
+        "customImages": { "type": "array", "description": "List of user-uploaded custom base64 or URL real photos of the product" },
+        "status": { "type": "string", "enum": ["available", "sold", "reserved"], "description": "Status of the listing" },
+        "customerId": { "type": "string", "description": "Linked customer ID for reservations or sales" },
+        "customerName": { "type": "string", "description": "Linked customer name for fast lookup" },
+        "saleDetails": { "type": "object", "description": "Sale history details including sold price, channel and profit" }
+      },
+      "required": ["id", "release", "condition", "pricing", "shopee", "createdAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "A store client/customer registered by Valdir.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the customer" },
+        "name": { "type": "string", "description": "Full name of the customer" },
+        "phone": { "type": "string", "description": "WhatsApp or mobile number of the customer" },
+        "instagram": { "type": "string", "description": "Instagram handle" },
+        "city": { "type": "string", "description": "City of residence" },
+        "state": { "type": "string", "description": "UF/State of residence" },
+        "notes": { "type": "string", "description": "Internal notes about client preferences" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the customer was registered" }
+      },
+      "required": ["id", "name", "createdAt"]
+    },
+    "DJPlaylist": {
+      "title": "DJPlaylist",
+      "description": "A DJ set playlist created by Valdir with sequence of tracks, BPM, transition notes and vinyl storage locations.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the playlist" },
+        "title": { "type": "string", "description": "Name of the playlist or set" },
+        "description": { "type": "string", "description": "Set description or notes" },
+        "venue": { "type": "string", "description": "Venue name or club" },
+        "eventDate": { "type": "string", "description": "Event date" },
+        "targetDurationMinutes": { "type": "number", "description": "Target total set duration in minutes" },
+        "tags": { "type": "array", "description": "Tag labels e.g. Boogie, VinylOnly" },
+        "items": { "type": "array", "description": "Ordered list of track items" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" },
+        "isFavorite": { "type": "boolean", "description": "Whether the playlist is starred" }
+      },
+      "required": ["id", "title", "createdAt", "updatedAt"]
+    },
+    "SavedLabel": {
+      "title": "SavedLabel",
+      "description": "Historical record of generated or printed thermal/QR sticker labels for vinyl discs.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the label" },
+        "listingId": { "type": "string", "description": "Linked listing ID" },
+        "barcode": { "type": "string", "description": "Barcode or VD SKU code" },
+        "artist": { "type": "string", "description": "Artist name" },
+        "title": { "type": "string", "description": "Album title" },
+        "label": { "type": "string", "description": "Record label" },
+        "catno": { "type": "string", "description": "Catalog number" },
+        "year": { "type": "string", "description": "Release year" },
+        "country": { "type": "string", "description": "Release country" },
+        "mediaCondition": { "type": "string", "description": "Media condition code" },
+        "sleeveCondition": { "type": "string", "description": "Sleeve condition code" },
+        "price": { "type": "number", "description": "Item price" },
+        "drawer": { "type": "string", "description": "Storage location or drawer" },
+        "format": { "type": "string", "description": "Thermal or sticker format" },
+        "copies": { "type": "number", "description": "Number of printed copies" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when label was created" },
+        "printedAt": { "type": "string", "format": "date-time", "description": "Timestamp when label was printed" }
+      },
+      "required": ["id", "barcode", "artist", "title", "mediaCondition", "sleeveCondition", "price", "createdAt"]
+    },
+    "PhysicalSaleOrder": {
+      "title": "PhysicalSaleOrder",
+      "description": "Completed physical store or omnichannel sales order with multiple cart items, discounts, customer and payment details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique order ID" },
+        "orderNumber": { "type": "string", "description": "Human friendly order number" },
+        "items": { "type": "array", "description": "List of sold items from cart" },
+        "subtotal": { "type": "number", "description": "Sum of original prices" },
+        "totalDiscount": { "type": "number", "description": "Total discount applied" },
+        "totalAmount": { "type": "number", "description": "Final amount paid" },
+        "customerId": { "type": "string", "description": "Customer ID if linked" },
+        "customerName": { "type": "string", "description": "Customer name" },
+        "customerPhone": { "type": "string", "description": "Customer phone" },
+        "paymentMethod": { "type": "string", "description": "Payment method used" },
+        "amountPaid": { "type": "number", "description": "Cash amount received" },
+        "changeAmount": { "type": "number", "description": "Change returned in cash" },
+        "channel": { "type": "string", "description": "Sales channel" },
+        "soldAt": { "type": "string", "format": "date-time", "description": "Sale timestamp" }
+      },
+      "required": ["id", "orderNumber", "items", "totalAmount", "paymentMethod", "soldAt"]
+    },
+    "CustomerAccount": {
+      "title": "CustomerAccount",
+      "description": "End-customer profile with email, password, delivery address, phone and wishlist.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique customer account ID" },
+        "email": { "type": "string", "description": "Customer email login" },
+        "password": { "type": "string", "description": "Encrypted or stored customer password" },
+        "name": { "type": "string", "description": "Customer full name" },
+        "phone": { "type": "string", "description": "WhatsApp or mobile number" },
+        "cpf": { "type": "string", "description": "Optional CPF for shipping/invoicing" },
+        "address": { "type": "object", "description": "Delivery address (CEP, street, number, neighborhood, city, state)" },
+        "wishlist": { "type": "array", "description": "Array of saved favorite listing IDs" },
+        "favoriteGenres": { "type": "array", "description": "Favorite music genres" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Registration date" },
+        "lastLoginAt": { "type": "string", "format": "date-time", "description": "Last login date" },
+        "ordersCount": { "type": "number", "description": "Total online orders placed" },
+        "totalSpent": { "type": "number", "description": "Total amount spent on store" }
+      },
+      "required": ["id", "email", "name", "createdAt"]
+    },
+    "CustomerOnlineOrder": {
+      "title": "CustomerOnlineOrder",
+      "description": "E-commerce order created by customer through the online storefront.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique order ID" },
+        "orderNumber": { "type": "string", "description": "Human friendly order number e.g. VD-ONL-1234" },
+        "customerId": { "type": "string", "description": "Customer account ID" },
+        "customerName": { "type": "string", "description": "Customer name" },
+        "customerEmail": { "type": "string", "description": "Customer email" },
+        "customerPhone": { "type": "string", "description": "Customer WhatsApp" },
+        "items": { "type": "array", "description": "Purchased record items" },
+        "subtotal": { "type": "number", "description": "Cart subtotal" },
+        "shippingCost": { "type": "number", "description": "Shipping cost" },
+        "discount": { "type": "number", "description": "Discount applied" },
+        "totalAmount": { "type": "number", "description": "Total paid amount" },
+        "deliveryType": { "type": "string", "enum": ["shipping", "pickup"], "description": "Delivery method" },
+        "shippingAddress": { "type": "object", "description": "Destination address" },
+        "paymentMethod": { "type": "string", "description": "Payment method chosen" },
+        "paymentStatus": { "type": "string", "enum": ["pendente", "pago", "cancelado", "estornado"], "description": "Payment status" },
+        "fulfillmentStatus": { "type": "string", "enum": ["aguardando_pagamento", "em_separacao", "enviado", "pronto_retirada", "entregue", "cancelado"], "description": "Order fulfillment status" },
+        "trackingCode": { "type": "string", "description": "Tracking code e.g. Correios" },
+        "notes": { "type": "string", "description": "Order or customer notes" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Order date" }
+      },
+      "required": ["id", "orderNumber", "customerId", "customerName", "customerEmail", "items", "totalAmount", "deliveryType", "paymentMethod", "paymentStatus", "fulfillmentStatus", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and assigned authorization roles"
+    },
+    "/listings/{listingId}": {
+      "schema": "SavedListing",
+      "description": "Collection of all listings saved by Valdir"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Collection of registered customers"
+    },
+    "/playlists/{playlistId}": {
+      "schema": "DJPlaylist",
+      "description": "Collection of DJ playlists and sets"
+    },
+    "/saved_labels/{labelId}": {
+      "schema": "SavedLabel",
+      "description": "Collection of created and printed thermal/QR labels history"
+    },
+    "/sales_orders/{orderId}": {
+      "schema": "PhysicalSaleOrder",
+      "description": "Collection of completed sales orders and physical store POS transactions"
+    },
+    "/customer_accounts/{accountId}": {
+      "schema": "CustomerAccount",
+      "description": "Collection of registered e-commerce customers with email/password logins, addresses and wishlist"
+    },
+    "/online_orders/{orderId}": {
+      "schema": "CustomerOnlineOrder",
+      "description": "Collection of orders placed on the public storefront"
+    }
+  }
+}

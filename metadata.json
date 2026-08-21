@@ -1,0 +1,10 @@
+{
+  "name": "Valdir Discos - Loja Online & Intranet",
+  "description": "Loja virtual pública e sistema de intranet omnichannel para Valdir Discos: catálogo online, checkout via WhatsApp e PIX, frente de caixa (PDV), leitor de código de barras/QR Code e emissor de etiquetas térmicas.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

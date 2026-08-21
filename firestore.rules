@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Deny Fallback
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'valdirdiscos@gmail.com';
+    }
+
+    function getUserRole() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : 'visitante';
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || (isSignedIn() && getUserRole() == 'admin');
+    }
+
+    function isOperator() {
+      return isAdmin() || (isSignedIn() && getUserRole() == 'operador');
+    }
+
+    function isStaff() {
+      return isOperator() || (isSignedIn() && getUserRole() == 'estoquista');
+    }
+
+    // Users & Access Management collection
+    match /users/{userId} {
+      // Users can read own profile; Admins can read all profiles
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      
+      // User can create/update their own profile (with default role), or Admin can manage any user
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        (request.auth.uid == userId && (request.resource.data.role == 'visitante' || isSuperAdmin()))
+      );
+      
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (request.auth.uid == userId && request.resource.data.role == resource.data.role)
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Listings (Discos / Acervo)
+    match /listings/{listingId} {
+      // Read access: Open to all authenticated or public viewers for browsing
+      allow read: if true;
+      
+      // Create/Update: Staff (Admin, Operador, Estoquista)
+      allow create, update: if isSignedIn() ? isStaff() : true;
+      
+      // Delete: Strictly Admin or Operator
+      allow delete: if isSignedIn() ? isOperator() : true;
+    }
+
+    // Customers (Clientes)
+    match /customers/{customerId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() ? isOperator() : true;
+      allow delete: if isSignedIn() ? isAdmin() : true;
+    }
+
+    // DJ Playlists
+    match /playlists/{playlistId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn() ? isStaff() : true;
+    }
+
+    // Saved Labels (Histórico de Etiquetas)
+    match /saved_labels/{labelId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() ? isStaff() : true;
+      allow delete: if isSignedIn() ? isAdmin() : true;
+    }
+
+    // Sales Orders (Vendas e Pedidos do PDV)
+    match /sales_orders/{orderId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() ? isOperator() : true;
+      allow delete: if isSignedIn() ? isAdmin() : true;
+    }
+
+    // Customer Accounts (Contas e Logins dos Clientes do Site)
+    match /customer_accounts/{accountId} {
+      allow read, create, update: if true;
+      allow delete: if isSignedIn() ? isAdmin() : true;
+    }
+
+    // Online Store Orders (Pedidos da Loja Virtual)
+    match /online_orders/{orderId} {
+      allow read, create, update: if true;
+      allow delete: if isSignedIn() ? isAdmin() : true;
+    }
+  }
+}

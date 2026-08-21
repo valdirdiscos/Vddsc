@@ -98,7 +98,7 @@ export const ROLE_LABELS: Record<UserRole, { label: string; badgeColor: string; 
 };
 
 // Default initial Master Admin profile
-const DEFAULT_VALDIR_PROFILE: UserProfile = {
+export const DEFAULT_VALDIR_PROFILE: UserProfile = {
   uid: 'valdir-master-admin',
   email: MASTER_ADMIN_EMAIL,
   displayName: 'Valdir (Administrador Master)',
@@ -113,6 +113,7 @@ interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   userRole: UserRole;
   permissions: RolePermissions;
+  isStaff: boolean;
   isMasterAdmin: boolean;
   isLoadingAuth: boolean;
   allUsers: UserProfile[];
@@ -131,12 +132,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    // Default to Valdir Master Admin on boot if offline/local
+    // Only restore user if an authenticated staff profile was previously stored
     const cached = localStorage.getItem('valdir_active_user');
     if (cached) {
-      try { return JSON.parse(cached); } catch {}
+      try { 
+        const parsed = JSON.parse(cached);
+        if (parsed && (parsed.role === 'admin' || parsed.role === 'operador' || parsed.role === 'estoquista')) {
+          return parsed;
+        }
+      } catch {}
     }
-    return DEFAULT_VALDIR_PROFILE;
+    return null;
   });
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -216,6 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             createdAt: new Date().toISOString()
           };
           setCurrentUser(fallbackProfile);
+          localStorage.setItem('valdir_active_user', JSON.stringify(fallbackProfile));
         }
       }
       setIsLoadingAuth(false);
@@ -240,17 +247,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Signout warning:', e);
     }
-    // Switch active state to Visitante mode
-    const visitorProfile: UserProfile = {
-      uid: 'guest-user',
-      email: 'visitante@valdirdiscos.com',
-      displayName: 'Visitante (Consulta)',
-      role: 'visitante',
-      isActive: true,
-      createdAt: new Date().toISOString()
-    };
-    setCurrentUser(visitorProfile);
-    localStorage.setItem('valdir_active_user', JSON.stringify(visitorProfile));
+    // Remove staff token and clear active user
+    localStorage.removeItem('valdir_active_user');
+    setCurrentUser(null);
   };
 
   const switchUserWithPin = (pin: string): boolean => {
@@ -276,10 +275,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const quickSwitchRole = (newRole: UserRole) => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      console.warn('Somente administradores autenticados podem alternar papéis.');
+      return;
+    }
     const updated: UserProfile = {
-      ...(currentUser || DEFAULT_VALDIR_PROFILE),
+      ...currentUser,
       role: newRole,
-      displayName: `${currentUser?.displayName || 'Usuário'} (${ROLE_LABELS[newRole].label})`
+      displayName: `${currentUser?.displayName?.replace(/\(.*\)/, '').trim()} (${ROLE_LABELS[newRole].label})`
     };
     setCurrentUser(updated);
     localStorage.setItem('valdir_active_user', JSON.stringify(updated));
@@ -330,6 +333,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const userRole: UserRole = currentUser?.role || 'visitante';
   const permissions: RolePermissions = ROLE_PERMISSIONS[userRole] || ROLE_PERMISSIONS.visitante;
+  const isStaff = userRole === 'admin' || userRole === 'operador' || userRole === 'estoquista';
   const isMasterAdmin = userRole === 'admin' || currentUser?.email?.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase();
 
   return (
@@ -339,6 +343,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         firebaseUser,
         userRole,
         permissions,
+        isStaff,
         isMasterAdmin,
         isLoadingAuth,
         allUsers,

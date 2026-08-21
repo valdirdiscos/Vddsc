@@ -58,6 +58,7 @@ import { DiscQRCodeModal } from './components/DiscQRCodeModal';
 import { ThermalPrintModal } from './components/ThermalPrintModal';
 import { PublicStorefront } from './components/PublicStorefront';
 import { OnlineOrdersIntranetTab } from './components/OnlineOrdersIntranetTab';
+import { IntranetAuthModal } from './components/IntranetAuthModal';
 import { useCustomerAuth } from './context/CustomerAuthContext';
 import { getSalesChannelMeta } from './utils/qrcode';
 
@@ -117,8 +118,9 @@ import { db, collection, getDocs, setDoc, doc, deleteDoc, query } from './fireba
 
 export default function App() {
   // Authorization & Permissions State
-  const { currentUser, userRole, permissions, isMasterAdmin } = useAuth();
+  const { currentUser, userRole, permissions, isStaff, isMasterAdmin } = useAuth();
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+  const [isIntranetAuthModalOpen, setIsIntranetAuthModalOpen] = useState(false);
   const [pinOverrideModal, setPinOverrideModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -1487,14 +1489,30 @@ export default function App() {
     ? (activeCover.startsWith('data:') ? activeCover : (activeCover.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(activeCover)}` : activeCover))
     : (release?.coverImage ? (release.coverImage.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(release.coverImage)}` : release.coverImage) : '');
 
-  if (appMode === 'storefront') {
+  if (appMode === 'storefront' || !isStaff) {
     return (
       <>
         <PublicStorefront
           listings={savedListings}
           playlists={playlists}
-          onOpenIntranet={() => setAppMode('intranet')}
+          onOpenIntranet={() => {
+            if (isStaff) {
+              setAppMode('intranet');
+            } else {
+              setIsIntranetAuthModalOpen(true);
+            }
+          }}
           currentUserRole={userRole}
+        />
+
+        {/* Intranet Staff Login Gate Modal */}
+        <IntranetAuthModal
+          isOpen={isIntranetAuthModalOpen}
+          onClose={() => setIsIntranetAuthModalOpen(false)}
+          onSuccess={() => {
+            setIsIntranetAuthModalOpen(false);
+            setAppMode('intranet');
+          }}
         />
 
         {/* Global Floating Save Confirmation Toast */}
@@ -1634,7 +1652,11 @@ export default function App() {
             )}
 
             {/* Authorization & User Profile Header Badge */}
-            <UserHeaderBadge onOpenAccessModal={() => setIsAccessModalOpen(true)} />
+            <UserHeaderBadge 
+              onOpenAccessModal={() => setIsAccessModalOpen(true)}
+              onLogoutAndLock={() => setAppMode('storefront')}
+              onOpenPinModal={() => setIsIntranetAuthModalOpen(true)}
+            />
 
             <a
               href="https://shopee.com.br"
@@ -3171,6 +3193,16 @@ export default function App() {
           onSuccess={pinOverrideModal.onSuccess}
           actionTitle={pinOverrideModal.title}
           requiredRole={pinOverrideModal.requiredRole}
+        />
+
+        {/* Intranet Staff Login Modal */}
+        <IntranetAuthModal
+          isOpen={isIntranetAuthModalOpen}
+          onClose={() => setIsIntranetAuthModalOpen(false)}
+          onSuccess={() => {
+            setIsIntranetAuthModalOpen(false);
+            setAppMode('intranet');
+          }}
         />
 
       </div>

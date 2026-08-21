@@ -35,6 +35,7 @@ export const UserAccessManagerModal: React.FC<UserAccessManagerModalProps> = ({ 
     saveUser, 
     deleteUser, 
     quickSwitchRole,
+    switchUserWithPin,
     loginWithGoogle,
     logout,
     verifyMasterPin
@@ -565,19 +566,12 @@ export const UserAccessManagerModal: React.FC<UserAccessManagerModalProps> = ({ 
                   <button
                     type="button"
                     onClick={() => {
-                      if (verifyMasterPin(testPin)) {
-                        quickSwitchRole('admin');
-                        setPinMessage('PIN do Administrador Master aceito! Perfil alterado para Administrador.');
+                      const success = switchUserWithPin(testPin);
+                      if (success) {
+                        setPinMessage('PIN autenticado com sucesso! Operador alterado.');
                         setTestPin('');
                       } else {
-                        const matched = allUsers.find(u => u.customPin === testPin.trim() && u.isActive);
-                        if (matched) {
-                          quickSwitchRole(matched.role);
-                          setPinMessage(`Bem-vindo, ${matched.displayName}! Perfil ativo: ${ROLE_LABELS[matched.role].label}`);
-                          setTestPin('');
-                        } else {
-                          setPinMessage('PIN incorreto ou não cadastrado.');
-                        }
+                        setPinMessage('PIN incorreto ou não cadastrado.');
                       }
                     }}
                     className="py-3 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all cursor-pointer"

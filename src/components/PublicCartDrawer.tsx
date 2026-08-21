@@ -47,7 +47,7 @@ export function PublicCartDrawer({
   onRemoveItem,
   onUpdateQty,
   onClearCart,
-  whatsappNumber = '5511999999999',
+  whatsappNumber = '5555981164666',
   pixKey = 'valdirdiscos@gmail.com',
   onOpenAuthModal
 }: PublicCartDrawerProps) {

@@ -15,17 +15,20 @@ import {
   HeartHandshake, 
   Send,
   HelpCircle,
-  ChevronDown
+  ChevronDown,
+  Upload
 } from 'lucide-react';
 
 interface AboutAndContactSectionProps {
   whatsappNumber?: string;
   pixKey?: string;
+  onOpenLogoUpload?: () => void;
 }
 
 export function AboutAndContactSection({
-  whatsappNumber = '5511999999999',
-  pixKey = 'valdirdiscos@gmail.com'
+  whatsappNumber = '5555981164666',
+  pixKey = 'valdirdiscos@gmail.com',
+  onOpenLogoUpload
 }: AboutAndContactSectionProps) {
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
   const [contactName, setContactName] = useState('');
@@ -110,13 +113,25 @@ export function AboutAndContactSection({
             </div>
           </div>
 
-          <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 to-amber-950 text-white rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl border border-slate-800">
-            <h3 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-amber-400" />
-              Nossa Loja Física & Balcão
-            </h3>
+          <div className="lg:col-span-5 bg-gradient-to-br from-[#0c232a] via-[#163840] to-[#b3431f] text-white rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl border border-teal-900/50">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 p-1 border border-amber-400/30 overflow-hidden shrink-0">
+                <img 
+                  src="/valdir-logo-badge.jpg" 
+                  alt="Selo Valdir Discos" 
+                  className="w-full h-full object-contain rounded-xl"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div>
+                <h3 className="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
+                  <span>Nossa Loja Física & Balcão</span>
+                </h3>
+                <span className="text-xs text-amber-300 font-serif italic font-bold">Disco é cultura.</span>
+              </div>
+            </div>
 
-            <div className="space-y-3.5 text-xs text-slate-300">
+            <div className="space-y-3.5 text-xs text-slate-200">
               <div className="flex items-start gap-3">
                 <MapPin className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
                 <div>
@@ -137,7 +152,8 @@ export function AboutAndContactSection({
                 <Phone className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
                 <div>
                   <strong className="text-white block">Central WhatsApp:</strong>
-                  <span className="text-emerald-400 font-bold">Atendimento direto e personalizado com o Valdir</span>
+                  <span className="text-emerald-400 font-bold block">(55) 98116-4666</span>
+                  <span className="text-slate-300 text-[11px]">Atendimento direto e personalizado com o Valdir</span>
                 </div>
               </div>
             </div>
@@ -151,6 +167,92 @@ export function AboutAndContactSection({
               <MessageCircle className="h-4 w-4" />
               <span>Chamar no WhatsApp da Loja</span>
             </a>
+          </div>
+        </div>
+
+        {/* The 3 Official Logo Variations Showcase */}
+        <div className="mt-8 pt-8 border-t border-slate-100">
+          <div className="text-center max-w-xl mx-auto mb-6">
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-200 inline-block mb-1.5">
+              Identidade Visual & Tradição
+            </span>
+            <h4 className="text-xl font-black text-slate-950">
+              As Três Variações Oficiais do Nosso Logotipo
+            </h4>
+            <p className="text-xs text-slate-500 mt-1">
+              Símbolos de autenticidade presentes em nossos envelopes, selos de garantia e etiquetas de acervo.
+            </p>
+            {onOpenLogoUpload && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={onOpenLogoUpload}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                >
+                  <Upload className="h-3.5 w-3.5 text-amber-700" />
+                  <span>Enviar / Atualizar Arquivos de Logo da Minha Loja</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* Variation 1: Retro Badge */}
+            <div className="bg-[#fcfbf9] border border-amber-900/10 rounded-2xl p-5 text-center flex flex-col items-center shadow-xs hover:shadow-md transition-all">
+              <div className="w-28 h-28 rounded-full p-1 bg-white border-2 border-amber-500/40 shadow-sm flex items-center justify-center overflow-hidden mb-3">
+                <img 
+                  src="/valdir-logo-badge.jpg" 
+                  alt="Selo Retrô Completo - Disco é Cultura" 
+                  className="w-full h-full object-contain rounded-full"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <span className="text-[11px] font-black uppercase text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
+                1. Selo Retrô Completo
+              </span>
+              <p className="text-xs font-bold text-slate-900 mt-2 font-serif italic">"Disco é cultura."</p>
+              <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                Emblema vintage com sulcos de vinil em terracota e azul petróleo, notas musicais e lema clássico.
+              </p>
+            </div>
+
+            {/* Variation 2: Color Character */}
+            <div className="bg-[#fcfbf9] border border-amber-900/10 rounded-2xl p-5 text-center flex flex-col items-center shadow-xs hover:shadow-md transition-all">
+              <div className="w-28 h-28 rounded-full p-1 bg-white border-2 border-orange-500/40 shadow-sm flex items-center justify-center overflow-hidden mb-3">
+                <img 
+                  src="/valdir-logo-color.jpg" 
+                  alt="Mascote Valdir Ilustrado" 
+                  className="w-full h-full object-contain rounded-full"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <span className="text-[11px] font-black uppercase text-orange-900 bg-orange-100/80 px-2 py-0.5 rounded border border-orange-200">
+                2. Mascote Ilustrado
+              </span>
+              <p className="text-xs font-bold text-slate-900 mt-2">Valdir Girando o Vinil</p>
+              <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                Ilustração autêntica do mestre Valdir equilibrando o LP no dedo, trazendo a simpatia e o calor da loja física.
+              </p>
+            </div>
+
+            {/* Variation 3: Monochrome Linework */}
+            <div className="bg-[#fcfbf9] border border-slate-200 rounded-2xl p-5 text-center flex flex-col items-center shadow-xs hover:shadow-md transition-all">
+              <div className="w-28 h-28 rounded-full p-1 bg-white border-2 border-slate-300 shadow-sm flex items-center justify-center overflow-hidden mb-3">
+                <img 
+                  src="/valdir-logo-bw.jpg" 
+                  alt="Selo Monocromático em Traço Vintage" 
+                  className="w-full h-full object-contain rounded-full"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <span className="text-[11px] font-black uppercase text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                3. Traço Monocromático (P&B)
+              </span>
+              <p className="text-xs font-bold text-slate-900 mt-2">Gravação & Etiquetas</p>
+              <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                Versão em linhas pretas de alto contraste, otimizada para carimbos, etiquetas térmicas e impressos físicos.
+              </p>
+            </div>
           </div>
         </div>
       </section>

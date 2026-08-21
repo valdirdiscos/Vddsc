@@ -107,15 +107,20 @@ export const IntranetAuthModal: React.FC<IntranetAuthModalProps> = ({
           </button>
 
           <div className="flex items-center gap-3.5 mb-2">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20">
-              <Lock className="h-6 w-6" />
+            <div className="w-13 h-13 rounded-2xl bg-amber-500/10 p-1 border border-amber-400/30 shrink-0 overflow-hidden shadow-lg shadow-amber-500/20">
+              <img 
+                src="/valdir-logo-badge.jpg" 
+                alt="Valdir Discos" 
+                className="w-full h-full object-contain rounded-xl"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
                   Acesso Restrito
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono">v3.5 Segura</span>
+                <span className="text-[10px] text-amber-300/80 font-serif italic">Disco é cultura.</span>
               </div>
               <h2 className="text-lg font-black tracking-tight text-white mt-0.5">
                 Intranet & Gestão da Loja

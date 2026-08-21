@@ -112,6 +112,7 @@ import { DjPlaylists } from './components/DjPlaylists';
 import { UserHeaderBadge } from './components/UserHeaderBadge';
 import { UserAccessManagerModal } from './components/UserAccessManagerModal';
 import { AdminPinOverrideModal } from './components/AdminPinOverrideModal';
+import { LogoUploadModal } from './components/LogoUploadModal';
 import { useAuth, ROLE_LABELS } from './context/AuthContext';
 import { GOLDMINE_CONDITIONS, DEFAULT_PRICING } from './constants';
 import { db, collection, getDocs, setDoc, doc, deleteDoc, query } from './firebase';
@@ -121,6 +122,7 @@ export default function App() {
   const { currentUser, userRole, permissions, isStaff, isMasterAdmin } = useAuth();
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   const [isIntranetAuthModalOpen, setIsIntranetAuthModalOpen] = useState(false);
+  const [isLogoUploadModalOpen, setIsLogoUploadModalOpen] = useState(false);
   const [pinOverrideModal, setPinOverrideModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -1545,6 +1547,10 @@ export default function App() {
         </AnimatePresence>
 
         {/* Modals & Access Dialogs */}
+        <LogoUploadModal
+          isOpen={isLogoUploadModalOpen}
+          onClose={() => setIsLogoUploadModalOpen(false)}
+        />
         <DiscQRCodeModal
           isOpen={qrModalOpen}
           onClose={() => setQrModalOpen(false)}
@@ -1582,16 +1588,29 @@ export default function App() {
         
         {/* Header Section */}
         <header className="flex flex-col md:flex-row items-start md:items-center justify-between bg-white border border-slate-200 rounded-2xl p-5 shadow-sm gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md">
-              <Disc className="h-7 w-7 text-white animate-spin" style={{ animationDuration: '8s' }} />
+          <div className="flex items-center gap-3.5">
+            <div className="h-13 w-13 rounded-2xl bg-amber-500/10 p-1 border border-amber-500/20 flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+              <img 
+                src="/valdir-logo-color.jpg" 
+                alt="Valdir Discos" 
+                className="w-full h-full object-contain rounded-xl"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-                Valdir Discos <span className="text-indigo-500 font-medium text-xs bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Intranet / PDV</span>
-              </h1>
-              <p className="text-xs text-slate-500">
-                Gestão Inteligente de Acervo, Vendas Físicas e Online
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-black tracking-tight text-slate-950 flex items-center gap-2">
+                  Valdir Discos
+                </h1>
+                <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-md">
+                  Intranet / PDV
+                </span>
+                <span className="hidden sm:inline-block text-[11px] text-amber-700 font-serif italic">
+                  Disco é cultura.
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Gestão Integrada de Acervo, Frente de Caixa & Vendas Omnichannel
               </p>
             </div>
           </div>
@@ -1656,6 +1675,7 @@ export default function App() {
               onOpenAccessModal={() => setIsAccessModalOpen(true)}
               onLogoutAndLock={() => setAppMode('storefront')}
               onOpenPinModal={() => setIsIntranetAuthModalOpen(true)}
+              onOpenLogoUploadModal={() => setIsLogoUploadModalOpen(true)}
             />
 
             <a
@@ -3178,6 +3198,12 @@ export default function App() {
             setIsCartOpen(false);
             setIsScannerOpen(true);
           }}
+        />
+
+        {/* Logo Upload Modal for Mobile */}
+        <LogoUploadModal
+          isOpen={isLogoUploadModalOpen}
+          onClose={() => setIsLogoUploadModalOpen(false)}
         />
 
         {/* Security & Access Management Modal */}

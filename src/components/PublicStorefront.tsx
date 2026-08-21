@@ -38,6 +38,7 @@ import { PublicCartDrawer, PublicCartItem } from './PublicCartDrawer';
 import { AboutAndContactSection } from './AboutAndContactSection';
 import { CustomerAuthModal } from './CustomerAuthModal';
 import { CustomerDashboardModal } from './CustomerDashboardModal';
+import { LogoUploadModal } from './LogoUploadModal';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 
 interface PublicStorefrontProps {
@@ -54,13 +55,14 @@ export function PublicStorefront({
   playlists,
   onOpenIntranet,
   currentUserRole,
-  whatsappNumber = '5511999999999',
+  whatsappNumber = '5555981164666',
   pixKey = 'valdirdiscos@gmail.com'
 }: PublicStorefrontProps) {
   // Customer Auth
   const { currentCustomer, isCustomerLoggedIn, isInWishlist, toggleWishlist } = useCustomerAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isDashboardModalOpen, setIsDashboardModalOpen] = useState(false);
+  const [isLogoUploadModalOpen, setIsLogoUploadModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'register'>('login');
 
   // Search & Filters
@@ -276,16 +278,24 @@ export function PublicStorefront({
             
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-600 flex items-center justify-center text-white shadow-md shadow-amber-600/30 shrink-0">
-                <Disc className="h-6 w-6 animate-spin text-white" style={{ animationDuration: '30s' }} />
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 p-1 border border-amber-500/30 flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+                <img 
+                  src="/valdir-logo-color.jpg" 
+                  alt="Valdir Discos" 
+                  className="w-full h-full object-contain rounded-xl hover:scale-105 transition-transform"
+                  referrerPolicy="no-referrer"
+                />
               </div>
               <div>
-                <div className="flex items-baseline gap-1.5">
+                <div className="flex items-baseline gap-2">
                   <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
                     VALDIR DISCOS
                   </h1>
-                  <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                  <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
                     Online
+                  </span>
+                  <span className="hidden md:inline-block text-xs font-serif italic text-amber-700 font-bold">
+                    Disco é cultura.
                   </span>
                 </div>
                 <p className="text-[11px] font-medium text-slate-500 hidden sm:block">
@@ -368,17 +378,6 @@ export function PublicStorefront({
                     {totalCartCount}
                   </span>
                 )}
-              </button>
-
-              {/* Intranet Switcher Button */}
-              <button
-                type="button"
-                onClick={onOpenIntranet}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl border border-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Painel Interno de Gestão e Frente de Caixa"
-              >
-                <Lock className="h-3.5 w-3.5 text-slate-500" />
-                <span className="hidden lg:inline">Acesso Intranet</span>
               </button>
             </div>
 
@@ -487,34 +486,72 @@ export function PublicStorefront({
         
         {/* Curated Hero Spotlight (if not searching) */}
         {!searchQuery && activeTab === 'all' && selectedGenre === 'all' && (
-          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 relative overflow-hidden">
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-10 pointer-events-none flex items-center justify-end pr-8">
-              <Disc className="w-80 h-80 animate-spin text-white" style={{ animationDuration: '60s' }} />
+          <div className="bg-gradient-to-br from-[#0c232a] via-[#163840] to-[#b3431f] text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-teal-900/40 relative overflow-hidden">
+            {/* Background Vinyl Graphic Rings */}
+            <div className="absolute right-0 top-0 bottom-0 w-full lg:w-1/2 opacity-15 pointer-events-none flex items-center justify-end pr-4 sm:pr-12">
+              <div className="w-96 h-96 rounded-full border-[18px] border-amber-400/40 border-dashed animate-spin" style={{ animationDuration: '45s' }} />
             </div>
 
-            <div className="relative z-10 max-w-xl space-y-3">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold">
-                <Sparkles className="h-3.5 w-3.5" />
-                Venda Direta & Envio para Todo o País
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              {/* Text & Pitch */}
+              <div className="lg:col-span-8 space-y-3.5">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-xs font-bold shadow-xs">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Curadoria Especializada & Envio para Todo o Brasil</span>
+                </div>
+                
+                <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight font-sans">
+                  O melhor do vinil, do clássico ao obscuro.
+                </h2>
+                
+                <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium max-w-xl">
+                  Compre direto com quem ama e entende de música. Todos os discos são criteriosamente avaliados no padrão internacional Goldmine, higienizados e testados em toca-discos.
+                </p>
+
+                {/* Slogan pill from official badge */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="px-3 py-1 bg-black/40 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-serif italic font-black">
+                    ★ Disco é cultura.
+                  </span>
+                  <span className="px-2.5 py-1 bg-white/10 text-slate-200 rounded-xl text-xs font-semibold">
+                    Acervo Físico & Online
+                  </span>
+                  <span className="px-2.5 py-1 bg-white/10 text-slate-200 rounded-xl text-xs font-semibold">
+                    100% Higienizados
+                  </span>
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center gap-3">
+                  <a
+                    href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent('Olá Valdir! Gostaria de consultar um disco no catálogo online.')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg shadow-emerald-950/40 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    <span>Falar com o Valdir no WhatsApp</span>
+                  </a>
+                  <span className="text-xs text-slate-300 font-medium">
+                    Monte seu carrinho e faça seu pedido direto
+                  </span>
+                </div>
               </div>
-              <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight">
-                O melhor do vinil, do clássico ao obscuro.
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
-                Compre direto com quem entende. Todos os discos são criteriosamente avaliados no padrão Goldmine, higienizados e testados.
-              </p>
-              <div className="pt-2 flex flex-wrap items-center gap-3">
-                <a
-                  href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent('Olá Valdir! Gostaria de consultar um disco no catálogo online.')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  <span>Falar com o Valdir no WhatsApp</span>
-                </a>
-                <span className="text-xs text-slate-400 font-medium">
-                  Ou adicione ao carrinho e monte seu pedido online
+
+              {/* Logo Emblem Badge Visual Artwork */}
+              <div className="lg:col-span-4 flex flex-col items-center justify-center">
+                <div className="relative group">
+                  <div className="absolute -inset-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-full blur-lg opacity-40 group-hover:opacity-75 transition duration-500" />
+                  <div className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full p-1.5 bg-[#fdfcf9] shadow-2xl border-4 border-amber-400/80 flex items-center justify-center overflow-hidden">
+                    <img 
+                      src="/valdir-logo-badge.jpg" 
+                      alt="Valdir Discos - Disco é cultura" 
+                      className="w-full h-full object-contain rounded-full hover:rotate-6 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-amber-200 mt-2 font-serif italic text-center">
+                  Selo Oficial Valdir Discos
                 </span>
               </div>
             </div>
@@ -526,6 +563,7 @@ export function PublicStorefront({
           <AboutAndContactSection
             whatsappNumber={whatsappNumber}
             pixKey={pixKey}
+            onOpenLogoUpload={() => setIsLogoUploadModalOpen(true)}
           />
         ) : activeTab === 'playlists' ? (
           <div className="space-y-6">
@@ -790,11 +828,19 @@ export function PublicStorefront({
             
             {/* Col 1: Store Intro */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-600 flex items-center justify-center text-white font-black">
-                  <Disc className="h-5 w-5" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 p-1 border border-amber-400/30 flex items-center justify-center shrink-0 overflow-hidden shadow-md">
+                  <img 
+                    src="/valdir-logo-badge.jpg" 
+                    alt="Valdir Discos" 
+                    className="w-full h-full object-contain rounded-xl"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
-                <span className="font-black text-white text-base tracking-tight">VALDIR DISCOS</span>
+                <div>
+                  <span className="font-black text-white text-base tracking-tight block">VALDIR DISCOS</span>
+                  <span className="text-[10px] text-amber-300 font-serif italic font-bold">Disco é cultura.</span>
+                </div>
               </div>
               <p className="text-slate-400 text-xs leading-relaxed">
                 Loja especializada em discos de vinil, compactos e raridades para DJs, colecionadores e amantes da boa música.
@@ -831,7 +877,7 @@ export function PublicStorefront({
                   className="flex items-center gap-1.5 text-emerald-400 font-bold hover:underline"
                 >
                   <MessageCircle className="h-4 w-4" />
-                  <span>WhatsApp: Fale com o Valdir</span>
+                  <span>WhatsApp: (55) 98116-4666</span>
                 </a>
                 <p className="text-[11px] text-slate-500">
                   PIX: <span className="font-mono text-slate-400">{pixKey}</span>
@@ -839,27 +885,32 @@ export function PublicStorefront({
               </div>
             </div>
 
-            {/* Col 4: Intranet & Staff Portal */}
-            <div className="space-y-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">Área da Equipe</span>
-              <p className="text-[11px] text-slate-400 leading-snug">
-                Ponto de Venda (PDV/Balcão), emissão de etiquetas e gestão do acervo.
-              </p>
-              <button
-                type="button"
-                onClick={onOpenIntranet}
-                className="w-full py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 transition-colors cursor-pointer"
-              >
-                <Lock className="h-3.5 w-3.5 text-amber-400" />
-                <span>Entrar na Intranet da Loja</span>
-              </button>
+            {/* Col 4: Horários & Formas de Envio */}
+            <div className="space-y-3">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-400 block">Atendimento & Envio</span>
+              <ul className="text-xs text-slate-400 space-y-1.5 leading-relaxed">
+                <li>• Seg a Sex: 09h às 18h | Sáb: 09h às 14h</li>
+                <li>• Envio seguro com plástico bolha e cantoneiras</li>
+                <li>• Retirada em mãos disponível na loja</li>
+              </ul>
             </div>
 
           </div>
 
           <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-500 text-[11px]">
             <p>© {new Date().getFullYear()} Valdir Discos. Todos os direitos reservados.</p>
-            <p>Plataforma Integrada de E-commerce & Intranet Omnichannel</p>
+            <div className="flex items-center gap-4">
+              <p>Plataforma Integrada de E-commerce & Acervo</p>
+              <button
+                type="button"
+                onClick={onOpenIntranet}
+                className="text-slate-600 hover:text-slate-400 transition-colors flex items-center gap-1 cursor-pointer text-[10px]"
+                title="Área Interna"
+              >
+                <Lock className="h-3 w-3" />
+                <span>Restrito</span>
+              </button>
+            </div>
           </div>
         </div>
       </footer>
@@ -911,6 +962,12 @@ export function PublicStorefront({
           setIsDashboardModalOpen(false);
           setSelectedProduct(listing);
         }}
+      />
+
+      {/* Logo Upload Modal for Mobile */}
+      <LogoUploadModal
+        isOpen={isLogoUploadModalOpen}
+        onClose={() => setIsLogoUploadModalOpen(false)}
       />
 
     </div>

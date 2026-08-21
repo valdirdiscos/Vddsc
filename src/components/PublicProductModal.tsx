@@ -38,7 +38,7 @@ export function PublicProductModal({
   onClose,
   onAddToCart,
   isInCart,
-  whatsappNumber = '5511999999999',
+  whatsappNumber = '5555981164666',
   onOpenAuthModal
 }: PublicProductModalProps) {
   const { isCustomerLoggedIn, isInWishlist, toggleWishlist } = useCustomerAuth();

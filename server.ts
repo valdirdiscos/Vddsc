@@ -187,6 +187,43 @@ async function startServer() {
     }
   });
 
+  // Direct Mobile Logo Uploader Endpoint
+  app.post("/api/upload-logo", async (req, res) => {
+    try {
+      const { type, dataBase64 } = req.body;
+      if (!type || !dataBase64) {
+        return res.status(400).json({ error: "Missing type or dataBase64" });
+      }
+
+      // Valid types: 'badge', 'color', 'bw'
+      let fileName = "valdir-logo-badge.jpg";
+      if (type === "color") fileName = "valdir-logo-color.jpg";
+      if (type === "bw") fileName = "valdir-logo-bw.jpg";
+
+      // Strip potential header like data:image/png;base64,...
+      const base64Data = dataBase64.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      const fs = await import("fs/promises");
+      const publicPath = path.join(process.cwd(), "public", fileName);
+      await fs.writeFile(publicPath, buffer);
+
+      if (type === "badge") {
+        const appIconPath = path.join(process.cwd(), "public", "app_icon.jpg");
+        await fs.writeFile(appIconPath, buffer).catch(() => {});
+      }
+
+      // Also copy to dist if dist exists
+      const distPublicPath = path.join(process.cwd(), "dist", fileName);
+      await fs.writeFile(distPublicPath, buffer).catch(() => {});
+
+      return res.json({ success: true, message: `Logo ${fileName} atualizado com sucesso!` });
+    } catch (err: any) {
+      console.error("Error saving uploaded logo:", err);
+      return res.status(500).json({ error: err.message || "Falha ao salvar logo" });
+    }
+  });
+
   // Programmatic fallback for Manual Search Query if Gemini fails/is overloaded
   function generateManualProgrammaticExtract(query: string) {
     let artist = "Artista Desconhecido";

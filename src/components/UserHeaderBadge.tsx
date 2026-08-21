@@ -10,7 +10,8 @@ import {
   Users, 
   UserCheck, 
   Sparkles,
-  Info
+  Info,
+  Upload
 } from 'lucide-react';
 import { useAuth, ROLE_LABELS } from '../context/AuthContext';
 import { UserRole } from '../types';
@@ -19,12 +20,14 @@ interface UserHeaderBadgeProps {
   onOpenAccessModal: () => void;
   onLogoutAndLock?: () => void;
   onOpenPinModal?: () => void;
+  onOpenLogoUploadModal?: () => void;
 }
 
 export const UserHeaderBadge: React.FC<UserHeaderBadgeProps> = ({ 
   onOpenAccessModal,
   onLogoutAndLock,
-  onOpenPinModal
+  onOpenPinModal,
+  onOpenLogoUploadModal
 }) => {
   const { 
     currentUser, 
@@ -131,6 +134,20 @@ export const UserHeaderBadge: React.FC<UserHeaderBadgeProps> = ({
               >
                 <KeyRound className="h-4 w-4 text-amber-600" />
                 <span>Trocar Operador (Digitar PIN)</span>
+              </button>
+            )}
+
+            {onOpenLogoUploadModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenLogoUploadModal();
+                }}
+                className="w-full px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-50 rounded-xl flex items-center gap-2 transition-all cursor-pointer border border-amber-200/60 bg-amber-50/40"
+              >
+                <Upload className="h-4 w-4 text-amber-600" />
+                <span>Atualizar Logos / Artes Oficiais</span>
               </button>
             )}
 

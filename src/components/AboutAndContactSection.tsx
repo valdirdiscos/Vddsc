@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Upload
 } from 'lucide-react';
+import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
 
 interface AboutAndContactSectionProps {
   whatsappNumber?: string;
@@ -117,10 +118,13 @@ export function AboutAndContactSection({
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-white/10 p-1 border border-amber-400/30 overflow-hidden shrink-0">
                 <img 
-                  src="/valdir-logo-badge.jpg" 
+                  src={LOGO_BADGE} 
                   alt="Selo Valdir Discos" 
                   className="w-full h-full object-contain rounded-xl"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.src = "/valdir-logo-badge.jpg";
+                  }}
                 />
               </div>
               <div>
@@ -201,10 +205,13 @@ export function AboutAndContactSection({
             <div className="bg-[#fcfbf9] border border-amber-900/10 rounded-2xl p-5 text-center flex flex-col items-center shadow-xs hover:shadow-md transition-all">
               <div className="w-28 h-28 rounded-full p-1 bg-white border-2 border-amber-500/40 shadow-sm flex items-center justify-center overflow-hidden mb-3">
                 <img 
-                  src="/valdir-logo-badge.jpg" 
+                  src={LOGO_BADGE} 
                   alt="Selo Retrô Completo - Disco é Cultura" 
                   className="w-full h-full object-contain rounded-full"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.src = "/valdir-logo-badge.jpg";
+                  }}
                 />
               </div>
               <span className="text-[11px] font-black uppercase text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
@@ -220,10 +227,13 @@ export function AboutAndContactSection({
             <div className="bg-[#fcfbf9] border border-amber-900/10 rounded-2xl p-5 text-center flex flex-col items-center shadow-xs hover:shadow-md transition-all">
               <div className="w-28 h-28 rounded-full p-1 bg-white border-2 border-orange-500/40 shadow-sm flex items-center justify-center overflow-hidden mb-3">
                 <img 
-                  src="/valdir-logo-color.jpg" 
+                  src={LOGO_COLOR} 
                   alt="Mascote Valdir Ilustrado" 
                   className="w-full h-full object-contain rounded-full"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.src = "/valdir-logo-color.jpg";
+                  }}
                 />
               </div>
               <span className="text-[11px] font-black uppercase text-orange-900 bg-orange-100/80 px-2 py-0.5 rounded border border-orange-200">
@@ -239,10 +249,13 @@ export function AboutAndContactSection({
             <div className="bg-[#fcfbf9] border border-slate-200 rounded-2xl p-5 text-center flex flex-col items-center shadow-xs hover:shadow-md transition-all">
               <div className="w-28 h-28 rounded-full p-1 bg-white border-2 border-slate-300 shadow-sm flex items-center justify-center overflow-hidden mb-3">
                 <img 
-                  src="/valdir-logo-bw.jpg" 
+                  src={LOGO_BW} 
                   alt="Selo Monocromático em Traço Vintage" 
                   className="w-full h-full object-contain rounded-full"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.src = "/valdir-logo-bw.jpg";
+                  }}
                 />
               </div>
               <span className="text-[11px] font-black uppercase text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">

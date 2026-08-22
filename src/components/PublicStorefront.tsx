@@ -40,6 +40,7 @@ import { CustomerAuthModal } from './CustomerAuthModal';
 import { CustomerDashboardModal } from './CustomerDashboardModal';
 import { LogoUploadModal } from './LogoUploadModal';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
+import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
 
 interface PublicStorefrontProps {
   listings: SavedListing[];
@@ -280,10 +281,13 @@ export function PublicStorefront({
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 p-1 border border-amber-500/30 flex items-center justify-center shadow-md shrink-0 overflow-hidden">
                 <img 
-                  src="/valdir-logo-color.jpg" 
+                  src={LOGO_COLOR} 
                   alt="Valdir Discos" 
                   className="w-full h-full object-contain rounded-xl hover:scale-105 transition-transform"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.src = "/valdir-logo-color.jpg";
+                  }}
                 />
               </div>
               <div>
@@ -543,10 +547,13 @@ export function PublicStorefront({
                   <div className="absolute -inset-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-full blur-lg opacity-40 group-hover:opacity-75 transition duration-500" />
                   <div className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full p-1.5 bg-[#fdfcf9] shadow-2xl border-4 border-amber-400/80 flex items-center justify-center overflow-hidden">
                     <img 
-                      src="/valdir-logo-badge.jpg" 
+                      src={LOGO_BADGE} 
                       alt="Valdir Discos - Disco é cultura" 
                       className="w-full h-full object-contain rounded-full hover:rotate-6 transition-transform duration-500"
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.src = "/valdir-logo-badge.jpg";
+                      }}
                     />
                   </div>
                 </div>
@@ -831,10 +838,13 @@ export function PublicStorefront({
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-500/10 p-1 border border-amber-400/30 flex items-center justify-center shrink-0 overflow-hidden shadow-md">
                   <img 
-                    src="/valdir-logo-badge.jpg" 
+                    src={LOGO_BADGE} 
                     alt="Valdir Discos" 
                     className="w-full h-full object-contain rounded-xl"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.src = "/valdir-logo-badge.jpg";
+                    }}
                   />
                 </div>
                 <div>

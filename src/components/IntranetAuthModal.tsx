@@ -12,6 +12,7 @@ import {
   Disc,
   Users
 } from 'lucide-react';
+import { LOGO_BADGE } from '../assets/logos';
 import { useAuth, MASTER_ADMIN_EMAIL } from '../context/AuthContext';
 
 interface IntranetAuthModalProps {
@@ -109,10 +110,13 @@ export const IntranetAuthModal: React.FC<IntranetAuthModalProps> = ({
           <div className="flex items-center gap-3.5 mb-2">
             <div className="w-13 h-13 rounded-2xl bg-amber-500/10 p-1 border border-amber-400/30 shrink-0 overflow-hidden shadow-lg shadow-amber-500/20">
               <img 
-                src="/valdir-logo-badge.jpg" 
+                src={LOGO_BADGE} 
                 alt="Valdir Discos" 
                 className="w-full h-full object-contain rounded-xl"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.src = "/valdir-logo-badge.jpg";
+                }}
               />
             </div>
             <div>

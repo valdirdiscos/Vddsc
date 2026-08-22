@@ -16,11 +16,13 @@ import {
   ExternalLink,
   ChevronRight,
   Share2,
-  Heart
+  Heart,
+  Flame
 } from 'lucide-react';
 import { SavedListing } from '../types';
 import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE } from '../constants';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
+import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason } from '../utils/formatHelper';
 
 interface PublicProductModalProps {
   listing: SavedListing | null;
@@ -56,6 +58,8 @@ export function PublicProductModal({
   };
 
   const { release, condition, pricing, drawer, customImages } = listing;
+  const formatInfo = getListingFormatInfo(listing);
+  const conditionInfo = getItemConditionInfo(listing);
 
   const mediaCondObj = GOLDMINE_VINYL_MEDIA.find(c => c.code === condition?.mediaCondition);
   const sleeveCondObj = GOLDMINE_VINYL_SLEEVE.find(c => c.code === condition?.sleeveCondition);
@@ -65,15 +69,26 @@ export function PublicProductModal({
 
   // Format Whatsapp direct enquiry
   const handleWhatsappEnquiry = () => {
-    const text = encodeURIComponent(
-      `Olá Valdir! Gostaria de saber mais informações sobre o disco:\n\n` +
-      `🎵 *${release.artist} - ${release.title}*\n` +
-      `📀 Formato: ${release.formats?.[0]?.name || 'Vinil LP'}\n` +
-      `🏷️ Preço: R$ ${salePrice.toFixed(2)}\n` +
-      `✨ Estado: Mídia ${condition?.mediaCondition || 'N/A'} | Capa ${condition?.sleeveCondition || 'N/A'}\n` +
-      `📍 Código no acervo: ${listing.barcode || listing.id}\n\n` +
-      `Ainda está disponível para compra/envio?`
-    );
+    const isSold = listing.status === 'sold';
+    const text = isSold 
+      ? encodeURIComponent(
+          `Olá Valdir! Vi no site o item que consta como *VENDIDO*:\n\n` +
+          `🎵 *${release.artist} - ${release.title}*\n` +
+          `📀 Formato: ${formatInfo.fullLabel}\n` +
+          `🏷️ Último Preço: R$ ${salePrice.toFixed(2)}\n` +
+          `📍 Código do acervo: ${listing.barcode || listing.id}\n\n` +
+          `Gostaria de saber se você tem ou consegue encomendar outra cópia desse título para mim?`
+        )
+      : encodeURIComponent(
+          `Olá Valdir! Gostaria de saber mais informações sobre o item:\n\n` +
+          `🎵 *${release.artist} - ${release.title}*\n` +
+          `📀 Formato: ${formatInfo.fullLabel}\n` +
+          `✨ Condição: ${conditionInfo.label}\n` +
+          `🏷️ Preço: R$ ${salePrice.toFixed(2)}\n` +
+          `📊 Estado: Mídia ${condition?.mediaCondition || 'N/A'} | Capa ${condition?.sleeveCondition || 'N/A'}\n` +
+          `📍 Código no acervo: ${listing.barcode || listing.id}\n\n` +
+          `Ainda está disponível para compra/envio?`
+        );
     window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${text}`, '_blank');
   };
 
@@ -81,7 +96,7 @@ export function PublicProductModal({
     if (navigator.share) {
       navigator.share({
         title: `${release.artist} - ${release.title} | Valdir Discos`,
-        text: `Confira este vinil no acervo do Valdir Discos: ${release.artist} - ${release.title} (R$ ${salePrice.toFixed(2)})`,
+        text: `Confira este item (${formatInfo.badgeLabel} • ${conditionInfo.label}) no acervo do Valdir Discos: ${release.artist} - ${release.title} (R$ ${salePrice.toFixed(2)})`,
         url: window.location.href
       }).catch(() => {});
     } else {
@@ -106,10 +121,25 @@ export function PublicProductModal({
         >
           {/* Top Bar */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 bg-amber-500/10 text-amber-800 border border-amber-500/20 text-xs font-black rounded-lg uppercase tracking-wider">
-                {release.formats?.[0]?.name || 'Vinil LP 12"'}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider ${
+                formatInfo.type === 'cd' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                formatInfo.type === 'dvd' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
+                formatInfo.type === 'cassette' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                'bg-amber-500/10 text-amber-800 border border-amber-500/20'
+              }`}>
+                {formatInfo.fullLabel}
               </span>
+
+              {/* Novo / Usado Badge */}
+              <span className={`px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider ${
+                conditionInfo.isNew
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-200 text-slate-800 border border-slate-300'
+              }`}>
+                {conditionInfo.isNew ? '✨ Novo / Lacrado' : '📻 Usado / Garimpo'}
+              </span>
+
               {listing.barcode && (
                 <span className="text-xs font-mono font-bold text-slate-500 bg-slate-200/60 px-2 py-0.5 rounded">
                   #{listing.barcode}
@@ -216,57 +246,111 @@ export function PublicProductModal({
                   </p>
                 </div>
 
+                {/* Sold Alert Banner if applicable */}
+                {listing.status === 'sold' && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3">
+                    <div className="p-2 bg-rose-600 text-white rounded-xl font-black text-xs shrink-0 uppercase tracking-wider">
+                      Vendido
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <h4 className="font-bold text-rose-900 text-sm">Item Esgotado / Acervo Histórico</h4>
+                      <p className="text-rose-700 leading-relaxed">
+                        Este exemplar já foi vendido. Mantemos o registro para fins de pesquisa e consulta ao acervo. Você pode solicitar um item similar diretamente no WhatsApp do Valdir.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Garimpo Alert Banner if applicable */}
+                {isGarimpoItem(listing) && (
+                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-4 flex items-start gap-3">
+                    <div className="p-2 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl font-black text-xs shrink-0 uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                      <Flame className="h-3.5 w-3.5 fill-white" />
+                      <span>Garimpo</span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <h4 className="font-bold text-orange-950 text-sm flex items-center gap-1.5">
+                        <span>Item da Sessão Garimpo & Oportunidades</span>
+                      </h4>
+                      <p className="text-orange-900/85 leading-relaxed">
+                        {getGarimpoReason(listing)} — Excelente custo-benefício para sua coleção! Item disponibilizado por menor valor de mercado ou com marcas de época descritas.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Pricing Display */}
-                <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 flex items-center justify-between">
+                <div className={`border rounded-2xl p-4 flex items-center justify-between ${
+                  listing.status === 'sold' 
+                    ? 'bg-slate-100 border-slate-200 text-slate-500' 
+                    : 'bg-amber-50/60 border-amber-200/80'
+                }`}>
                   <div>
-                    <span className="text-[11px] font-bold text-amber-900/70 uppercase tracking-wider block">Preço de Venda</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider block text-slate-500">
+                      {listing.status === 'sold' ? 'Último Preço Registrado' : 'Preço de Venda'}
+                    </span>
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-black text-amber-950">
+                      <span className={`text-3xl font-black ${listing.status === 'sold' ? 'text-slate-600 line-through' : 'text-amber-950'}`}>
                         R$ {salePrice.toFixed(2)}
                       </span>
-                      <span className="text-xs text-amber-800 font-semibold">à vista / PIX</span>
+                      {listing.status !== 'sold' && (
+                        <span className="text-xs text-amber-800 font-semibold">à vista / PIX</span>
+                      )}
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg">
-                      <ShieldCheck className="h-3.5 w-3.5" />
-                      Pronta Entrega
-                    </span>
+                    {listing.status === 'sold' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-800 text-xs font-black rounded-lg">
+                        Esgotado
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Pronta Entrega
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* Goldmine Condition Card */}
                 <div className="space-y-2">
-                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <Disc className="h-4 w-4 text-amber-700" />
-                    Avaliação do Estado de Conservação (Padrão Goldmine)
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Disc className="h-4 w-4 text-amber-700" />
+                      Avaliação do Estado de Conservação
+                    </span>
+                    <span className={`text-[11px] font-black px-2 py-0.5 rounded ${conditionInfo.badgeClass}`}>
+                      {conditionInfo.label}
+                    </span>
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {/* Media Condition */}
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-slate-500 font-medium">Estado do Vinil (Mídia):</span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {formatInfo.type === 'cd' ? 'Estado do CD (Mídia):' : formatInfo.type === 'dvd' ? 'Estado do DVD (Mídia):' : formatInfo.type === 'cassette' ? 'Estado da Fita K7:' : 'Estado do Vinil (Mídia):'}
+                        </span>
                         <span className={`text-xs font-black px-2 py-0.5 rounded ${mediaCondObj?.vibe || 'bg-slate-200 text-slate-800'}`}>
-                          {condition?.mediaCondition || 'VG+'}
+                          {condition?.mediaCondition || (conditionInfo.isNew ? 'M' : 'VG+')}
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600 leading-snug">
-                        {condition?.mediaDetails || mediaCondObj?.description || 'Vinil testado e higienizado, toca perfeitamente.'}
+                        {condition?.mediaDetails || (conditionInfo.isNew ? 'Item novo, nunca tocado, sem qualquer marca de uso.' : mediaCondObj?.description || 'Testado e higienizado, toca com excelente fidelidade.')}
                       </p>
                     </div>
 
                     {/* Sleeve Condition */}
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-slate-500 font-medium">Estado da Capa:</span>
+                        <span className="text-[11px] text-slate-500 font-medium">Estado da Capa / Encarte:</span>
                         <span className={`text-xs font-black px-2 py-0.5 rounded ${sleeveCondObj?.vibe || 'bg-slate-200 text-slate-800'}`}>
-                          {condition?.sleeveCondition || 'VG+'}
+                          {condition?.sleeveCondition || (conditionInfo.isNew ? 'M' : 'VG+')}
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600 leading-snug">
-                        {condition?.sleeveDetails || sleeveCondObj?.description || 'Capa íntegra em ótimo estado de conservação.'}
+                        {condition?.sleeveDetails || (conditionInfo.isNew ? 'Capa perfeita, lacre original ou impecável.' : sleeveCondObj?.description || 'Capa íntegra em ótimo estado de conservação.')}
                       </p>
                     </div>
                   </div>
@@ -319,28 +403,43 @@ export function PublicProductModal({
 
                 {/* Action Buttons */}
                 <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onAddToCart(listing);
-                    }}
-                    className={`flex-1 py-3.5 px-5 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
-                      isInCart
-                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
-                        : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/20 active:scale-95'
-                    }`}
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    <span>{isInCart ? 'No Carrinho (Adicionar Mais 1)' : 'Adicionar ao Carrinho'}</span>
-                  </button>
+                  {listing.status === 'sold' ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="flex-1 py-3.5 px-5 rounded-2xl font-black text-sm bg-slate-200 text-slate-500 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-300"
+                    >
+                      <ShoppingBag className="h-4 w-4 text-slate-400" />
+                      <span>Item Vendido / Esgotado</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onAddToCart(listing);
+                      }}
+                      className={`flex-1 py-3.5 px-5 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
+                        isInCart
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
+                          : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/20 active:scale-95'
+                      }`}
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                      <span>{isInCart ? 'No Carrinho (Adicionar Mais 1)' : 'Adicionar ao Carrinho'}</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
                     onClick={handleWhatsappEnquiry}
-                    className="py-3.5 px-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                    className={`py-3.5 px-5 font-black text-sm rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95 ${
+                      listing.status === 'sold'
+                        ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/20'
+                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+                    }`}
                   >
-                    <MessageCircle className="h-4 w-4 text-slate-950" />
-                    <span>Comprar no WhatsApp</span>
+                    <MessageCircle className={`h-4 w-4 ${listing.status === 'sold' ? 'text-emerald-400' : 'text-slate-950'}`} />
+                    <span>{listing.status === 'sold' ? 'Pedir Similar no WhatsApp' : 'Comprar no WhatsApp'}</span>
                   </button>
                 </div>
               </div>

@@ -44,7 +44,8 @@ import {
   Store,
   Scan,
   Tag,
-  Printer
+  Printer,
+  Flame
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
@@ -265,6 +266,8 @@ export default function App() {
   const [mercadoLivreListing, setMercadoLivreListing] = useState<MercadoLivreListing | null>(null);
   const [customImages, setCustomImages] = useState<string[]>([]);
   const [isPersonal, setIsPersonal] = useState<boolean>(false);
+  const [isGarimpo, setIsGarimpo] = useState<boolean>(false);
+  const [garimpoDetails, setGarimpoDetails] = useState<string>('');
   const [activeCover, setActiveCover] = useState<string>('');
 
   // Status states
@@ -943,7 +946,9 @@ export default function App() {
         release,
         condition,
         pricing: { ...pricing, basePriceBrl: shopeePrice },
-        drawer
+        drawer,
+        isGarimpo,
+        garimpoDetails: isGarimpo ? garimpoDetails : undefined
       };
 
       const res = await fetch('/api/generate-all', {
@@ -1259,7 +1264,9 @@ export default function App() {
       customImages: customImages.length > 0 ? customImages : undefined,
       status: isPersonal ? 'personal' : 'available',
       barcode,
-      salesChannels: activeSalesChannels.length > 0 ? activeSalesChannels : ['physical_store', 'online_store', 'shopee', 'mercadolivre']
+      salesChannels: activeSalesChannels.length > 0 ? activeSalesChannels : ['physical_store', 'online_store', 'shopee', 'mercadolivre'],
+      isGarimpo: isGarimpo || undefined,
+      garimpoDetails: isGarimpo && garimpoDetails.trim() ? garimpoDetails.trim() : undefined
     };
 
     // Optimistically update local state & storage first
@@ -1342,6 +1349,8 @@ export default function App() {
     const imgs = item.customImages || [];
     setCustomImages(imgs);
     setIsPersonal(item.status === 'personal');
+    setIsGarimpo(Boolean(item.isGarimpo));
+    setGarimpoDetails(item.garimpoDetails || '');
     setActiveSalesChannels(item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre']);
     setActiveCover(imgs.length > 0 ? imgs[0] : (item.release.coverImage || ''));
     setCoverSource(imgs.length > 0 ? 'real' : 'discogs');
@@ -1371,6 +1380,8 @@ export default function App() {
     setMercadoLivreListing(null);
     setCustomImages([]);
     setIsPersonal(false);
+    setIsGarimpo(false);
+    setGarimpoDetails('');
     setActiveCover('');
     setDiscogsUrl('');
     setManualQuery('');
@@ -1930,7 +1941,7 @@ export default function App() {
 
           {activeTab === 'custom_manual' ? (
             <ManualRegistrationForm
-              onComplete={({ release: newRel, condition: newCond, pricing: newPrice, drawer: newDraw, description: newDesc, coverImage: newCov }) => {
+              onComplete={({ release: newRel, condition: newCond, pricing: newPrice, drawer: newDraw, description: newDesc, coverImage: newCov, isGarimpo: newGarimpo, garimpoDetails: newGarimpoDetails }) => {
                 setRelease(newRel);
                 setCondition(newCond);
                 setPricing(newPrice);
@@ -1952,6 +1963,7 @@ export default function App() {
                   `\n🔍 **Estado de Conservação:**`,
                   `• Mídia: ${newCond.mediaCondition} - ${newCond.mediaDetails}`,
                   `• Capa: ${newCond.sleeveCondition} - ${newCond.sleeveDetails}`,
+                  newGarimpo ? `\n🔥 **Sessão Garimpo & Oportunidades:** ${newGarimpoDetails || 'Preço promocional / Oportunidade para colecionadores'}` : '',
                   newDesc ? `\nℹ️ **Observações do Disco:**\n${newDesc}` : '',
                   `\n🧼 **Higienização:** Disco 100% higienizado profissionalmente com plásticos protetores novos inclusos.`
                 ].filter(Boolean).join('\n');
@@ -1960,7 +1972,7 @@ export default function App() {
                   title: `${newRel.artist} - ${newRel.title}${locStr}`.slice(0, 120),
                   description: initialDesc,
                   suggestedPrice: calcPrice,
-                  hashtags: ['#vinil', '#discodevinil', '#lp', '#valdir_discos']
+                  hashtags: ['#vinil', '#discodevinil', '#lp', '#valdir_discos', ...(newGarimpo ? ['#garimpo', '#promocao'] : [])]
                 });
 
                 setMercadoLivreListing({
@@ -2769,6 +2781,62 @@ export default function App() {
                     <span className="text-[10px] text-rose-600 leading-normal block">
                       Este álbum será catalogado sob o status de coleção pessoal e os avisos de anúncios ou taxas da Shopee serão desativados.
                     </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Sessão Garimpo & Oportunidades Card */}
+              <div 
+                className={`rounded-2xl border p-5 space-y-4 transition-all shadow-sm ${
+                  isGarimpo
+                    ? 'bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-white border-amber-300 ring-1 ring-amber-400/30'
+                    : 'bg-white border-slate-200 hover:border-amber-200'
+                }`} 
+                id="workspace-garimpo-card"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Flame className={`h-5 w-5 ${isGarimpo ? 'text-amber-600 fill-amber-500 animate-pulse' : 'text-slate-400'}`} />
+                    <h3 className="text-sm font-bold text-slate-800">Sessão Garimpo & Oportunidades</h3>
+                  </div>
+                  {isGarimpo && (
+                    <span className="px-2.5 py-0.5 bg-amber-600 text-white text-[10px] font-black rounded-md uppercase tracking-wider shadow-xs">
+                      Ativo no Garimpo
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Marque esta opção para discos de <strong>menor valor de mercado</strong>, itens com <strong>avarias/detalhes físicos</strong> na mídia ou capa, ou pechinchas de oportunidade para colecionadores.
+                </p>
+
+                <label className="flex items-center gap-2.5 cursor-pointer select-none bg-slate-50 hover:bg-amber-50/60 p-3 rounded-xl border border-slate-200 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={isGarimpo}
+                    onChange={(e) => setIsGarimpo(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-slate-800">
+                    Colocar este disco na Sessão Garimpo
+                  </span>
+                </label>
+
+                {isGarimpo && (
+                  <div className="space-y-2 pt-2 border-t border-amber-200/70">
+                    <label className="text-xs font-bold text-amber-950 block">
+                      Descreva o problema do disco e o porquê dele ter menor valor de mercado:
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={garimpoDetails}
+                      onChange={(e) => setGarimpoDetails(e.target.value)}
+                      placeholder="Ex: Mídia com risco superficial na faixa 2 que gera leve estalo / Capa com desgaste nas bordas e fita adesiva antiga / Edição popular de menor valor de mercado para desapego..."
+                      className="w-full text-xs text-amber-950 bg-white border border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-xl p-3 focus:outline-none transition-all placeholder-amber-400/70 font-medium"
+                    />
+                    <p className="text-[10px] text-amber-800/80 leading-relaxed font-medium">
+                      💡 Esta justificativa é exibida com transparência no anúncio e no card do produto na loja para orientar o cliente.
+                    </p>
                   </div>
                 )}
               </div>

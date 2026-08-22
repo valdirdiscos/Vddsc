@@ -96,6 +96,9 @@ export interface SavedListing {
   drawer?: string; // storage location designated by Valdir
   customImages?: string[]; // user-uploaded real photos of the product (base64 or URL)
   personalFiles?: PersonalFile[]; // Valdir's personal files/documents (e.g., invoices, memos, receipts)
+  quantity?: number; // Stock quantity (default 1)
+  isGarimpo?: boolean; // Item belongs to the Garimpo section (low value, damaged/bargain, clearance)
+  garimpoDetails?: string; // Details/notes about why it is in garimpo (e.g. risco superficial, capa desgastada, etc.)
   status?: 'available' | 'sold' | 'reserved' | 'personal'; // Item status in the shop/collection
   customerId?: string; // Linked customer ID
   customerName?: string; // Cache of the linked customer's name
@@ -324,4 +327,34 @@ export interface RolePermissions {
   canManagePlaylists: boolean;
   canManageUsers: boolean;
 }
+
+export type TShirtSize = 'P' | 'M' | 'G' | 'GG' | 'XGG';
+export type TShirtModel = 'Unissex Tradicional' | 'Baby Look Feminina' | 'Regata Vintage';
+
+export interface TShirtColor {
+  id: string;
+  name: string;
+  hex: string;
+  bgClass: string;
+  borderClass?: string;
+}
+
+export interface TShirtProduct {
+  id: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  category: 'selo_oficial' | 'retro_dj' | 'mpb_brasil' | 'rock_cult';
+  colors: TShirtColor[];
+  sizes: TShirtSize[];
+  models: TShirtModel[];
+  image: string;
+  badge?: string;
+  features: string[];
+  fabricInfo: string;
+  inStock: boolean;
+}
+
 

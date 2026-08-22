@@ -10,7 +10,8 @@ import {
   Layers, 
   Check, 
   ListPlus,
-  AlertCircle
+  AlertCircle,
+  Flame
 } from 'lucide-react';
 import { DiscogsRelease, ConditionSelection, PricingConfig, Track } from '../types';
 import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE } from '../constants';
@@ -23,6 +24,8 @@ interface ManualRegistrationFormProps {
     drawer: string;
     description: string;
     coverImage?: string;
+    isGarimpo?: boolean;
+    garimpoDetails?: string;
   }) => void;
   onCancel?: () => void;
 }
@@ -41,6 +44,10 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
   const [price, setPrice] = useState('80');
   const [drawer, setDrawer] = useState('');
   const [coverImage, setCoverImage] = useState('');
+
+  // Garimpo Flag & Reason
+  const [isGarimpo, setIsGarimpo] = useState(false);
+  const [garimpoDetails, setGarimpoDetails] = useState('');
 
   // Condition
   const [mediaCond, setMediaCond] = useState('VG+');
@@ -164,7 +171,9 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
       pricing,
       drawer: drawer.trim(),
       description: customDescription.trim(),
-      coverImage
+      coverImage,
+      isGarimpo,
+      garimpoDetails: isGarimpo ? garimpoDetails.trim() : undefined
     });
   };
 
@@ -314,6 +323,53 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
               className="w-full px-3.5 py-2 bg-white border border-indigo-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
             />
           </div>
+        </div>
+
+        {/* Garimpo Option Section */}
+        <div className={`p-4 rounded-xl border transition-all ${
+          isGarimpo 
+            ? 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-300' 
+            : 'bg-slate-50/70 border-slate-200 hover:border-orange-200'
+        }`}>
+          <div className="flex items-start justify-between gap-3">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isGarimpo}
+                onChange={(e) => setIsGarimpo(e.target.checked)}
+                className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-slate-300 cursor-pointer"
+              />
+              <div>
+                <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <Flame className={`h-4 w-4 ${isGarimpo ? 'text-orange-600 fill-orange-600' : 'text-slate-400'}`} />
+                  Destacar na "Sessão Garimpo & Oportunidades"
+                </span>
+                <p className="text-[11px] text-slate-500">
+                  Marque para itens de menor valor de mercado, pechinchas ou discos valorizados com marcas de uso/detalhes físicos.
+                </p>
+              </div>
+            </label>
+            {isGarimpo && (
+              <span className="px-2 py-0.5 bg-orange-600 text-white text-[10px] font-black rounded-md uppercase tracking-wider shrink-0 shadow-xs">
+                Ativo
+              </span>
+            )}
+          </div>
+
+          {isGarimpo && (
+            <div className="mt-3 pt-3 border-t border-orange-200/80 space-y-1.5">
+              <label className="text-xs font-bold text-orange-950">
+                Motivo / Detalhes do Garimpo (Exibido para o cliente):
+              </label>
+              <input
+                type="text"
+                value={garimpoDetails}
+                onChange={(e) => setGarimpoDetails(e.target.value)}
+                placeholder="Ex: Preço promocional de desapego / Disco com marcas superficiais / Capa com desgaste natural"
+                className="w-full px-3 py-2 bg-white border border-orange-200 rounded-xl text-xs text-orange-950 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+          )}
         </div>
 
         {/* Condition Section */}

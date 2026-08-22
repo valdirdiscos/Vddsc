@@ -30,17 +30,21 @@ import {
   HelpCircle,
   TrendingUp,
   User,
-  UserCheck
+  UserCheck,
+  Shirt,
+  Eye
 } from 'lucide-react';
-import { SavedListing, DJPlaylist } from '../types';
+import { SavedListing, DJPlaylist, TShirtProduct, TShirtSize, TShirtModel, TShirtColor } from '../types';
 import { PublicProductModal } from './PublicProductModal';
 import { PublicCartDrawer, PublicCartItem } from './PublicCartDrawer';
 import { AboutAndContactSection } from './AboutAndContactSection';
+import { TShirtsSection } from './TShirtsSection';
 import { CustomerAuthModal } from './CustomerAuthModal';
 import { CustomerDashboardModal } from './CustomerDashboardModal';
 import { LogoUploadModal } from './LogoUploadModal';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
+import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason } from '../utils/formatHelper';
 
 interface PublicStorefrontProps {
   listings: SavedListing[];
@@ -66,14 +70,18 @@ export function PublicStorefront({
   const [isLogoUploadModalOpen, setIsLogoUploadModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'register'>('login');
 
+  // Main Category & Navigation: 'discos' | 'cds' | 'dvds' | 'garimpo' | 'tshirts' | 'highlights' | 'playlists' | 'about'
+  const [activeMainTab, setActiveMainTab] = useState<'discos' | 'cds' | 'dvds' | 'garimpo' | 'tshirts' | 'highlights' | 'playlists' | 'about'>('discos');
+  
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
-  const [selectedFormat, setSelectedFormat] = useState<string>('all');
+  const [selectedFormat, setSelectedFormat] = useState<string>('vinyl');
   const [selectedCondition, setSelectedCondition] = useState<string>('all');
+  const [conditionCategory, setConditionCategory] = useState<'all' | 'new' | 'used'>('all');
+  const [garimpoSubFilter, setGarimpoSubFilter] = useState<'all' | 'under25' | 'under40' | 'under60' | 'damaged'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'artist_asc'>('newest');
-  const [onlyAvailable, setOnlyAvailable] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'all' | 'highlights' | 'playlists' | 'about'>('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'sold'>('all');
 
   // Selected Product for Modal
   const [selectedProduct, setSelectedProduct] = useState<SavedListing | null>(null);
@@ -98,31 +106,68 @@ export function PublicStorefront({
   };
 
   const handleAddToCart = (listing: SavedListing) => {
-    const existingIndex = cart.findIndex(item => item.listing.id === listing.id);
+    const existingIndex = cart.findIndex(item => item.listing && item.listing.id === listing.id);
     let newCart: PublicCartItem[];
     if (existingIndex >= 0) {
       newCart = cart.map((item, idx) => 
         idx === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
       );
     } else {
-      newCart = [...cart, { id: listing.id, listing, quantity: 1 }];
+      newCart = [...cart, { id: listing.id, itemType: 'listing', listing, quantity: 1 }];
     }
     updateCartState(newCart);
     setIsCartOpen(true);
   };
 
-  const handleRemoveFromCart = (listingId: string) => {
-    const newCart = cart.filter(item => item.listing.id !== listingId);
+  const handleAddTShirtToCart = (
+    tshirt: TShirtProduct, 
+    size: TShirtSize, 
+    color: TShirtColor, 
+    model: TShirtModel, 
+    quantity: number = 1
+  ) => {
+    const itemUniqueId = `tshirt_${tshirt.id}_${size}_${color.id}_${model.replace(/\s+/g, '_')}`;
+    const existingIndex = cart.findIndex(item => item.id === itemUniqueId);
+    let newCart: PublicCartItem[];
+    if (existingIndex >= 0) {
+      newCart = cart.map((item, idx) =>
+        idx === existingIndex ? { ...item, quantity: item.quantity + quantity } : item
+      );
+    } else {
+      newCart = [
+        ...cart,
+        {
+          id: itemUniqueId,
+          itemType: 'tshirt',
+          tshirt: {
+            id: tshirt.id,
+            name: tshirt.name,
+            size,
+            color,
+            model,
+            price: tshirt.price,
+            image: tshirt.image
+          },
+          quantity
+        }
+      ];
+    }
+    updateCartState(newCart);
+    setIsCartOpen(true);
+  };
+
+  const handleRemoveFromCart = (itemId: string) => {
+    const newCart = cart.filter(item => item.id !== itemId && item.listing?.id !== itemId);
     updateCartState(newCart);
   };
 
-  const handleUpdateQty = (listingId: string, qty: number) => {
+  const handleUpdateQty = (itemId: string, qty: number) => {
     if (qty <= 0) {
-      handleRemoveFromCart(listingId);
+      handleRemoveFromCart(itemId);
       return;
     }
     const newCart = cart.map(item => 
-      item.listing.id === listingId ? { ...item, quantity: qty } : item
+      (item.id === itemId || item.listing?.id === itemId) ? { ...item, quantity: qty } : item
     );
     updateCartState(newCart);
   };
@@ -136,8 +181,11 @@ export function PublicStorefront({
   // Filter listings based on public store criteria
   const filteredListings = useMemo(() => {
     return listings.filter(item => {
-      // Must be an active product (not sold out if onlyAvailable is checked)
-      if (onlyAvailable && item.status === 'sold') {
+      // Availability filter
+      if (availabilityFilter === 'available' && item.status === 'sold') {
+        return false;
+      }
+      if (availabilityFilter === 'sold' && item.status !== 'sold') {
         return false;
       }
 
@@ -183,13 +231,33 @@ export function PublicStorefront({
 
       // Format Filter
       if (selectedFormat !== 'all') {
-        const fmt = (item.release.formats?.[0]?.name || '').toLowerCase();
-        if (selectedFormat === 'lp' && !fmt.includes('vinyl') && !fmt.includes('lp') && !fmt.includes('12"')) return false;
-        if (selectedFormat === 'single' && !fmt.includes('7"') && !fmt.includes('single') && !fmt.includes('compacto')) return false;
-        if (selectedFormat === 'cd' && !fmt.includes('cd')) return false;
+        const formatInfo = getListingFormatInfo(item);
+
+        if (selectedFormat === 'vinyl') {
+          if (!formatInfo.type.startsWith('vinyl')) return false;
+        } else if (selectedFormat === 'lp') {
+          if (formatInfo.type !== 'vinyl_lp') return false;
+        } else if (selectedFormat === 'single') {
+          if (formatInfo.type !== 'vinyl_single') return false;
+        } else if (selectedFormat === 'vinyl_10') {
+          if (formatInfo.type !== 'vinyl_10') return false;
+        } else if (selectedFormat === 'cd') {
+          if (formatInfo.type !== 'cd') return false;
+        } else if (selectedFormat === 'dvd') {
+          if (formatInfo.type !== 'dvd') return false;
+        } else if (selectedFormat === 'cassette') {
+          if (formatInfo.type !== 'cassette') return false;
+        }
       }
 
-      // Condition Filter
+      // Condition Category Filter (Divisão Novo vs Usado)
+      if (conditionCategory !== 'all') {
+        const condInfo = getItemConditionInfo(item);
+        if (conditionCategory === 'new' && !condInfo.isNew) return false;
+        if (conditionCategory === 'used' && condInfo.isNew) return false;
+      }
+
+      // Specific Goldmine Condition Filter
       if (selectedCondition !== 'all') {
         const cond = item.condition?.mediaCondition || '';
         if (selectedCondition === 'nm_plus' && cond !== 'M' && cond !== 'NM') return false;
@@ -197,10 +265,33 @@ export function PublicStorefront({
       }
 
       // Tab Highlights
-      if (activeTab === 'highlights') {
+      if (activeMainTab === 'highlights') {
         const price = item.pricing?.directPrice || item.pricing?.basePriceBrl || 0;
         const isImported = item.release.country && !['brasil', 'brazil', 'br'].includes(item.release.country.toLowerCase());
         if (price < 120 && !isImported) return false;
+      }
+
+      // Tab Garimpo
+      if (activeMainTab === 'garimpo') {
+        if (!isGarimpoItem(item)) return false;
+        
+        const price = item.pricing?.directPrice || item.pricing?.basePriceBrl || 0;
+        const mediaCond = (item.condition?.mediaCondition || '').trim().toUpperCase();
+        const sleeveCond = (item.condition?.sleeveCondition || '').trim().toUpperCase();
+        const combinedNotes = `${item.condition?.mediaDetails || ''} ${item.condition?.sleeveDetails || ''} ${item.garimpoDetails || ''} ${item.release?.notes || ''}`.toLowerCase();
+
+        if (garimpoSubFilter === 'under25' && price > 25) return false;
+        if (garimpoSubFilter === 'under40' && price > 40) return false;
+        if (garimpoSubFilter === 'under60' && price > 60) return false;
+        if (garimpoSubFilter === 'damaged') {
+          const isDamaged = ['G', 'G+', 'F', 'P', 'POOR', 'FAIR'].includes(mediaCond) || 
+                            ['G', 'G+', 'F', 'P', 'POOR', 'FAIR'].includes(sleeveCond) ||
+                            combinedNotes.includes('danificado') ||
+                            combinedNotes.includes('com detalhes') ||
+                            combinedNotes.includes('marcas') ||
+                            combinedNotes.includes('risco');
+          if (!isDamaged) return false;
+        }
       }
 
       return true;
@@ -213,7 +304,7 @@ export function PublicStorefront({
       if (sortBy === 'artist_asc') return (a.release.artist || '').localeCompare(b.release.artist || '');
       return (b.createdAt || '').localeCompare(a.createdAt || '');
     });
-  }, [listings, searchQuery, selectedGenre, selectedFormat, selectedCondition, sortBy, onlyAvailable, activeTab]);
+  }, [listings, searchQuery, selectedGenre, selectedFormat, selectedCondition, conditionCategory, garimpoSubFilter, sortBy, availabilityFilter, activeMainTab]);
 
   const genresPills = [
     { id: 'all', label: '🔥 Todo o Acervo' },
@@ -411,85 +502,182 @@ export function PublicStorefront({
           </div>
         </div>
 
-        {/* Curated Genre Strip */}
+        {/* Main Categories Bar - requested: Discos, CDs, DVDs, Camisetas */}
         <div className="border-t border-slate-100 bg-[#fdfcfb]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
-            {genresPills.map(g => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => {
-                  setSelectedGenre(g.id);
-                  setActiveTab('all');
-                }}
-                className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
-                  selectedGenre === g.id && activeTab === 'all'
-                    ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
-                    : 'bg-white text-slate-600 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                {g.label}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('highlights');
-                setSelectedGenre('all');
-              }}
-              className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
-                activeTab === 'highlights'
-                  ? 'bg-amber-800 text-white border-amber-800 shadow-sm'
-                  : 'bg-white text-amber-900 border-amber-200/80 hover:bg-amber-50'
-              }`}
-            >
-              <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-              <span>💎 Raridades do Valdir</span>
-            </button>
-
-            {playlists.length > 0 && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+            
+            {/* Primary Category Buttons */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Discos */}
               <button
                 type="button"
                 onClick={() => {
-                  setActiveTab('playlists');
-                  setSelectedGenre('all');
+                  setActiveMainTab('discos');
+                  setSelectedFormat('vinyl');
                 }}
-                className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
-                  activeTab === 'playlists'
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                    : 'bg-white text-indigo-900 border-indigo-200/80 hover:bg-indigo-50'
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'discos'
+                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
+                    : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
                 }`}
               >
-                <Radio className="h-3 w-3 text-indigo-400" />
-                <span>🎧 Playlists DJ ({playlists.length})</span>
+                <Disc className="h-3.5 w-3.5 text-amber-400" />
+                <span>Discos (Vinil)</span>
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('about');
-                setSelectedGenre('all');
-              }}
-              className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ml-auto ${
-                activeTab === 'about'
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                  : 'bg-white text-slate-700 border-slate-200/80 hover:bg-slate-50'
-              }`}
-            >
-              <Info className="h-3 w-3 text-slate-400" />
-              <span>Sobre a Loja, Balcão & Dúvidas</span>
-            </button>
+              {/* CDs */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('cds');
+                  setSelectedFormat('cd');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'cds'
+                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
+                    : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
+                }`}
+              >
+                <span className="text-[11px]">💿</span>
+                <span>CDs</span>
+              </button>
+
+              {/* DVDs */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('dvds');
+                  setSelectedFormat('dvd');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'dvds'
+                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
+                    : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
+                }`}
+              >
+                <span className="text-[11px]">🎬</span>
+                <span>DVDs</span>
+              </button>
+
+              {/* Sessão Garimpo */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('garimpo');
+                  setSelectedFormat('all');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'garimpo'
+                    ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white border-orange-600 shadow-xs ring-1 ring-orange-400/50'
+                    : 'bg-orange-50/90 text-orange-950 border-orange-200/90 hover:bg-orange-100/80'
+                }`}
+              >
+                <Flame className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
+                <span>Sessão Garimpo</span>
+              </button>
+
+              {/* Camisetas */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('tshirts');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'tshirts'
+                    ? 'bg-amber-950 text-amber-200 border-amber-950 shadow-xs ring-1 ring-amber-500/50'
+                    : 'bg-amber-50 text-amber-950 border-amber-300/80 hover:bg-amber-100'
+                }`}
+              >
+                <Shirt className="h-3.5 w-3.5 text-amber-600" />
+                <span>Camisetas (DTF)</span>
+              </button>
+            </div>
+
+            {/* Secondary / Utility Tabs */}
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('highlights');
+                  setSelectedFormat('all');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
+                  activeMainTab === 'highlights'
+                    ? 'bg-amber-800 text-white border-amber-800 shadow-xs'
+                    : 'bg-white text-amber-900 border-amber-200 hover:bg-amber-50'
+                }`}
+              >
+                <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+                <span>Raridades</span>
+              </button>
+
+              {playlists.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('playlists');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
+                    activeMainTab === 'playlists'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'bg-white text-indigo-900 border-indigo-200 hover:bg-indigo-50'
+                  }`}
+                >
+                  <Radio className="h-3 w-3 text-indigo-400" />
+                  <span>Playlists DJ ({playlists.length})</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('about');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
+                  activeMainTab === 'about'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <Info className="h-3 w-3 text-slate-400" />
+                <span>Sobre a Loja</span>
+              </button>
+            </div>
+
           </div>
         </div>
+
+        {/* Music Genre Filter Strip (Only shown when browsing music items, never on tshirts) */}
+        {(activeMainTab === 'discos' || activeMainTab === 'cds' || activeMainTab === 'dvds' || activeMainTab === 'garimpo' || activeMainTab === 'highlights') && (
+          <div className="border-t border-slate-100 bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
+                Gênero:
+              </span>
+              {genresPills.map(g => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setSelectedGenre(g.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
+                    selectedGenre === g.id
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                      : 'bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-slate-100'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
         
-        {/* Curated Hero Spotlight (if not searching) */}
-        {!searchQuery && activeTab === 'all' && selectedGenre === 'all' && (
+        {/* Curated Hero Spotlight (if not searching and on Discos tab) */}
+        {!searchQuery && activeMainTab === 'discos' && selectedGenre === 'all' && (
           <div className="bg-gradient-to-br from-[#0c232a] via-[#163840] to-[#b3431f] text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-teal-900/40 relative overflow-hidden">
             {/* Background Vinyl Graphic Rings */}
             <div className="absolute right-0 top-0 bottom-0 w-full lg:w-1/2 opacity-15 pointer-events-none flex items-center justify-end pr-4 sm:pr-12">
@@ -535,7 +723,17 @@ export function PublicStorefront({
                     <MessageCircle className="h-4 w-4" />
                     <span>Falar com o Valdir no WhatsApp</span>
                   </a>
-                  <span className="text-xs text-slate-300 font-medium">
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveMainTab('tshirts')}
+                    className="px-3.5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Shirt className="h-4 w-4 text-amber-400" />
+                    <span>Conheça as Camisetas Oficiais (DTF)</span>
+                  </button>
+
+                  <span className="text-xs text-slate-300 font-medium hidden sm:inline">
                     Monte seu carrinho e faça seu pedido direto
                   </span>
                 </div>
@@ -565,14 +763,83 @@ export function PublicStorefront({
           </div>
         )}
 
-        {/* Playlist Curated Tab View */}
-        {activeTab === 'about' ? (
+        {/* Garimpo Spotlight Banner (when on Garimpo tab and not searching) */}
+        {!searchQuery && activeMainTab === 'garimpo' && (
+          <div className="bg-gradient-to-br from-[#2a1306] via-[#4d1f0d] to-[#9c3614] text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-orange-900/50 relative overflow-hidden">
+            {/* Background elements */}
+            <div className="absolute right-0 top-0 bottom-0 w-full lg:w-1/2 opacity-15 pointer-events-none flex items-center justify-end pr-6">
+              <div className="w-80 h-80 rounded-full border-[14px] border-orange-400/40 border-dashed animate-spin" style={{ animationDuration: '60s' }} />
+            </div>
+
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              <div className="lg:col-span-8 space-y-3.5">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/25 text-orange-200 border border-orange-400/30 text-xs font-black shadow-xs uppercase tracking-wide">
+                  <Flame className="h-4 w-4 text-orange-400 fill-orange-400" />
+                  <span>Sessão Garimpo & Oportunidades</span>
+                </div>
+                
+                <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight font-sans">
+                  Achados, pechinchas e oportunidades para garimpar.
+                </h2>
+                
+                <p className="text-xs sm:text-sm text-orange-100/90 leading-relaxed font-medium max-w-xl">
+                  Aqui você encontra discos e mídias de menor valor de mercado, títulos com preços populares e edições especiais com marcas de época ou detalhes físicos descritos. A oportunidade perfeita para expandir seu acervo pagando pouco!
+                </p>
+
+                {/* Sub-filters for Garimpo */}
+                <div className="pt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-bold text-orange-200/80 mr-1 block sm:inline">Filtrar Achados:</span>
+                  {[
+                    { id: 'all', label: '🔥 Todos do Garimpo' },
+                    { id: 'under25', label: '🏷️ Até R$ 25' },
+                    { id: 'under40', label: '💰 Até R$ 40' },
+                    { id: 'under60', label: '📦 Até R$ 60' },
+                    { id: 'damaged', label: '🔍 Com Detalhes / Marcas' },
+                  ].map(chip => (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      onClick={() => setGarimpoSubFilter(chip.id as any)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border flex items-center gap-1 ${
+                        garimpoSubFilter === chip.id
+                          ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md scale-105'
+                          : 'bg-black/30 text-orange-100 border-orange-500/30 hover:bg-black/45'
+                      }`}
+                    >
+                      <span>{chip.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="lg:col-span-4 flex flex-col items-center justify-center">
+                <div className="p-5 bg-black/40 border border-orange-500/30 rounded-3xl text-center space-y-2 backdrop-blur-sm">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-lg">
+                    <Flame className="h-8 w-8 fill-white" />
+                  </div>
+                  <h3 className="text-base font-black text-white">Garimpo Transparente</h3>
+                  <p className="text-[11px] text-orange-200/80 leading-snug">
+                    Todas as condições e detalhes visuais são informados com clareza. Você sabe exatamente o estado de cada exemplar!
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Content View Routing */}
+        {activeMainTab === 'about' ? (
           <AboutAndContactSection
             whatsappNumber={whatsappNumber}
             pixKey={pixKey}
             onOpenLogoUpload={() => setIsLogoUploadModalOpen(true)}
           />
-        ) : activeTab === 'playlists' ? (
+        ) : activeMainTab === 'tshirts' ? (
+          <TShirtsSection
+            onAddToCart={handleAddTShirtToCart}
+            whatsappNumber={whatsappNumber}
+          />
+        ) : activeMainTab === 'playlists' ? (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
@@ -581,10 +848,13 @@ export function PublicStorefront({
               </div>
               <button
                 type="button"
-                onClick={() => setActiveTab('all')}
+                onClick={() => {
+                  setActiveMainTab('discos');
+                  setSelectedFormat('vinyl');
+                }}
                 className="text-xs font-bold text-amber-700 hover:underline cursor-pointer"
               >
-                Voltar para o catálogo completo
+                Voltar para os discos
               </button>
             </div>
 
@@ -630,7 +900,15 @@ export function PublicStorefront({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-black text-slate-800">
-                  {filteredListings.length} {filteredListings.length === 1 ? 'disco encontrado' : 'discos no acervo'}
+                  {filteredListings.length} {
+                    activeMainTab === 'garimpo'
+                      ? (filteredListings.length === 1 ? 'item no garimpo' : 'itens no garimpo')
+                      : activeMainTab === 'cds'
+                      ? (filteredListings.length === 1 ? 'CD encontrado' : 'CDs no acervo')
+                      : activeMainTab === 'dvds'
+                      ? (filteredListings.length === 1 ? 'DVD encontrado' : 'DVDs no acervo')
+                      : (filteredListings.length === 1 ? 'disco encontrado' : 'discos no acervo')
+                  }
                 </span>
 
                 {/* Format Filter */}
@@ -639,20 +917,66 @@ export function PublicStorefront({
                   onChange={(e) => setSelectedFormat(e.target.value)}
                   className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden"
                 >
-                  <option value="all">Todos os Formatos</option>
-                  <option value="lp">Apenas LP 12"</option>
-                  <option value="single">Apenas Compactos 7"</option>
-                  <option value="cd">CDs</option>
+                  {activeMainTab === 'discos' ? (
+                    <>
+                      <option value="vinyl">Todos os Discos de Vinil</option>
+                      <option value="lp">Apenas LPs 12"</option>
+                      <option value="single">Apenas Compactos 7"</option>
+                      <option value="vinyl_10">Apenas Vinil 10"</option>
+                    </>
+                  ) : activeMainTab === 'cds' ? (
+                    <>
+                      <option value="cd">Todos os CDs (Compact Disc)</option>
+                    </>
+                  ) : activeMainTab === 'dvds' ? (
+                    <>
+                      <option value="dvd">Todos os DVDs de Shows/Música</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="all">Todos os Formatos</option>
+                      <option value="vinyl">Discos de Vinil (LP / Compacto)</option>
+                      <option value="cd">CDs</option>
+                      <option value="dvd">DVDs</option>
+                    </>
+                  )}
+                </select>
+
+                {/* Availability Filter */}
+                <select
+                  value={availabilityFilter}
+                  onChange={(e) => setAvailabilityFilter(e.target.value as any)}
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-bold text-slate-800 focus:outline-hidden"
+                >
+                  <option value="all">📦 Todos (Disponíveis e Vendidos)</option>
+                  <option value="available">🟢 Apenas Disponíveis</option>
+                  <option value="sold">🔴 Apenas Vendidos (Histórico)</option>
                 </select>
 
                 {/* Condition Filter */}
                 <select
-                  value={selectedCondition}
-                  onChange={(e) => setSelectedCondition(e.target.value)}
+                  value={conditionCategory !== 'all' ? conditionCategory : selectedCondition}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'new') {
+                      setConditionCategory('new');
+                      setSelectedCondition('all');
+                    } else if (val === 'used') {
+                      setConditionCategory('used');
+                      setSelectedCondition('all');
+                    } else if (val === 'all') {
+                      setConditionCategory('all');
+                      setSelectedCondition('all');
+                    } else {
+                      setConditionCategory('all');
+                      setSelectedCondition(val);
+                    }
+                  }}
                   className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden"
                 >
-                  <option value="all">Qualquer Conservação</option>
-                  <option value="nm_plus">Near Mint ou Mint (Impecável)</option>
+                  <option value="all">Todas as Condições</option>
+                  <option value="new">✨ Apenas Novos & Lacrados</option>
+                  <option value="nm_plus">Near Mint / Mint</option>
                   <option value="vg_plus">VG+ ou superior</option>
                 </select>
               </div>
@@ -680,7 +1004,13 @@ export function PublicStorefront({
                   <Disc className="h-8 w-8" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="font-black text-slate-800 text-base">Nenhum disco encontrado com estes filtros</h4>
+                  <h4 className="font-black text-slate-800 text-base">
+                    {activeMainTab === 'cds'
+                      ? 'Nenhum CD encontrado com estes filtros'
+                      : activeMainTab === 'dvds'
+                      ? 'Nenhum DVD encontrado com estes filtros'
+                      : 'Nenhum disco encontrado com estes filtros'}
+                  </h4>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
                     Tente buscar por outro termo ou limpar os filtros de gênero e estado de conservação.
                   </p>
@@ -690,9 +1020,15 @@ export function PublicStorefront({
                   onClick={() => {
                     setSearchQuery('');
                     setSelectedGenre('all');
-                    setSelectedFormat('all');
+                    setConditionCategory('all');
+                    if (activeMainTab === 'cds') {
+                      setSelectedFormat('cd');
+                    } else if (activeMainTab === 'dvds') {
+                      setSelectedFormat('dvd');
+                    } else {
+                      setSelectedFormat('vinyl');
+                    }
                     setSelectedCondition('all');
-                    setActiveTab('all');
                   }}
                   className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl cursor-pointer shadow"
                 >
@@ -705,8 +1041,8 @@ export function PublicStorefront({
                   const { release, condition, pricing } = item;
                   const price = pricing?.directPrice || pricing?.basePriceBrl || 0;
                   const cover = release.coverImage || (item.customImages && item.customImages[0]);
-                  const formatName = release.formats?.[0]?.name || 'Vinil LP';
-                  const isSingle = formatName.toLowerCase().includes('7"') || formatName.toLowerCase().includes('compacto');
+                  const formatInfo = getListingFormatInfo(item);
+                  const conditionInfo = getItemConditionInfo(item);
 
                   return (
                     <motion.div
@@ -736,18 +1072,28 @@ export function PublicStorefront({
                         )}
 
                         {/* Badges on image */}
-                        <div className="absolute top-2 left-2 flex flex-col gap-1">
-                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase shadow-xs ${
-                            isSingle ? 'bg-indigo-600 text-white' : 'bg-slate-950/80 text-white backdrop-blur-xs'
-                          }`}>
-                            {isSingle ? 'Compacto 7"' : 'LP 12"'}
+                        <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[85%]">
+                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase shadow-xs ${formatInfo.badgeBg}`}>
+                            {formatInfo.badgeLabel}
                           </span>
 
-                          {condition?.mediaCondition && (
-                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-500 text-slate-950 shadow-xs">
-                              Mídia: {condition.mediaCondition}
+                          {isGarimpoItem(item) && (
+                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-xs flex items-center gap-1 border border-orange-400/40 uppercase tracking-wider">
+                              <Flame className="h-2.5 w-2.5 fill-white" />
+                              Garimpo
                             </span>
                           )}
+
+                          {conditionInfo.isNew ? (
+                            <span className="px-2 py-0.5 rounded-md text-[9.5px] font-black bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md flex items-center gap-1 border border-emerald-400/50 uppercase tracking-wide">
+                              <Sparkles className="h-2.5 w-2.5 text-emerald-200 fill-emerald-200" />
+                              Novo / Lacrado
+                            </span>
+                          ) : condition?.mediaCondition ? (
+                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-slate-950/75 text-slate-200 backdrop-blur-xs shadow-xs">
+                              Mídia: {condition.mediaCondition}
+                            </span>
+                          ) : null}
                         </div>
 
                         {/* Heart Wishlist Button */}
@@ -774,10 +1120,11 @@ export function PublicStorefront({
 
                         {/* Sold overlay if applicable */}
                         {item.status === 'sold' && (
-                          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center">
-                            <span className="px-3 py-1 bg-rose-600 text-white font-black text-xs uppercase tracking-wider rounded-lg shadow-lg">
-                              Vendido
+                          <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-[1.5px] flex flex-col items-center justify-center p-2 text-center">
+                            <span className="px-2.5 py-1 bg-rose-600/95 text-white font-black text-[11px] uppercase tracking-wider rounded-lg shadow-lg border border-rose-400/40 mb-1">
+                              Vendido / Esgotado
                             </span>
+                            <span className="text-[9.5px] text-slate-300 font-medium">Acervo Histórico</span>
                           </div>
                         )}
                       </div>
@@ -799,23 +1146,35 @@ export function PublicStorefront({
                           </p>
                         </div>
 
-                        {/* Pricing & Add to Cart */}
+                        {/* Pricing & Action */}
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                           <div>
                             <span className="text-[9px] text-slate-400 font-semibold block uppercase">Preço</span>
-                            <span className="text-sm font-black text-slate-950">
+                            <span className={`text-sm font-black ${item.status === 'sold' ? 'text-slate-500 line-through' : 'text-slate-950'}`}>
                               R$ {price.toFixed(2)}
                             </span>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleAddToCart(item)}
-                            className="p-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl transition-all cursor-pointer shadow-xs active:scale-90 shrink-0"
-                            title="Adicionar ao Carrinho"
-                          >
-                            <ShoppingBag className="h-4 w-4" />
-                          </button>
+                          {item.status === 'sold' ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProduct(item)}
+                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[11px] rounded-xl transition-all cursor-pointer border border-slate-300 flex items-center gap-1 shrink-0"
+                              title="Ver detalhes do item vendido"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-slate-500" />
+                              <span>Detalhes</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleAddToCart(item)}
+                              className="p-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl transition-all cursor-pointer shadow-xs active:scale-90 shrink-0"
+                              title="Adicionar ao Carrinho"
+                            >
+                              <ShoppingBag className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </motion.div>

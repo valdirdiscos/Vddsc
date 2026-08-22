@@ -307,7 +307,7 @@ function getImportTag(country?: string): string {
 }
 
   // Programmatic fallback for Listing Generation if Gemini fails/is overloaded
-  function generateProgrammaticListing(release: any, condition: any, pricing: any, drawer: string) {
+  function generateProgrammaticListing(release: any, condition: any, pricing: any, drawer: string, isGarimpo?: boolean, garimpoDetails?: string) {
     const drawerClean = drawer ? String(drawer).trim() : "";
     const formatString = release.formats?.map((f: any) => `${f.qty}x ${f.name} (${f.descriptions?.join(", ") || ""})`).join(", ") || "Disco";
     
@@ -378,6 +378,15 @@ function getImportTag(country?: string): string {
 
     if (isOnlyMedia) {
       descLines.push(`⚠️ **ATENÇÃO: ANÚNCIO REFERENTE APENAS AO DISCO (NÃO POSSUI A CAPA ORIGINAL DE PAPELÃO/ENCARTE). ENVIADO EM CAPA DE PROTEÇÃO GENÉRICA.**\n`);
+    }
+
+    if (isGarimpo) {
+      descLines.push(`🔥 **SESSÃO GARIMPO & OPORTUNIDADES - VALDIR DISCOS**`);
+      descLines.push(`Item com menor valor de mercado ou avarias/detalhes físicos anunciados com total transparência.`);
+      if (garimpoDetails && garimpoDetails.trim()) {
+        descLines.push(`• Detalhes / Motivo: ${garimpoDetails.trim()}`);
+      }
+      descLines.push(``);
     }
 
     if (drawerClean) {
@@ -767,7 +776,7 @@ Gravadora original e número de catálogo devem ser os reais deste álbum cláss
   });
 
   // Unified generator function for generating both Shopee and Mercado Livre listings in a single Gemini call
-  async function generateAllListings(release: any, condition: any, pricing: any, drawer: string) {
+  async function generateAllListings(release: any, condition: any, pricing: any, drawer: string, isGarimpo?: boolean, garimpoDetails?: string) {
     const drawerClean = drawer ? String(drawer).trim() : "";
     const formatString = release.formats?.map((f: any) => `${f.qty}x ${f.name} (${f.descriptions?.join(", ") || ""})`).join(", ") || "Disco";
     const mediaFormatLower = (release.formats?.[0]?.name || "").toLowerCase();
@@ -803,6 +812,11 @@ Gravadora original e número de catálogo devem ser os reais deste álbum cláss
 
 Gere um anúncio de vendas super direto e de forma compartilhada para duas plataformas de marketplace populares (Shopee e Mercado Livre).
 A descrição deve ser compartilhada e idêntica para ambas, e, por isso, você está **RIGOROSAMENTE PROIBIDO de citar os nomes das plataformas ("Shopee", "Mercado Livre", "MercadoLivre", "ML") ou qualquer outro nome de site na descrição**! O texto deve ser focado puramente nas especificações concretas do item físico, no estado de conservação real dele, nas faixas de música e no excelente e seguro serviço de envio da loja Valdir Discos.
+
+${isGarimpo ? `🚨 SESSÃO GARIMPO & OPORTUNIDADES:
+- Este item faz parte da Sessão Garimpo (menor valor de mercado, avarias ou oportunidade especial para colecionadores).
+- Motivo / Detalhes informados pelo Valdir: "${garimpoDetails || 'Item com menor valor de mercado / oportunidade'}".
+- É OBRIGATÓRIO incluir logo no início da descrição a seção "GARIMPO & OPORTUNIDADES" explicando esses detalhes com total transparência!` : ""}
 
 ${isOnlySleeve ? `🚨 ALERTA CRÍTICO: ESTE ANÚNCIO É REFERENTE APENAS À CAPA E ENCARTE (NÃO POSSUI O DISCO/MÍDIA).
 - É OBRIGATÓRIO INCLUIR "APENAS CAPA (SEM DISCO)" EM MAIÚSCULAS NO FINAL DO TÍTULO DA SHOPEE E DO MERCADO LIVRE!
@@ -1069,19 +1083,19 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
       };
     } catch (geminiErr) {
       console.warn("Gemini generation failed, falling back to programmatic template:", geminiErr);
-      return generateProgrammaticListing(release, condition, pricing, drawer);
+      return generateProgrammaticListing(release, condition, pricing, drawer, isGarimpo, garimpoDetails);
     }
   }
 
   // Generate both Shopee and Mercado Livre in a single highly optimized call
   app.post("/api/generate-all", async (req, res) => {
-    const { release, condition, pricing, drawer } = req.body;
+    const { release, condition, pricing, drawer, isGarimpo, garimpoDetails } = req.body;
     if (!release) {
       return res.status(400).json({ error: "Faltam dados do disco para gerar o anúncio." });
     }
 
     try {
-      const results = await generateAllListings(release, condition, pricing, drawer);
+      const results = await generateAllListings(release, condition, pricing, drawer, isGarimpo, garimpoDetails);
       return res.json({ success: true, ...results });
     } catch (error: any) {
       console.error("Unified Generation error:", error);

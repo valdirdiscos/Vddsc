@@ -39,22 +39,33 @@ interface DigitalMusicSectionProps {
     }
   ) => void;
   whatsappNumber?: string;
+  albums?: DigitalAlbumProduct[];
 }
 
 export function DigitalMusicSection({
   onAddToCart,
-  whatsappNumber = '5555981164666'
+  whatsappNumber = '5555981164666',
+  albums = DIGITAL_ALBUM_PRODUCTS
 }: DigitalMusicSectionProps) {
+  const albumList = albums && albums.length > 0 ? albums : DIGITAL_ALBUM_PRODUCTS;
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
-  const [selectedAlbum, setSelectedAlbum] = useState<DigitalAlbumProduct>(DIGITAL_ALBUM_PRODUCTS[0]);
+  const [selectedAlbum, setSelectedAlbum] = useState<DigitalAlbumProduct>(albumList[0]);
   const [selectedFormat, setSelectedFormat] = useState<AudioFormat>('FLAC');
   
   // Audio Player State (Web Audio simulation / sound synthesizer preview)
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [activeTrack, setActiveTrack] = useState<DigitalTrack | null>(DIGITAL_ALBUM_PRODUCTS[0].tracks[0]);
+  const [activeTrack, setActiveTrack] = useState<DigitalTrack | null>(albumList[0]?.tracks?.[0] || null);
   const [playbackProgress, setPlaybackProgress] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [addedToast, setAddedToast] = useState<string | null>(null);
+
+  // Update selected album when albumList changes
+  useEffect(() => {
+    if (!selectedAlbum || !albumList.some(a => a.id === selectedAlbum.id)) {
+      setSelectedAlbum(albumList[0]);
+      setActiveTrack(albumList[0]?.tracks?.[0] || null);
+    }
+  }, [albumList]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
@@ -124,8 +135,8 @@ export function DigitalMusicSection({
   };
 
   const filteredAlbums = selectedGenre === 'all' 
-    ? DIGITAL_ALBUM_PRODUCTS 
-    : DIGITAL_ALBUM_PRODUCTS.filter(a => a.genre.toLowerCase().includes(selectedGenre.toLowerCase()));
+    ? albumList 
+    : albumList.filter(a => a.genre.toLowerCase().includes(selectedGenre.toLowerCase()));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">

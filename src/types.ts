@@ -374,7 +374,9 @@ export interface DigitalTrack {
   bpm?: number;
   key?: string;
   sampleRate?: string; // e.g. '24-bit / 96kHz Lossless'
-  downloadLink?: string; // direct download secure token
+  downloadLink?: string; // direct download secure token / cloud link (Google Drive, Dropbox, S3)
+  storageProvider?: string; // e.g. 'google_drive', 'dropbox', 's3', 'mega', 'local'
+  storagePath?: string; // e.g. '/ValdirDiscos/HiRes/2026/TimMaia/01_Imunizacao.flac'
 }
 
 export interface DigitalAlbumProduct {
@@ -394,10 +396,51 @@ export interface DigitalAlbumProduct {
   badge?: string; // e.g. "24-bit Hi-Res", "Raridade Digitalizada"
   isHiRes: boolean;
   fileSizeMB: number;
+  zipDownloadUrl?: string; // full album high-res zip archive download link
+  storageProvider?: string; // e.g. 'google_drive', 'dropbox', 's3', 'mega', 'local'
+  storageFolderId?: string; // Cloud folder ID or path
   youtubeMusicUrl?: string;
   spotifyUrl?: string;
   embedYoutubeId?: string;
   inStock?: boolean;
+  publishedAt?: string;
+  downloadsCount?: number;
+  totalRevenue?: number;
+}
+
+export type StorageProviderType = 'google_drive' | 'dropbox' | 's3_compatible' | 'mega' | 'onedrive' | 'local_server' | 'direct_url';
+
+export interface StorageProviderConfig {
+  id: string;
+  provider: StorageProviderType;
+  name: string; // e.g. "Google Drive Acervo Valdir", "Dropbox Audio 96kHz"
+  baseUrlOrFolderUrl: string;
+  folderId?: string;
+  apiKeyOrSecret?: string;
+  accessMode: 'public_direct' | 'shared_folder' | 'presigned_token' | 'protected_link';
+  notes?: string;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  totalStorageUsedGB?: number;
+}
+
+export interface DigitalDownloadLog {
+  id: string;
+  orderId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  itemTitle: string;
+  format: AudioFormat;
+  downloadUrl: string;
+  expiresAt: string;
+  downloadsCount: number;
+  maxDownloadsAllowed: number;
+  createdAt: string;
+  lastDownloadedAt?: string;
+  status: 'active' | 'expired' | 'revoked';
 }
 
 // ----------------------------------------------------

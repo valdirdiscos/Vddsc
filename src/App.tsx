@@ -45,11 +45,15 @@ import {
   Scan,
   Tag,
   Printer,
-  Flame
+  Flame,
+  HardDrive,
+  Cloud
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
-import { DiscogsRelease, ConditionSelection, PricingConfig, SavedListing, ShopeeListing, MercadoLivreListing, Customer, DJPlaylist, SalesChannel, SavedLabel, CartItem, PhysicalSaleOrder, LabelFormatType } from './types';
+import { DiscogsRelease, ConditionSelection, PricingConfig, SavedListing, ShopeeListing, MercadoLivreListing, Customer, DJPlaylist, SalesChannel, SavedLabel, CartItem, PhysicalSaleOrder, LabelFormatType, DigitalAlbumProduct, StorageProviderConfig } from './types';
+import { DIGITAL_ALBUM_PRODUCTS, DEFAULT_STORAGE_PROVIDERS } from './data/digitalMusicData';
+import { DigitalMusicManager } from './components/DigitalMusicManager';
 import { BarcodeQrScannerModal } from './components/BarcodeQrScannerModal';
 import { StoreOmnichannelManager } from './components/StoreOmnichannelManager';
 import { PhysicalStorePos } from './components/PhysicalStorePos';
@@ -158,10 +162,158 @@ export default function App() {
   // App Mode ('storefront' = public e-commerce for customers, 'intranet' = internal store POS & backoffice)
   const [appMode, setAppMode] = useState<'storefront' | 'intranet'>('storefront');
 
-  // Main Tab Navigation ('store_pos' = physical store real-time POS, 'online_orders' = website orders, 'announce' = create announcements, 'catalog' = organized database catalog, 'omnichannel' = sales channels, 'playlists' = dj sets, 'clients' = customer management)
-  const [mainTab, setMainTab] = useState<'store_pos' | 'online_orders' | 'announce' | 'catalog' | 'omnichannel' | 'playlists' | 'clients'>('store_pos');
+  // Main Tab Navigation ('store_pos' = physical store real-time POS, 'online_orders' = website orders, 'digital_storage' = hi-res music & storage manager, 'announce' = create announcements, 'catalog' = organized database catalog, 'omnichannel' = sales channels, 'playlists' = dj sets, 'clients' = customer management)
+  const [mainTab, setMainTab] = useState<'store_pos' | 'online_orders' | 'digital_storage' | 'announce' | 'catalog' | 'omnichannel' | 'playlists' | 'clients'>('store_pos');
   const { customerOrders } = useCustomerAuth();
   const [salesOrders, setSalesOrders] = useState<PhysicalSaleOrder[]>([]);
+
+  // Digital Albums & Cloud Storage Providers State
+  const [digitalAlbums, setDigitalAlbums] = useState<DigitalAlbumProduct[]>(() => {
+    try {
+      const stored = localStorage.getItem('valdir_digital_albums_v1');
+      return stored ? JSON.parse(stored) : DIGITAL_ALBUM_PRODUCTS;
+    } catch {
+      return DIGITAL_ALBUM_PRODUCTS;
+    }
+  });
+
+  const [storageProviders, setStorageProviders] = useState<StorageProviderConfig[]>(() => {
+    try {
+      const stored = localStorage.getItem('valdir_storage_providers_v1');
+      return stored ? JSON.parse(stored) : DEFAULT_STORAGE_PROVIDERS;
+    } catch {
+      return DEFAULT_STORAGE_PROVIDERS;
+    }
+  });
+
+  // Load and sync Digital Albums from Firestore
+  useEffect(() => {
+    const fetchDigital = async () => {
+      try {
+        const q = query(collection(db, 'digital_albums'));
+        const snap = await getDocs(q);
+        const fbAlbums: DigitalAlbumProduct[] = [];
+        snap.forEach((docSnap) => {
+          fbAlbums.push({ id: docSnap.id, ...docSnap.data() } as DigitalAlbumProduct);
+        });
+
+        if (fbAlbums.length > 0) {
+          setDigitalAlbums(fbAlbums);
+          localStorage.setItem('valdir_digital_albums_v1', JSON.stringify(fbAlbums));
+        } else {
+          for (const item of DIGITAL_ALBUM_PRODUCTS) {
+            const cleaned = JSON.parse(JSON.stringify(item));
+            await setDoc(doc(db, 'digital_albums', item.id), cleaned);
+          }
+        }
+      } catch (err) {
+        console.warn('Aviso: Operando em modo cache local para álbuns digitais:', err);
+      }
+    };
+    fetchDigital();
+  }, []);
+
+  // Load and sync Storage Providers from Firestore
+  useEffect(() => {
+    const fetchProviders = async () => {
+      try {
+        const q = query(collection(db, 'storage_providers'));
+        const snap = await getDocs(q);
+        const fbProviders: StorageProviderConfig[] = [];
+        snap.forEach((docSnap) => {
+          fbProviders.push({ id: docSnap.id, ...docSnap.data() } as StorageProviderConfig);
+        });
+
+        if (fbProviders.length > 0) {
+          setStorageProviders(fbProviders);
+          localStorage.setItem('valdir_storage_providers_v1', JSON.stringify(fbProviders));
+        } else {
+          for (const prov of DEFAULT_STORAGE_PROVIDERS) {
+            const cleaned = JSON.parse(JSON.stringify(prov));
+            await setDoc(doc(db, 'storage_providers', prov.id), cleaned);
+          }
+        }
+      } catch (err) {
+        console.warn('Aviso: Operando em modo cache local para provedores de storage:', err);
+      }
+    };
+    fetchProviders();
+  }, []);
+
+  const handleSaveDigitalAlbum = async (album: DigitalAlbumProduct) => {
+    setDigitalAlbums(prev => {
+      const filtered = prev.filter(a => a.id !== album.id);
+      const updated = [album, ...filtered];
+      try {
+        localStorage.setItem('valdir_digital_albums_v1', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    setSuccessMsg(`✓ Álbum digital "${album.title}" salvo com sucesso!`);
+
+    try {
+      const cleaned = JSON.parse(JSON.stringify(album));
+      await setDoc(doc(db, 'digital_albums', album.id), cleaned);
+    } catch (err) {
+      console.warn('Aviso: Álbum salvo no cache local (sync pendente):', err);
+    }
+  };
+
+  const handleDeleteDigitalAlbum = async (albumId: string) => {
+    setDigitalAlbums(prev => {
+      const updated = prev.filter(a => a.id !== albumId);
+      try {
+        localStorage.setItem('valdir_digital_albums_v1', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    setSuccessMsg('Álbum digital excluído.');
+
+    try {
+      await deleteDoc(doc(db, 'digital_albums', albumId));
+    } catch (err) {
+      console.warn('Aviso: Álbum excluído localmente:', err);
+    }
+  };
+
+  const handleSaveStorageProvider = async (provider: StorageProviderConfig) => {
+    setStorageProviders(prev => {
+      let updated = prev.filter(p => p.id !== provider.id);
+      if (provider.isDefault) {
+        updated = updated.map(p => ({ ...p, isDefault: false }));
+      }
+      const combined = [provider, ...updated];
+      try {
+        localStorage.setItem('valdir_storage_providers_v1', JSON.stringify(combined));
+      } catch {}
+      return combined;
+    });
+    setSuccessMsg(`✓ Conexão de storage "${provider.name}" salva!`);
+
+    try {
+      const cleaned = JSON.parse(JSON.stringify(provider));
+      await setDoc(doc(db, 'storage_providers', provider.id), cleaned);
+    } catch (err) {
+      console.warn('Aviso: Provedor salvo no cache local:', err);
+    }
+  };
+
+  const handleDeleteStorageProvider = async (providerId: string) => {
+    setStorageProviders(prev => {
+      const updated = prev.filter(p => p.id !== providerId);
+      try {
+        localStorage.setItem('valdir_storage_providers_v1', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    setSuccessMsg('Conexão de storage removida.');
+
+    try {
+      await deleteDoc(doc(db, 'storage_providers', providerId));
+    } catch (err) {
+      console.warn('Aviso: Provedor excluído localmente:', err);
+    }
+  };
 
   // Omnichannel & Scanner Modals
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -1509,6 +1661,7 @@ export default function App() {
         <PublicStorefront
           listings={savedListings}
           playlists={playlists}
+          digitalAlbums={digitalAlbums}
           onOpenIntranet={() => {
             if (isStaff) {
               setAppMode('intranet');
@@ -1744,6 +1897,25 @@ export default function App() {
           </button>
           <button
             type="button"
+            onClick={() => setMainTab('digital_storage')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer relative ${
+              mainTab === 'digital_storage'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50/80'
+            }`}
+          >
+            <Cloud className="h-4 w-4 text-amber-400" />
+            Música Digital & Nuvem
+            {digitalAlbums.length > 0 && (
+              <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-md ml-1 ${
+                mainTab === 'digital_storage' ? 'bg-white text-indigo-700' : 'bg-slate-100 text-slate-600 border border-slate-200'
+              }`}>
+                {digitalAlbums.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => setMainTab('announce')}
             className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
               mainTab === 'announce'
@@ -1878,6 +2050,15 @@ export default function App() {
           />
         ) : mainTab === 'online_orders' ? (
           <OnlineOrdersIntranetTab />
+        ) : mainTab === 'digital_storage' ? (
+          <DigitalMusicManager
+            albums={digitalAlbums}
+            onSaveAlbum={handleSaveDigitalAlbum}
+            onDeleteAlbum={handleDeleteDigitalAlbum}
+            storageProviders={storageProviders}
+            onSaveStorageProvider={handleSaveStorageProvider}
+            onDeleteStorageProvider={handleDeleteStorageProvider}
+          />
         ) : mainTab === 'omnichannel' ? (
           <StoreOmnichannelManager
             listings={savedListings}

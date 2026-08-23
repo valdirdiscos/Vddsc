@@ -34,10 +34,14 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with the custom database ID and auto-detected long-polling
-export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
-}, "ai-studio-discogsparashope-dd3d308d-6630-4f3f-bfab-1292a379e681");
+// Initialize Firestore with custom database ID and forced long-polling to prevent WebSocket connection errors in sandbox/iframe environments
+export const db = initializeFirestore(
+  app,
+  {
+    experimentalForceLongPolling: true,
+  },
+  "ai-studio-discogsparashope-dd3d308d-6630-4f3f-bfab-1292a379e681"
+);
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

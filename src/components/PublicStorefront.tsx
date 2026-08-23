@@ -38,7 +38,7 @@ import {
   Volume2,
   Music2
 } from 'lucide-react';
-import { SavedListing, DJPlaylist, TShirtProduct, TShirtSize, TShirtModel, TShirtColor, AudioFormat } from '../types';
+import { SavedListing, DJPlaylist, TShirtProduct, TShirtSize, TShirtModel, TShirtColor, AudioFormat, DigitalAlbumProduct } from '../types';
 import { OFFICIAL_MARKETPLACE_LINKS } from '../constants';
 import { PublicProductModal } from './PublicProductModal';
 import { PublicCartDrawer, PublicCartItem } from './PublicCartDrawer';
@@ -56,6 +56,7 @@ import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoRe
 interface PublicStorefrontProps {
   listings: SavedListing[];
   playlists: DJPlaylist[];
+  digitalAlbums?: DigitalAlbumProduct[];
   onOpenIntranet: () => void;
   currentUserRole?: string;
   whatsappNumber?: string;
@@ -65,6 +66,7 @@ interface PublicStorefrontProps {
 export function PublicStorefront({
   listings,
   playlists,
+  digitalAlbums,
   onOpenIntranet,
   currentUserRole,
   whatsappNumber = '5555981164666',
@@ -579,148 +581,277 @@ export function PublicStorefront({
           </div>
         </div>
 
-        {/* Main Categories Bar - requested: Discos, CDs, DVDs, Camisetas */}
-        <div className="border-t border-slate-100 bg-[#fdfcfb]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+        {/* 🌟 PRIMEIRO MENU: DIVISÃO ENTRE MÚSICA VENDIDA ONLINE E ARQUIVOS FÍSICOS DA LOJA */}
+        <div className="border-t border-b border-amber-900/20 bg-gradient-to-r from-amber-100/70 via-slate-100 to-indigo-100/70 py-2.5 px-3 sm:px-6 shadow-inner">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
             
-            {/* Primary Category Buttons */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Discos */}
+            <div className="flex items-center gap-2 text-xs font-black text-slate-700 shrink-0 self-start md:self-center">
+              <span className="text-[10.5px] uppercase tracking-widest text-slate-600 bg-white/90 px-2.5 py-1 rounded-lg border border-slate-300 shadow-xs font-black flex items-center gap-1.5">
+                <Store className="h-3.5 w-3.5 text-amber-800" />
+                Menu Principal • Departamentos
+              </span>
+            </div>
+
+            {/* As 2 Divisões Principais da Loja */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full md:max-w-2xl">
+              {/* Divisão 1: Arquivos Físicos da Loja */}
               <button
                 type="button"
                 onClick={() => {
-                  setActiveMainTab('discos');
-                  setSelectedFormat('vinyl');
+                  if (activeMainTab === 'musica_online' || activeMainTab === 'playlists') {
+                    setActiveMainTab('discos');
+                    setSelectedFormat('vinyl');
+                  }
                 }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  activeMainTab === 'discos'
-                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
-                    : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
+                className={`relative p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 text-left ${
+                  activeMainTab !== 'musica_online' && activeMainTab !== 'playlists'
+                    ? 'bg-gradient-to-r from-amber-950 to-stone-900 text-white border-amber-800 shadow-md ring-2 ring-amber-500/50'
+                    : 'bg-white text-slate-800 border-slate-300 hover:border-amber-400 hover:bg-amber-50/60 shadow-xs'
                 }`}
               >
-                <Disc className="h-3.5 w-3.5 text-amber-400" />
-                <span>Discos (Vinil)</span>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${
+                  activeMainTab !== 'musica_online' && activeMainTab !== 'playlists'
+                    ? 'bg-amber-800 text-amber-300 border border-amber-600/40 shadow-sm'
+                    : 'bg-amber-100 text-amber-900 border border-amber-200'
+                }`}>
+                  <Disc className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-black text-xs sm:text-sm uppercase tracking-tight">
+                      📦 Arquivos Físicos
+                    </span>
+                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                      activeMainTab !== 'musica_online' && activeMainTab !== 'playlists'
+                        ? 'bg-amber-400 text-amber-950'
+                        : 'bg-amber-200/80 text-amber-900'
+                    }`}>
+                      Mídia Física
+                    </span>
+                  </div>
+                  <p className={`text-[11px] truncate font-medium mt-0.5 ${
+                    activeMainTab !== 'musica_online' && activeMainTab !== 'playlists' ? 'text-amber-200/90' : 'text-slate-500'
+                  }`}>
+                    Discos de Vinil, CDs, DVDs, Garimpo & Camisetas
+                  </p>
+                </div>
               </button>
 
-              {/* CDs */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveMainTab('cds');
-                  setSelectedFormat('cd');
-                }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  activeMainTab === 'cds'
-                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
-                    : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
-                }`}
-              >
-                <span className="text-[11px]">💿</span>
-                <span>CDs</span>
-              </button>
-
-              {/* DVDs */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveMainTab('dvds');
-                  setSelectedFormat('dvd');
-                }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  activeMainTab === 'dvds'
-                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
-                    : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
-                }`}
-              >
-                <span className="text-[11px]">🎬</span>
-                <span>DVDs</span>
-              </button>
-
-              {/* Sessão Garimpo */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveMainTab('garimpo');
-                  setSelectedFormat('all');
-                }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  activeMainTab === 'garimpo'
-                    ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white border-orange-600 shadow-xs ring-1 ring-orange-400/50'
-                    : 'bg-orange-50/90 text-orange-950 border-orange-200/90 hover:bg-orange-100/80'
-                }`}
-              >
-                <Flame className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
-                <span>Sessão Garimpo</span>
-              </button>
-
-              {/* Camisetas */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveMainTab('tshirts');
-                }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  activeMainTab === 'tshirts'
-                    ? 'bg-amber-950 text-amber-200 border-amber-950 shadow-xs ring-1 ring-amber-500/50'
-                    : 'bg-amber-50 text-amber-950 border-amber-300/80 hover:bg-amber-100'
-                }`}
-              >
-                <Shirt className="h-3.5 w-3.5 text-amber-600" />
-                <span>Camisetas (DTF)</span>
-              </button>
-
-              {/* Música Online */}
+              {/* Divisão 2: Música Vendida Online */}
               <button
                 type="button"
                 onClick={() => {
                   setActiveMainTab('musica_online');
                 }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  activeMainTab === 'musica_online'
-                    ? 'bg-gradient-to-r from-indigo-900 to-slate-950 text-amber-300 border-indigo-400 shadow-md ring-1 ring-indigo-400/50'
-                    : 'bg-indigo-50/90 text-indigo-950 border-indigo-200 hover:bg-indigo-100/80'
+                className={`relative p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 text-left ${
+                  activeMainTab === 'musica_online' || activeMainTab === 'playlists'
+                    ? 'bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white border-indigo-400 shadow-md ring-2 ring-indigo-400/50'
+                    : 'bg-white text-slate-800 border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/60 shadow-xs'
                 }`}
               >
-                <Headphones className="h-3.5 w-3.5 text-indigo-600" />
-                <span>Música Online</span>
-                <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-indigo-200 text-indigo-900">
-                  Hi-Res & Playlists
-                </span>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${
+                  activeMainTab === 'musica_online' || activeMainTab === 'playlists'
+                    ? 'bg-indigo-800 text-amber-300 border border-indigo-600/40 shadow-sm'
+                    : 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                }`}>
+                  <Headphones className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-black text-xs sm:text-sm uppercase tracking-tight">
+                      🎧 Música Vendida Online
+                    </span>
+                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                      activeMainTab === 'musica_online' || activeMainTab === 'playlists'
+                        ? 'bg-emerald-400 text-slate-950 font-black'
+                        : 'bg-indigo-200/80 text-indigo-950'
+                    }`}>
+                      Download Imediato
+                    </span>
+                  </div>
+                  <p className={`text-[11px] truncate font-medium mt-0.5 ${
+                    activeMainTab === 'musica_online' || activeMainTab === 'playlists' ? 'text-indigo-200/90' : 'text-slate-500'
+                  }`}>
+                    Hi-Res Lossless (FLAC/WAV/MP3) & Streaming
+                  </p>
+                </div>
               </button>
             </div>
 
-            {/* Secondary / Utility Tabs */}
-            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveMainTab('highlights');
-                  setSelectedFormat('all');
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
-                  activeMainTab === 'highlights'
-                    ? 'bg-amber-800 text-white border-amber-800 shadow-xs'
-                    : 'bg-white text-amber-900 border-amber-200 hover:bg-amber-50'
-                }`}
-              >
-                <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-                <span>Raridades</span>
-              </button>
+          </div>
+        </div>
 
-              {playlists.length > 0 && (
+        {/* Sub-menu Contextual Adaptativo de Acordo com o Departamento Selecionado */}
+        <div className="border-t border-slate-100 bg-[#fdfcfb]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+            
+            {/* SE ESTIVER EM ARQUIVOS FÍSICOS */}
+            {activeMainTab !== 'musica_online' && activeMainTab !== 'playlists' ? (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-900/60 mr-1 hidden sm:inline">
+                  Formatos Físicos:
+                </span>
+                
+                {/* Discos */}
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveMainTab('playlists');
+                    setActiveMainTab('discos');
+                    setSelectedFormat('vinyl');
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
-                    activeMainTab === 'playlists'
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                      : 'bg-white text-indigo-900 border-indigo-200 hover:bg-indigo-50'
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'discos'
+                      ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
+                      : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
                   }`}
                 >
-                  <Radio className="h-3 w-3 text-indigo-400" />
-                  <span>Playlists DJ ({playlists.length})</span>
+                  <Disc className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Discos (Vinil)</span>
+                </button>
+
+                {/* CDs */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('cds');
+                    setSelectedFormat('cd');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'cds'
+                      ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
+                      : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-[11px]">💿</span>
+                  <span>CDs</span>
+                </button>
+
+                {/* DVDs */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('dvds');
+                    setSelectedFormat('dvd');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'dvds'
+                      ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
+                      : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-[11px]">🎬</span>
+                  <span>DVDs</span>
+                </button>
+
+                {/* Sessão Garimpo */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('garimpo');
+                    setSelectedFormat('all');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'garimpo'
+                      ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white border-orange-600 shadow-xs ring-1 ring-orange-400/50'
+                      : 'bg-orange-50/90 text-orange-950 border-orange-200/90 hover:bg-orange-100/80'
+                  }`}
+                >
+                  <Flame className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
+                  <span>Sessão Garimpo</span>
+                </button>
+
+                {/* Camisetas */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('tshirts');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'tshirts'
+                      ? 'bg-amber-950 text-amber-200 border-amber-950 shadow-xs ring-1 ring-amber-500/50'
+                      : 'bg-amber-50 text-amber-950 border-amber-300/80 hover:bg-amber-100'
+                  }`}
+                >
+                  <Shirt className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Camisetas (DTF)</span>
+                </button>
+              </div>
+            ) : (
+              /* SE ESTIVER EM MÚSICA VENDIDA ONLINE */
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900/60 mr-1 hidden sm:inline">
+                  Formatos Digitais:
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('musica_online');
+                    setOnlineMusicSubTab('digital');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'musica_online' && onlineMusicSubTab === 'digital'
+                      ? 'bg-indigo-900 text-white border-indigo-900 shadow-xs ring-1 ring-indigo-400/50'
+                      : 'bg-white text-indigo-950 border-indigo-200 hover:bg-indigo-50'
+                  }`}
+                >
+                  <Disc className="h-3.5 w-3.5 text-indigo-400" />
+                  <span>Downloads Hi-Res & Player (FLAC / WAV / MP3)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('musica_online');
+                    setOnlineMusicSubTab('streaming');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'musica_online' && onlineMusicSubTab === 'streaming'
+                      ? 'bg-indigo-900 text-white border-indigo-900 shadow-xs ring-1 ring-indigo-400/50'
+                      : 'bg-white text-indigo-950 border-indigo-200 hover:bg-indigo-50'
+                  }`}
+                >
+                  <Radio className="h-3.5 w-3.5 text-red-500" />
+                  <span>Playlists YouTube & Spotify</span>
+                </button>
+
+                {playlists.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveMainTab('musica_online');
+                      setOnlineMusicSubTab('dj_sets');
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                      activeMainTab === 'musica_online' && onlineMusicSubTab === 'dj_sets'
+                        ? 'bg-indigo-900 text-white border-indigo-900 shadow-xs ring-1 ring-indigo-400/50'
+                        : 'bg-white text-indigo-950 border-indigo-200 hover:bg-indigo-50'
+                    }`}
+                  >
+                    <Music className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Sets dos DJs ({playlists.length})</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Secondary / Utility Tabs */}
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              {activeMainTab !== 'musica_online' && activeMainTab !== 'playlists' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('highlights');
+                    setSelectedFormat('all');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
+                    activeMainTab === 'highlights'
+                      ? 'bg-amber-800 text-white border-amber-800 shadow-xs'
+                      : 'bg-white text-amber-900 border-amber-200 hover:bg-amber-50'
+                  }`}
+                >
+                  <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+                  <span>Raridades</span>
                 </button>
               )}
 
@@ -997,6 +1128,7 @@ export function PublicStorefront({
             {/* Sub-tab views */}
             {onlineMusicSubTab === 'digital' ? (
               <DigitalMusicSection
+                albums={digitalAlbums}
                 onAddToCart={handleAddDigitalToCart}
                 whatsappNumber={whatsappNumber}
               />

@@ -1,4 +1,60 @@
-import { DigitalAlbumProduct } from '../types';
+import { DigitalAlbumProduct, StorageProviderConfig } from '../types';
+
+export const DEFAULT_STORAGE_PROVIDERS: StorageProviderConfig[] = [
+  {
+    id: 'prov-gdrive-primary',
+    provider: 'google_drive',
+    name: 'Google Drive - Acervo Valdir Discos Hi-Res',
+    baseUrlOrFolderUrl: 'https://drive.google.com/drive/folders/1ValdirDiscosAcervoMaster96kHz',
+    folderId: '1ValdirDiscosAcervoMaster96kHz',
+    accessMode: 'shared_folder',
+    notes: 'Pasta principal de masters 24-bit/96kHz e pacotes .ZIP de álbuns completos. Permite compartilhamento restrito ou direto aos compradores.',
+    isDefault: true,
+    isActive: true,
+    totalStorageUsedGB: 42.8,
+    createdAt: '2026-01-10T10:00:00Z',
+    updatedAt: '2026-08-20T14:30:00Z'
+  },
+  {
+    id: 'prov-dropbox-djs',
+    provider: 'dropbox',
+    name: 'Dropbox - Sets de DJ & Singles Avulsos',
+    baseUrlOrFolderUrl: 'https://www.dropbox.com/sh/valdir_discos_singles_flac',
+    accessMode: 'public_direct',
+    notes: 'Hospedagem de faixas individuais e compactos raros com links de download direto sem expiração (dl.dropboxusercontent.com).',
+    isDefault: false,
+    isActive: true,
+    totalStorageUsedGB: 18.4,
+    createdAt: '2026-02-15T12:00:00Z',
+    updatedAt: '2026-08-18T09:15:00Z'
+  },
+  {
+    id: 'prov-s3-r2',
+    provider: 's3_compatible',
+    name: 'Cloudflare R2 / AWS S3 (Bucket de Alta Velocidade)',
+    baseUrlOrFolderUrl: 'https://cdn-audio.valdirdiscos.com.br/masters/',
+    accessMode: 'presigned_token',
+    notes: 'Armazenamento em nuvem de baixíssimo custo ($0 de taxa de saída) para entregas instantâneas em alta velocidade para clientes.',
+    isDefault: false,
+    isActive: true,
+    totalStorageUsedGB: 65.2,
+    createdAt: '2026-03-01T15:00:00Z',
+    updatedAt: '2026-08-22T11:00:00Z'
+  },
+  {
+    id: 'prov-mega-backup',
+    provider: 'mega',
+    name: 'Mega.nz - Backup Frio de Segurança',
+    baseUrlOrFolderUrl: 'https://mega.nz/folder/ValdirDiscosColdBackup',
+    accessMode: 'protected_link',
+    notes: 'Backup espelhado criptografado de todo o acervo digitalizado e gravações brutas de fitas de rolo e vinis.',
+    isDefault: false,
+    isActive: false,
+    totalStorageUsedGB: 120.0,
+    createdAt: '2026-04-10T08:00:00Z',
+    updatedAt: '2026-08-10T16:00:00Z'
+  }
+];
 
 export const DIGITAL_ALBUM_PRODUCTS: DigitalAlbumProduct[] = [
   {
@@ -15,10 +71,16 @@ export const DIGITAL_ALBUM_PRODUCTS: DigitalAlbumProduct[] = [
     ripSource: 'Rip de Vinil Original Seroma 1975 • Technics SL-1200MK7 + Preamp Cambridge Audio Duo • 24-bit / 96kHz Lossless',
     isHiRes: true,
     fileSizeMB: 480,
+    zipDownloadUrl: 'https://drive.google.com/uc?export=download&id=1TimMaiaRacionalVol1_Lossless_ValdirDiscos',
+    storageProvider: 'google_drive',
+    storageFolderId: '/ValdirDiscos/HiRes/TimMaia_Racional1',
     badge: 'Master 24-bit Hi-Res',
     tags: ['Soul', 'Funk', 'Racional', 'Raridade'],
     youtubeMusicUrl: 'https://music.youtube.com/search?q=Tim+Maia+Racional+Vol+1',
     spotifyUrl: 'https://open.spotify.com/search/Tim%20Maia%20Racional%20Vol%201',
+    publishedAt: '2026-02-01T10:00:00Z',
+    downloadsCount: 38,
+    totalRevenue: 946.20,
     tracks: [
       {
         id: 'tr-tim-01',
@@ -30,7 +92,9 @@ export const DIGITAL_ALBUM_PRODUCTS: DigitalAlbumProduct[] = [
         audioFormats: ['WAV', 'FLAC', 'MP3'],
         sampleRate: '24-bit / 96kHz Lossless',
         bpm: 104,
-        key: 'A Minor'
+        key: 'A Minor',
+        downloadLink: 'https://drive.google.com/uc?export=download&id=1TimMaia_01_Imunizacao_FLAC',
+        storageProvider: 'google_drive'
       },
       {
         id: 'tr-tim-02',
@@ -42,7 +106,9 @@ export const DIGITAL_ALBUM_PRODUCTS: DigitalAlbumProduct[] = [
         audioFormats: ['WAV', 'FLAC', 'MP3'],
         sampleRate: '24-bit / 96kHz Lossless',
         bpm: 98,
-        key: 'D Major'
+        key: 'D Major',
+        downloadLink: 'https://drive.google.com/uc?export=download&id=1TimMaia_02_BomSenso_FLAC',
+        storageProvider: 'google_drive'
       },
       {
         id: 'tr-tim-03',
@@ -54,7 +120,9 @@ export const DIGITAL_ALBUM_PRODUCTS: DigitalAlbumProduct[] = [
         audioFormats: ['WAV', 'FLAC', 'MP3'],
         sampleRate: '24-bit / 96kHz Lossless',
         bpm: 110,
-        key: 'G Major'
+        key: 'G Major',
+        downloadLink: 'https://drive.google.com/uc?export=download&id=1TimMaia_03_GraoMestre_FLAC',
+        storageProvider: 'google_drive'
       },
       {
         id: 'tr-tim-04',
@@ -66,7 +134,9 @@ export const DIGITAL_ALBUM_PRODUCTS: DigitalAlbumProduct[] = [
         audioFormats: ['WAV', 'FLAC', 'MP3'],
         sampleRate: '24-bit / 96kHz Lossless',
         bpm: 116,
-        key: 'E Minor'
+        key: 'E Minor',
+        downloadLink: 'https://drive.google.com/uc?export=download&id=1TimMaia_04_Contacto_FLAC',
+        storageProvider: 'google_drive'
       },
       {
         id: 'tr-tim-05',
@@ -78,7 +148,9 @@ export const DIGITAL_ALBUM_PRODUCTS: DigitalAlbumProduct[] = [
         audioFormats: ['WAV', 'FLAC', 'MP3'],
         sampleRate: '24-bit / 96kHz Lossless',
         bpm: 92,
-        key: 'C Major'
+        key: 'C Major',
+        downloadLink: 'https://drive.google.com/uc?export=download&id=1TimMaia_05_Universo_FLAC',
+        storageProvider: 'google_drive'
       }
     ]
   },

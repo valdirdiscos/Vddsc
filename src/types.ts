@@ -357,4 +357,67 @@ export interface TShirtProduct {
   inStock: boolean;
 }
 
+// ----------------------------------------------------
+// DIGITAL MUSIC & HIGH-FIDELITY DOWNLOADS TYPES
+// ----------------------------------------------------
+export type AudioFormat = 'WAV' | 'FLAC' | 'MP3' | 'ALAC';
+
+export interface DigitalTrack {
+  id: string;
+  trackNumber: string | number;
+  title: string;
+  artist: string;
+  duration: string;
+  previewAudioUrl?: string; // audio preview stream URL or sample sound
+  individualPrice: number; // e.g. R$ 3,50 per single track
+  audioFormats: AudioFormat[];
+  bpm?: number;
+  key?: string;
+  sampleRate?: string; // e.g. '24-bit / 96kHz Lossless'
+  downloadLink?: string; // direct download secure token
+}
+
+export interface DigitalAlbumProduct {
+  id: string;
+  title: string;
+  artist: string;
+  year: number | string;
+  genre: string;
+  coverImage: string;
+  description: string;
+  albumPrice: number; // e.g. R$ 19,90
+  originalPrice?: number;
+  audioFormats: AudioFormat[];
+  ripSource: string; // e.g. "Rip Direto de Vinil Prensagem Original (Technics SL-1200 + Ortofon 2M Bronze 24-bit/96kHz)"
+  tracks: DigitalTrack[];
+  tags?: string[];
+  badge?: string; // e.g. "24-bit Hi-Res", "Raridade Digitalizada"
+  isHiRes: boolean;
+  fileSizeMB: number;
+  youtubeMusicUrl?: string;
+  spotifyUrl?: string;
+  embedYoutubeId?: string;
+  inStock?: boolean;
+}
+
+// ----------------------------------------------------
+// CURATED PLAYLISTS (YouTube Music & Spotify)
+// ----------------------------------------------------
+export interface CuratedPlaylist {
+  id: string;
+  title: string;
+  curator: string; // "Valdir Discos - Santa Maria / RS"
+  description: string;
+  coverImage: string;
+  youtubeMusicUrl: string;
+  spotifyUrl?: string;
+  embedYoutubeId?: string; // e.g. YouTube playlist ID or video ID for live preview
+  genre: string;
+  tracksCount: number;
+  totalDuration: string;
+  featuredTracks: { title: string; artist: string; duration?: string }[];
+  tags: string[];
+}
+
+
 

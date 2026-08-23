@@ -160,7 +160,7 @@ export function TShirtsSection({
       </div>
 
       {/* Products Grid - Direct & Compact like Disc Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
         {filteredProducts.map((p) => {
           const cfg = cardConfigs[p.id] || {
             selectedColor: p.colors[0],
@@ -174,19 +174,19 @@ export function TShirtsSection({
               key={p.id}
               className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group"
             >
-              {/* Top: Mockup Display */}
+              {/* Top: Compact Mockup Display */}
               <div 
-                className="relative p-4 flex flex-col items-center justify-center h-48 transition-colors duration-200 cursor-pointer overflow-hidden"
+                className="relative p-3 flex flex-col items-center justify-center h-36 transition-colors duration-200 cursor-pointer overflow-hidden"
                 style={{ backgroundColor: cfg.selectedColor.hex }}
                 onClick={() => setSelectedProduct(p)}
               >
                 {/* Silhouette */}
                 <div className="absolute inset-0 opacity-10 pointer-events-none flex items-center justify-center">
-                  <Shirt className="w-48 h-48 stroke-[0.8] text-white" />
+                  <Shirt className="w-32 h-32 stroke-[0.8] text-white" />
                 </div>
 
                 {/* Stamp Circle */}
-                <div className="relative z-10 w-28 h-28 rounded-full p-1.5 bg-white/95 shadow-md border-2 border-amber-400/80 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform duration-200">
+                <div className="relative z-10 w-20 h-20 rounded-full p-1 bg-white/95 shadow-md border-2 border-amber-400/80 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform duration-200">
                   <img 
                     src={p.image} 
                     alt={p.name} 
@@ -196,23 +196,23 @@ export function TShirtsSection({
                 </div>
 
                 {/* DTF Badge */}
-                <span className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-xs text-amber-300 font-bold text-[10px] uppercase rounded-md border border-amber-400/30">
+                <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/60 backdrop-blur-xs text-amber-300 font-bold text-[9px] uppercase rounded border border-amber-400/30">
                   Estampa DTF
                 </span>
 
-                <span className="absolute bottom-2 right-2 text-[10px] font-bold text-white/90 bg-black/50 px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="absolute bottom-1.5 right-2 text-[9px] font-bold text-white/90 bg-black/50 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
                   Ver detalhes
                 </span>
               </div>
 
               {/* Body: Direct & Focused */}
-              <div className="p-3.5 space-y-3 flex-1 flex flex-col justify-between">
+              <div className="p-3 space-y-2.5 flex-1 flex flex-col justify-between">
                 
                 {/* Title & Price */}
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   <h3 
                     onClick={() => setSelectedProduct(p)}
-                    className="font-black text-slate-900 text-sm leading-snug cursor-pointer hover:text-amber-700 transition-colors line-clamp-1"
+                    className="font-black text-slate-900 text-xs sm:text-sm leading-snug cursor-pointer hover:text-amber-700 transition-colors line-clamp-1"
                     title={p.name}
                   >
                     {p.name}
@@ -220,16 +220,16 @@ export function TShirtsSection({
 
                   <div className="flex items-baseline justify-between pt-0.5">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-base font-black text-amber-950 font-mono">
+                      <span className="text-sm sm:text-base font-black text-amber-950 font-mono">
                         R$ {p.price.toFixed(2).replace('.', ',')}
                       </span>
                       {p.originalPrice && (
-                        <span className="text-[11px] text-slate-400 line-through">
+                        <span className="text-[10px] text-slate-400 line-through">
                           R$ {p.originalPrice.toFixed(2).replace('.', ',')}
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                       PIX
                     </span>
                   </div>
@@ -237,9 +237,9 @@ export function TShirtsSection({
 
                 {/* Color Selector Dots */}
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                  <div className="flex items-center justify-between text-[10px] font-semibold text-slate-600">
                     <span>Cor:</span>
-                    <span className="text-slate-800 font-bold truncate max-w-[120px]">{cfg.selectedColor.name}</span>
+                    <span className="text-slate-800 font-bold truncate max-w-[100px]">{cfg.selectedColor.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     {p.colors.map((c) => {
@@ -249,7 +249,7 @@ export function TShirtsSection({
                           key={c.id}
                           type="button"
                           onClick={() => handleUpdateConfig(p.id, 'selectedColor', c)}
-                          className={`w-5 h-5 rounded-full border transition-all cursor-pointer flex items-center justify-center ${
+                          className={`w-4 h-4 rounded-full border transition-all cursor-pointer flex items-center justify-center ${
                             isSelected
                               ? 'ring-2 ring-amber-600 scale-110'
                               : 'opacity-80 hover:opacity-100'
@@ -258,7 +258,7 @@ export function TShirtsSection({
                           title={c.name}
                         >
                           {isSelected && (
-                            <Check className={`h-2.5 w-2.5 ${c.id === 'offwhite' || c.id === 'sand' ? 'text-black' : 'text-white'}`} />
+                            <Check className={`h-2 w-2 ${c.id === 'offwhite' || c.id === 'sand' ? 'text-black' : 'text-white'}`} />
                           )}
                         </button>
                       );
@@ -268,7 +268,7 @@ export function TShirtsSection({
 
                 {/* Size Selector Pills */}
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                  <div className="flex items-center justify-between text-[10px] font-semibold text-slate-600">
                     <span>Tamanho:</span>
                     <span className="text-amber-800 font-black">{cfg.selectedSize}</span>
                   </div>
@@ -280,7 +280,7 @@ export function TShirtsSection({
                           key={sz}
                           type="button"
                           onClick={() => handleUpdateConfig(p.id, 'selectedSize', sz)}
-                          className={`py-1 rounded-lg text-xs font-black transition-all cursor-pointer border text-center ${
+                          className={`py-0.5 rounded text-[10px] font-black transition-all cursor-pointer border text-center ${
                             isSelected
                               ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
                               : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300'
@@ -298,7 +298,7 @@ export function TShirtsSection({
                   <button
                     type="button"
                     onClick={(e) => handleQuickAdd(p, e)}
-                    className={`py-2 px-2 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                    className={`py-1.5 px-2 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer border ${
                       isToastActive
                         ? 'bg-emerald-600 text-white border-emerald-600'
                         : 'bg-amber-600 hover:bg-amber-500 text-white border-amber-600 active:scale-95 shadow-xs'
@@ -306,12 +306,12 @@ export function TShirtsSection({
                   >
                     {isToastActive ? (
                       <>
-                        <Check className="h-3.5 w-3.5 font-bold" />
+                        <Check className="h-3 w-3 font-bold" />
                         <span>Adicionado!</span>
                       </>
                     ) : (
                       <>
-                        <Plus className="h-3.5 w-3.5 font-bold" />
+                        <Plus className="h-3 w-3 font-bold" />
                         <span>+ Carrinho</span>
                       </>
                     )}
@@ -320,13 +320,11 @@ export function TShirtsSection({
                   <button
                     type="button"
                     onClick={() => setSelectedProduct(p)}
-                    className="py-2 px-2 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer bg-slate-900 hover:bg-slate-800 text-white"
+                    className="py-1.5 px-2 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer bg-slate-900 hover:bg-slate-800 text-white"
                   >
                     <span>Comprar</span>
-                    <ArrowRight className="h-3 w-3" />
                   </button>
                 </div>
-
               </div>
             </div>
           );

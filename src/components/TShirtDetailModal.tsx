@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { TShirtProduct, TShirtSize, TShirtModel, TShirtColor } from '../types';
 import { SIZE_CHART_UNISSEX, SIZE_CHART_BABYLOOK } from '../data/tshirtsData';
+import { useLogos } from '../hooks/useLogos';
 
 interface TShirtDetailModalProps {
   tshirt: TShirtProduct | null;
@@ -29,7 +30,15 @@ export function TShirtDetailModal({
   onAddToCart,
   whatsappNumber = '5555981164666'
 }: TShirtDetailModalProps) {
+  const { logoBadge, logoColor, logoBw } = useLogos();
   if (!isOpen || !tshirt) return null;
+
+  const getProductImage = (p: TShirtProduct) => {
+    if (p.id.includes('selo') || p.category === 'selo_oficial') return logoBadge;
+    if (p.id.includes('color') || p.id.includes('mascote') || p.category === 'mascote_color') return logoColor;
+    if (p.id.includes('bw') || p.category === 'monocromatico') return logoBw;
+    return p.image;
+  };
 
   const [selectedColor, setSelectedColor] = useState<TShirtColor>(tshirt.colors[0] || {
     id: 'black',
@@ -119,7 +128,7 @@ export function TShirtDetailModal({
                   <div className="relative z-10 flex flex-col items-center text-center">
                     <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full p-1.5 bg-white/95 shadow-md border-2 border-amber-400/80 flex items-center justify-center overflow-hidden">
                       <img 
-                        src={tshirt.image} 
+                        src={getProductImage(tshirt)} 
                         alt={tshirt.name}
                         className="w-full h-full object-contain rounded-full"
                         referrerPolicy="no-referrer"

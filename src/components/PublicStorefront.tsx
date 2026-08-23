@@ -50,6 +50,7 @@ import { CustomerAuthModal } from './CustomerAuthModal';
 import { CustomerDashboardModal } from './CustomerDashboardModal';
 import { LogoUploadModal } from './LogoUploadModal';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
+import { useLogos } from '../hooks/useLogos';
 import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
 import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason } from '../utils/formatHelper';
 
@@ -74,6 +75,7 @@ export function PublicStorefront({
 }: PublicStorefrontProps) {
   // Customer Auth
   const { currentCustomer, isCustomerLoggedIn, isInWishlist, toggleWishlist } = useCustomerAuth();
+  const { logoBadge, logoColor, logoBw } = useLogos();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isDashboardModalOpen, setIsDashboardModalOpen] = useState(false);
   const [isLogoUploadModalOpen, setIsLogoUploadModalOpen] = useState(false);
@@ -451,7 +453,7 @@ export function PublicStorefront({
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 p-1 border border-amber-500/30 flex items-center justify-center shadow-md shrink-0 overflow-hidden">
                 <img 
-                  src={LOGO_COLOR} 
+                  src={logoColor} 
                   alt="Valdir Discos" 
                   className="w-full h-full object-contain rounded-xl hover:scale-105 transition-transform"
                   referrerPolicy="no-referrer"
@@ -972,7 +974,7 @@ export function PublicStorefront({
                   <div className="absolute -inset-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-full blur-lg opacity-40 group-hover:opacity-75 transition duration-500" />
                   <div className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full p-1.5 bg-[#fdfcf9] shadow-2xl border-4 border-amber-400/80 flex items-center justify-center overflow-hidden">
                     <img 
-                      src={LOGO_BADGE} 
+                      src={logoBadge} 
                       alt="Valdir Discos - Disco é cultura" 
                       className="w-full h-full object-contain rounded-full hover:rotate-6 transition-transform duration-500"
                       referrerPolicy="no-referrer"
@@ -1428,7 +1430,7 @@ export function PublicStorefront({
                 {filteredListings.map((item) => {
                   const { release, condition, pricing } = item;
                   const price = pricing?.directPrice || pricing?.basePriceBrl || 0;
-                  const cover = release.coverImage || (item.customImages && item.customImages[0]);
+                  const cover = (item.customImages && item.customImages.length > 0 && item.customImages[0]) || release.coverImage;
                   const formatInfo = getListingFormatInfo(item);
                   const conditionInfo = getItemConditionInfo(item);
 
@@ -1447,10 +1449,16 @@ export function PublicStorefront({
                       >
                         {cover ? (
                           <img
-                            src={cover}
+                            src={cover.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(cover)}` : cover}
                             alt={`${release.artist} - ${release.title}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             loading="lazy"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              if (cover.startsWith('http') && !e.currentTarget.src.includes('/api/proxy-image')) {
+                                e.currentTarget.src = `/api/proxy-image?url=${encodeURIComponent(cover)}`;
+                              }
+                            }}
                           />
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 p-2 text-center">
@@ -1585,7 +1593,7 @@ export function PublicStorefront({
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-500/10 p-1 border border-amber-400/30 flex items-center justify-center shrink-0 overflow-hidden shadow-md">
                   <img 
-                    src={LOGO_BADGE} 
+                    src={logoBadge} 
                     alt="Valdir Discos" 
                     className="w-full h-full object-contain rounded-xl"
                     referrerPolicy="no-referrer"

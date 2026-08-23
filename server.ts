@@ -196,28 +196,55 @@ async function startServer() {
       }
 
       // Valid types: 'badge', 'color', 'bw'
-      let fileName = "valdir-logo-badge.jpg";
-      if (type === "color") fileName = "valdir-logo-color.jpg";
-      if (type === "bw") fileName = "valdir-logo-bw.jpg";
+      const baseNames: { [key: string]: string } = {
+        badge: "valdir-logo-badge",
+        color: "valdir-logo-color",
+        bw: "valdir-logo-bw"
+      };
+
+      const baseName = baseNames[type] || "valdir-logo-badge";
 
       // Strip potential header like data:image/png;base64,...
       const base64Data = dataBase64.replace(/^data:image\/\w+;base64,/, "");
       const buffer = Buffer.from(base64Data, 'base64');
 
       const fs = await import("fs/promises");
-      const publicPath = path.join(process.cwd(), "public", fileName);
-      await fs.writeFile(publicPath, buffer);
+
+      // Write both .jpg and .png to public directory
+      const targets = [
+        path.join(process.cwd(), "public", `${baseName}.jpg`),
+        path.join(process.cwd(), "public", `${baseName}.png`),
+        path.join(process.cwd(), "src", "assets", "images", `${baseName}.jpg`),
+        path.join(process.cwd(), "src", "assets", "images", `${baseName}.png`),
+      ];
 
       if (type === "badge") {
-        const appIconPath = path.join(process.cwd(), "public", "app_icon.jpg");
-        await fs.writeFile(appIconPath, buffer).catch(() => {});
+        targets.push(
+          path.join(process.cwd(), "public", "app_icon.jpg"),
+          path.join(process.cwd(), "public", "app_icon.png")
+        );
+      }
+
+      for (const target of targets) {
+        try {
+          await fs.writeFile(target, buffer);
+        } catch (writeErr) {
+          // ignore directory non-existence in some environments
+        }
       }
 
       // Also copy to dist if dist exists
-      const distPublicPath = path.join(process.cwd(), "dist", fileName);
-      await fs.writeFile(distPublicPath, buffer).catch(() => {});
+      const distTargets = [
+        path.join(process.cwd(), "dist", `${baseName}.jpg`),
+        path.join(process.cwd(), "dist", `${baseName}.png`),
+      ];
+      for (const target of distTargets) {
+        try {
+          await fs.writeFile(target, buffer);
+        } catch {}
+      }
 
-      return res.json({ success: true, message: `Logo ${fileName} atualizado com sucesso!` });
+      return res.json({ success: true, message: `Logo ${baseName} (.jpg / .png) atualizado com sucesso!` });
     } catch (err: any) {
       console.error("Error saving uploaded logo:", err);
       return res.status(500).json({ error: err.message || "Falha ao salvar logo" });

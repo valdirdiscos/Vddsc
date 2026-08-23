@@ -118,7 +118,7 @@ import { UserHeaderBadge } from './components/UserHeaderBadge';
 import { UserAccessManagerModal } from './components/UserAccessManagerModal';
 import { AdminPinOverrideModal } from './components/AdminPinOverrideModal';
 import { LogoUploadModal } from './components/LogoUploadModal';
-import { LOGO_COLOR, LOGO_BADGE } from './assets/logos';
+import { useLogos } from './hooks/useLogos';
 import { useAuth, ROLE_LABELS } from './context/AuthContext';
 import { GOLDMINE_CONDITIONS, DEFAULT_PRICING } from './constants';
 import { db, collection, getDocs, setDoc, doc, deleteDoc, query } from './firebase';
@@ -126,6 +126,7 @@ import { db, collection, getDocs, setDoc, doc, deleteDoc, query } from './fireba
 export default function App() {
   // Authorization & Permissions State
   const { currentUser, userRole, permissions, isStaff, isMasterAdmin } = useAuth();
+  const { logoBadge, logoColor, logoBw } = useLogos();
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   const [isIntranetAuthModalOpen, setIsIntranetAuthModalOpen] = useState(false);
   const [isLogoUploadModalOpen, setIsLogoUploadModalOpen] = useState(false);
@@ -1756,7 +1757,7 @@ export default function App() {
           <div className="flex items-center gap-3.5">
             <div className="h-13 w-13 rounded-2xl bg-amber-500/10 p-1 border border-amber-500/20 flex items-center justify-center shadow-md shrink-0 overflow-hidden">
               <img 
-                src={LOGO_COLOR} 
+                src={logoColor} 
                 alt="Valdir Discos" 
                 className="w-full h-full object-contain rounded-xl"
                 referrerPolicy="no-referrer"

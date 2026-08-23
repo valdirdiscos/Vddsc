@@ -23,7 +23,7 @@ import {
   Headphones,
   Music2
 } from 'lucide-react';
-import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
+import { useLogos } from '../hooks/useLogos';
 
 interface AboutAndContactSectionProps {
   whatsappNumber?: string;
@@ -36,6 +36,7 @@ export function AboutAndContactSection({
   pixKey = 'valdirdiscos@gmail.com',
   onOpenLogoUpload
 }: AboutAndContactSectionProps) {
+  const { logoBadge, logoColor, logoBw } = useLogos();
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -169,7 +170,7 @@ export function AboutAndContactSection({
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-white/10 p-1 border border-amber-400/30 overflow-hidden shrink-0">
                 <img 
-                  src={LOGO_BADGE} 
+                  src={logoBadge} 
                   alt="Selo Valdir Discos" 
                   className="w-full h-full object-contain rounded-xl"
                   referrerPolicy="no-referrer"
@@ -306,7 +307,7 @@ export function AboutAndContactSection({
           <div className="bg-[#fcfbf9] border border-amber-900/10 rounded-2xl p-5 text-center flex flex-col items-center shadow-xs hover:shadow-md transition-all">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-white border-2 border-amber-500/40 shadow-sm flex items-center justify-center overflow-hidden mb-3">
               <img 
-                src={LOGO_BADGE} 
+                src={logoBadge} 
                 alt="Selo Retrô Completo - Disco é Cultura" 
                 className="w-full h-full object-contain rounded-full"
                 referrerPolicy="no-referrer"
@@ -328,7 +329,7 @@ export function AboutAndContactSection({
           <div className="bg-[#fcfbf9] border border-amber-900/10 rounded-2xl p-5 text-center flex flex-col items-center shadow-xs hover:shadow-md transition-all">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-white border-2 border-orange-500/40 shadow-sm flex items-center justify-center overflow-hidden mb-3">
               <img 
-                src={LOGO_COLOR} 
+                src={logoColor} 
                 alt="Mascote Valdir Ilustrado" 
                 className="w-full h-full object-contain rounded-full"
                 referrerPolicy="no-referrer"
@@ -350,7 +351,7 @@ export function AboutAndContactSection({
           <div className="bg-[#fcfbf9] border border-slate-200 rounded-2xl p-5 text-center flex flex-col items-center shadow-xs hover:shadow-md transition-all">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-white border-2 border-slate-300 shadow-sm flex items-center justify-center overflow-hidden mb-3">
               <img 
-                src={LOGO_BW} 
+                src={logoBw} 
                 alt="Selo Monocromático em Traço Vintage" 
                 className="w-full h-full object-contain rounded-full"
                 referrerPolicy="no-referrer"

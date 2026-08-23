@@ -14,6 +14,7 @@ import {
 import { TShirtProduct, TShirtSize, TShirtColor, TShirtModel } from '../types';
 import { TSHIRT_PRODUCTS, SIZE_CHART_UNISSEX, SIZE_CHART_BABYLOOK } from '../data/tshirtsData';
 import { TShirtDetailModal } from './TShirtDetailModal';
+import { useLogos } from '../hooks/useLogos';
 
 interface TShirtsSectionProps {
   onAddToCart: (tshirt: TShirtProduct, size: TShirtSize, color: TShirtColor, model: TShirtModel, quantity: number) => void;
@@ -24,6 +25,14 @@ export function TShirtsSection({
   onAddToCart,
   whatsappNumber = '5555981164666'
 }: TShirtsSectionProps) {
+  const { logoBadge, logoColor, logoBw } = useLogos();
+
+  const getProductImage = (p: TShirtProduct) => {
+    if (p.id.includes('selo') || p.category === 'selo_oficial') return logoBadge;
+    if (p.id.includes('color') || p.id.includes('mascote') || p.category === 'mascote_color') return logoColor;
+    if (p.id.includes('bw') || p.category === 'monocromatico') return logoBw;
+    return p.image;
+  };
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<TShirtProduct | null>(null);
   const [showSizeGuideModal, setShowSizeGuideModal] = useState<boolean>(false);
@@ -188,7 +197,7 @@ export function TShirtsSection({
                 {/* Stamp Circle */}
                 <div className="relative z-10 w-16 h-16 sm:w-20 sm:h-20 rounded-full p-1 bg-white shadow-md border-2 border-amber-400/80 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform duration-200">
                   <img 
-                    src={p.image} 
+                    src={getProductImage(p)} 
                     alt={p.name} 
                     className="w-full h-full object-contain rounded-full"
                     referrerPolicy="no-referrer"

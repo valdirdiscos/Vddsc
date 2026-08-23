@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, 
@@ -106,10 +106,14 @@ export function PublicProductModal({
     }
   };
 
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
+
   const imagesToShow = [
-    ...(customImages && customImages.length > 0 ? customImages : []),
+    ...(customImages && customImages.length > 0 ? customImages.filter(Boolean) : []),
     ...(release.coverImage ? [release.coverImage] : [])
   ];
+
+  const currentCover = imagesToShow[activeImageIdx] || imagesToShow[0];
 
   return (
     <AnimatePresence>
@@ -185,11 +189,17 @@ export function PublicProductModal({
               {/* Left Column: Image & Details */}
               <div className="md:col-span-5 space-y-4">
                 <div className="aspect-square w-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-lg relative group">
-                  {imagesToShow.length > 0 ? (
+                  {currentCover ? (
                     <img
-                      src={imagesToShow[0]}
+                      src={currentCover.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(currentCover)}` : currentCover}
                       alt={`${release.artist} - ${release.title}`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        if (currentCover.startsWith('http') && !e.currentTarget.src.includes('/api/proxy-image')) {
+                          e.currentTarget.src = `/api/proxy-image?url=${encodeURIComponent(currentCover)}`;
+                        }
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
@@ -206,9 +216,21 @@ export function PublicProductModal({
                 {imagesToShow.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {imagesToShow.map((img, idx) => (
-                      <div key={idx} className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 shrink-0">
-                        <img src={img} alt="Foto adicional" className="w-full h-full object-cover" />
-                      </div>
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveImageIdx(idx)}
+                        className={`w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
+                          activeImageIdx === idx ? 'border-amber-500 ring-2 ring-amber-500/20 scale-105' : 'border-slate-200 opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <img 
+                          src={img.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(img)}` : img} 
+                          alt={`Foto ${idx + 1}`} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                      </button>
                     ))}
                   </div>
                 )}

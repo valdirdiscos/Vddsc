@@ -12,8 +12,8 @@ import {
   Disc,
   Users
 } from 'lucide-react';
-import { LOGO_BADGE } from '../assets/logos';
 import { useAuth, MASTER_ADMIN_EMAIL } from '../context/AuthContext';
+import { useLogos } from '../hooks/useLogos';
 
 interface IntranetAuthModalProps {
   isOpen: boolean;
@@ -26,6 +26,7 @@ export const IntranetAuthModal: React.FC<IntranetAuthModalProps> = ({
   onClose,
   onSuccess
 }) => {
+  const { logoBadge } = useLogos();
   const { loginWithGoogle, switchUserWithPin, currentUser, isStaff, isMasterAdmin } = useAuth();
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -110,7 +111,7 @@ export const IntranetAuthModal: React.FC<IntranetAuthModalProps> = ({
           <div className="flex items-center gap-3.5 mb-2">
             <div className="w-13 h-13 rounded-2xl bg-amber-500/10 p-1 border border-amber-400/30 shrink-0 overflow-hidden shadow-lg shadow-amber-500/20">
               <img 
-                src={LOGO_BADGE} 
+                src={logoBadge} 
                 alt="Valdir Discos" 
                 className="w-full h-full object-contain rounded-xl"
                 referrerPolicy="no-referrer"

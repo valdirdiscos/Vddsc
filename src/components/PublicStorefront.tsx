@@ -32,13 +32,20 @@ import {
   User,
   UserCheck,
   Shirt,
-  Eye
+  Eye,
+  Store,
+  Headphones,
+  Volume2,
+  Music2
 } from 'lucide-react';
-import { SavedListing, DJPlaylist, TShirtProduct, TShirtSize, TShirtModel, TShirtColor } from '../types';
+import { SavedListing, DJPlaylist, TShirtProduct, TShirtSize, TShirtModel, TShirtColor, AudioFormat } from '../types';
+import { OFFICIAL_MARKETPLACE_LINKS } from '../constants';
 import { PublicProductModal } from './PublicProductModal';
 import { PublicCartDrawer, PublicCartItem } from './PublicCartDrawer';
 import { AboutAndContactSection } from './AboutAndContactSection';
 import { TShirtsSection } from './TShirtsSection';
+import { DigitalMusicSection } from './DigitalMusicSection';
+import { CuratedPlaylistsSection } from './CuratedPlaylistsSection';
 import { CustomerAuthModal } from './CustomerAuthModal';
 import { CustomerDashboardModal } from './CustomerDashboardModal';
 import { LogoUploadModal } from './LogoUploadModal';
@@ -70,8 +77,9 @@ export function PublicStorefront({
   const [isLogoUploadModalOpen, setIsLogoUploadModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'register'>('login');
 
-  // Main Category & Navigation: 'discos' | 'cds' | 'dvds' | 'garimpo' | 'tshirts' | 'highlights' | 'playlists' | 'about'
-  const [activeMainTab, setActiveMainTab] = useState<'discos' | 'cds' | 'dvds' | 'garimpo' | 'tshirts' | 'highlights' | 'playlists' | 'about'>('discos');
+  // Main Category & Navigation: 'discos' | 'cds' | 'dvds' | 'garimpo' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about'
+  const [activeMainTab, setActiveMainTab] = useState<'discos' | 'cds' | 'dvds' | 'garimpo' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about'>('discos');
+  const [onlineMusicSubTab, setOnlineMusicSubTab] = useState<'digital' | 'streaming' | 'dj_sets'>('digital');
   
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -149,6 +157,38 @@ export function PublicStorefront({
             image: tshirt.image
           },
           quantity
+        }
+      ];
+    }
+    updateCartState(newCart);
+    setIsCartOpen(true);
+  };
+
+  const handleAddDigitalToCart = (digitalItem: {
+    id: string;
+    title: string;
+    artist: string;
+    price: number;
+    coverImage: string;
+    format: AudioFormat;
+    isFullAlbum: boolean;
+    albumId: string;
+    trackId?: string;
+  }) => {
+    const existingIndex = cart.findIndex(item => item.id === digitalItem.id);
+    let newCart: PublicCartItem[];
+    if (existingIndex >= 0) {
+      newCart = cart.map((item, idx) =>
+        idx === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
+      );
+    } else {
+      newCart = [
+        ...cart,
+        {
+          id: digitalItem.id,
+          itemType: 'digital',
+          digital: digitalItem,
+          quantity: 1
         }
       ];
     }
@@ -337,6 +377,43 @@ export function PublicStorefront({
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Marketplaces quick links in top banner */}
+            <div className="flex items-center gap-1.5 text-[10px]">
+              <span className="text-slate-400 font-semibold hidden lg:inline">Lojas Oficiais:</span>
+              <a
+                href={OFFICIAL_MARKETPLACE_LINKS.shopee.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2 py-0.5 rounded-md bg-[#ee4d2d]/25 hover:bg-[#ee4d2d] text-orange-300 hover:text-white border border-[#ee4d2d]/40 transition-all font-black flex items-center gap-1"
+                title="Compre na nossa loja oficial da Shopee com frete grátis e cupons"
+              >
+                <ShoppingBag className="h-3 w-3" />
+                <span>Shopee</span>
+              </a>
+              <a
+                href={OFFICIAL_MARKETPLACE_LINKS.mercadolivre.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2 py-0.5 rounded-md bg-[#ffe600]/25 hover:bg-[#ffe600] text-yellow-300 hover:text-slate-950 border border-[#ffe600]/40 transition-all font-black flex items-center gap-1"
+                title="Compre pelo Mercado Livre com Mercado Envios e garantia"
+              >
+                <Store className="h-3 w-3" />
+                <span>Mercado Livre</span>
+              </a>
+              <a
+                href={OFFICIAL_MARKETPLACE_LINKS.discogs.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition-all font-black flex items-center gap-1"
+                title="Consulte nosso acervo internacional no Discogs"
+              >
+                <Disc className="h-3 w-3 text-amber-400" />
+                <span>Discogs</span>
+              </a>
+            </div>
+
+            <span className="text-slate-700 hidden sm:inline">|</span>
+
             <a
               href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`}
               target="_blank"
@@ -591,6 +668,25 @@ export function PublicStorefront({
                 <Shirt className="h-3.5 w-3.5 text-amber-600" />
                 <span>Camisetas (DTF)</span>
               </button>
+
+              {/* Música Online */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('musica_online');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'musica_online'
+                    ? 'bg-gradient-to-r from-indigo-900 to-slate-950 text-amber-300 border-indigo-400 shadow-md ring-1 ring-indigo-400/50'
+                    : 'bg-indigo-50/90 text-indigo-950 border-indigo-200 hover:bg-indigo-100/80'
+                }`}
+              >
+                <Headphones className="h-3.5 w-3.5 text-indigo-600" />
+                <span>Música Online</span>
+                <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-indigo-200 text-indigo-900">
+                  Hi-Res & Playlists
+                </span>
+              </button>
             </div>
 
             {/* Secondary / Utility Tabs */}
@@ -839,6 +935,118 @@ export function PublicStorefront({
             onAddToCart={handleAddTShirtToCart}
             whatsappNumber={whatsappNumber}
           />
+        ) : activeMainTab === 'musica_online' ? (
+          <div className="space-y-6">
+            {/* Sub navigation for Musica Online */}
+            <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-900 to-slate-900 text-amber-300 flex items-center justify-center font-black shadow-sm shrink-0">
+                  <Headphones className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-slate-950">Sessão de Música Online • Valdir Discos</h3>
+                  <p className="text-[11px] text-slate-500">Ouça prévias, baixe álbuns em formato Lossless (FLAC/WAV/MP3) ou sintonize playlists</p>
+                </div>
+              </div>
+
+              {/* Sub tabs */}
+              <div className="flex items-center gap-1.5 w-full md:w-auto bg-slate-100 p-1 rounded-xl overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setOnlineMusicSubTab('digital')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                    onlineMusicSubTab === 'digital'
+                      ? 'bg-white text-indigo-950 shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Disc className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Downloads & Player Hi-Res</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setOnlineMusicSubTab('streaming')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                    onlineMusicSubTab === 'streaming'
+                      ? 'bg-white text-indigo-950 shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Radio className="h-3.5 w-3.5 text-red-500" />
+                  <span>Playlists YouTube & Spotify</span>
+                </button>
+
+                {playlists.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setOnlineMusicSubTab('dj_sets')}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      onlineMusicSubTab === 'dj_sets'
+                        ? 'bg-white text-indigo-950 shadow-xs font-black'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Music className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Sets dos DJs ({playlists.length})</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sub-tab views */}
+            {onlineMusicSubTab === 'digital' ? (
+              <DigitalMusicSection
+                onAddToCart={handleAddDigitalToCart}
+                whatsappNumber={whatsappNumber}
+              />
+            ) : onlineMusicSubTab === 'streaming' ? (
+              <CuratedPlaylistsSection
+                onSelectGenreFilter={(genre) => {
+                  setSelectedGenre(genre);
+                  setActiveMainTab('discos');
+                }}
+              />
+            ) : (
+              /* DJ Playlists */
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {playlists.map(pl => (
+                    <div key={pl.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-md border border-indigo-200 uppercase">
+                            Playlist Curada do Balcão
+                          </span>
+                          <h4 className="text-lg font-black text-slate-900 mt-1">{pl.title}</h4>
+                          {pl.description && <p className="text-xs text-slate-500 mt-0.5">{pl.description}</p>}
+                        </div>
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                          <Music className="h-5 w-5" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 divide-y divide-slate-100 bg-slate-50 p-3 rounded-xl border border-slate-200/70 max-h-48 overflow-y-auto">
+                        {pl.items.map((item, idx) => (
+                          <div key={item.id || idx} className="pt-1.5 flex items-center justify-between text-xs">
+                            <div className="min-w-0 pr-2">
+                              <p className="font-bold text-slate-800 truncate">{item.trackTitle}</p>
+                              <p className="text-[11px] text-slate-500 truncate">{item.albumArtist} - {item.albumTitle}</p>
+                            </div>
+                            {item.drawer && (
+                              <span className="text-[10px] font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">
+                                {item.drawer}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : activeMainTab === 'playlists' ? (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -896,6 +1104,54 @@ export function PublicStorefront({
           </div>
         ) : (
           <>
+            {/* Official Marketplaces Quick Bar */}
+            <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-xs w-full md:w-auto">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-800 border border-amber-500/30 flex items-center justify-center font-bold shrink-0">
+                  <Store className="h-4 w-4 text-amber-800" />
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 text-xs sm:text-sm">Lojas Oficiais nos Marketplaces</h4>
+                  <p className="text-[11px] text-slate-500">Compre com frete reduzido ou cupons exclusivos do seu app favorito</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-start md:justify-end">
+                <a
+                  href={OFFICIAL_MARKETPLACE_LINKS.shopee.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-black bg-orange-50 text-[#ee4d2d] hover:bg-[#ee4d2d] hover:text-white border border-orange-200 hover:border-[#ee4d2d] transition-all flex items-center gap-1.5 shadow-xs"
+                >
+                  <ShoppingBag className="h-3.5 w-3.5" />
+                  <span>Shopee Oficial</span>
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+
+                <a
+                  href={OFFICIAL_MARKETPLACE_LINKS.mercadolivre.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-black bg-yellow-50 text-slate-900 hover:bg-[#ffe600] border border-yellow-200 hover:border-yellow-400 transition-all flex items-center gap-1.5 shadow-xs"
+                >
+                  <Store className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Mercado Livre</span>
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+
+                <a
+                  href={OFFICIAL_MARKETPLACE_LINKS.discogs.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-black bg-slate-900 text-white hover:bg-slate-800 border border-slate-700 transition-all flex items-center gap-1.5 shadow-xs"
+                >
+                  <Disc className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Discogs Global</span>
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+              </div>
+            </div>
+
             {/* Filter and Sorting Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1216,9 +1472,52 @@ export function PublicStorefront({
               </p>
             </div>
 
-            {/* Col 2: Services & Guarantees */}
+            {/* Col 2: Services & Guarantees & Navigation */}
             <div className="space-y-2">
-              <h5 className="font-bold text-white uppercase text-[11px] tracking-wider">Nossos Diferenciais</h5>
+              <h5 className="font-bold text-white uppercase text-[11px] tracking-wider">Navegação & Diferenciais</h5>
+              <div className="flex flex-wrap gap-1.5 pb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('discos');
+                    setSelectedFormat('vinyl');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] font-bold border border-slate-800"
+                >
+                  Discos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('musica_online');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="px-2 py-0.5 rounded bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 text-[11px] font-bold border border-indigo-800"
+                >
+                  🎧 Música Online
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('garimpo');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="px-2 py-0.5 rounded bg-orange-950/80 hover:bg-orange-900 text-orange-300 text-[11px] font-bold border border-orange-800"
+                >
+                  🔥 Garimpo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('tshirts');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="px-2 py-0.5 rounded bg-amber-950/80 hover:bg-amber-900 text-amber-300 text-[11px] font-bold border border-amber-800"
+                >
+                  👕 Camisetas
+                </button>
+              </div>
               <ul className="space-y-1.5 text-slate-400">
                 <li className="flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
@@ -1235,7 +1534,52 @@ export function PublicStorefront({
               </ul>
             </div>
 
-            {/* Col 3: Contact & Store */}
+            {/* Col 3: Lojas nos Marketplaces */}
+            <div className="space-y-2">
+              <h5 className="font-bold text-white uppercase text-[11px] tracking-wider">Lojas Oficiais</h5>
+              <div className="flex flex-col gap-1.5 text-xs">
+                <a
+                  href={OFFICIAL_MARKETPLACE_LINKS.shopee.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-[#ee4d2d] text-slate-300 hover:text-white transition-all flex items-center justify-between border border-slate-700/60 group"
+                >
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <ShoppingBag className="h-3.5 w-3.5 text-orange-400 group-hover:text-white" />
+                    Shopee Oficial
+                  </span>
+                  <span className="text-[10px] text-orange-300 group-hover:text-white/90">Cupons Frete</span>
+                </a>
+
+                <a
+                  href={OFFICIAL_MARKETPLACE_LINKS.mercadolivre.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-[#ffe600] text-slate-300 hover:text-slate-950 transition-all flex items-center justify-between border border-slate-700/60 group"
+                >
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <Store className="h-3.5 w-3.5 text-yellow-400 group-hover:text-slate-950" />
+                    Mercado Livre
+                  </span>
+                  <span className="text-[10px] text-yellow-300 group-hover:text-slate-900">Mercado Envios</span>
+                </a>
+
+                <a
+                  href={OFFICIAL_MARKETPLACE_LINKS.discogs.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all flex items-center justify-between border border-slate-700/60 group"
+                >
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <Disc className="h-3.5 w-3.5 text-amber-400 group-hover:text-white" />
+                    Discogs Seller
+                  </span>
+                  <span className="text-[10px] text-slate-400 group-hover:text-slate-200">Goldmine</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Col 4: Contact & Store */}
             <div className="space-y-2">
               <h5 className="font-bold text-white uppercase text-[11px] tracking-wider">Atendimento Direto</h5>
               <div className="space-y-1.5">

@@ -255,6 +255,45 @@ export const FORMAT_TYPES = [
   { id: 'other', label: 'Outro (Fita Cassete, Box Set)', icon: 'FileAudio' }
 ];
 
+export const OFFICIAL_MARKETPLACE_LINKS = {
+  shopee: {
+    id: 'shopee',
+    name: 'Shopee',
+    url: 'https://shopee.com.br/valdirdiscos',
+    label: 'Shopee Oficial',
+    badge: 'Loja Oficial',
+    bgColor: 'bg-[#ee4d2d]',
+    textColor: 'text-[#ee4d2d]',
+    lightBg: 'bg-orange-50',
+    border: 'border-orange-200 hover:border-orange-500',
+    description: 'Frete grátis com cupons no app da Shopee e garantia de entrega.'
+  },
+  mercadolivre: {
+    id: 'mercadolivre',
+    name: 'Mercado Livre',
+    url: 'https://lista.mercadolivre.com.br/_CustId_valdirdiscos',
+    label: 'Mercado Livre',
+    badge: 'MercadoLíder',
+    bgColor: 'bg-[#ffe600]',
+    textColor: 'text-amber-600',
+    lightBg: 'bg-yellow-50',
+    border: 'border-yellow-200 hover:border-yellow-500',
+    description: 'Envios rápidos pelo Mercado Envios com proteção total ao comprador.'
+  },
+  discogs: {
+    id: 'discogs',
+    name: 'Discogs',
+    url: 'https://www.discogs.com/seller/valdirdiscos',
+    label: 'Discogs Marketplace',
+    badge: 'Seller Oficial',
+    bgColor: 'bg-[#222222]',
+    textColor: 'text-slate-900',
+    lightBg: 'bg-slate-100',
+    border: 'border-slate-300 hover:border-slate-800',
+    description: 'Catálogo de discos internacional com graduação rigorosa Goldmine.'
+  }
+};
+
 export const DEFAULT_PRICING = {
   basePriceBrl: 120,
   exchangeRate: 5.60,

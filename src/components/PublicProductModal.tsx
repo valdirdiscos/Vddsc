@@ -20,9 +20,10 @@ import {
   Flame
 } from 'lucide-react';
 import { SavedListing } from '../types';
-import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE } from '../constants';
+import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE, OFFICIAL_MARKETPLACE_LINKS } from '../constants';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason } from '../utils/formatHelper';
+import { Store } from 'lucide-react';
 
 interface PublicProductModalProps {
   listing: SavedListing | null;
@@ -398,6 +399,43 @@ export function PublicProductModal({
                   <MapPin className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
                   <div>
                     <strong className="text-slate-800">Embalagem Profissional de Vinil:</strong> Enviamos com plástico protetor novo interno e externo em caixa de papelão reforçada à prova de impactos.
+                  </div>
+                </div>
+
+                {/* Official Marketplaces Strip */}
+                <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                  <span className="text-amber-950 font-bold flex items-center gap-1.5 text-[11px]">
+                    <Store className="h-3.5 w-3.5 text-amber-800" />
+                    Lojas Oficiais:
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <a
+                      href={OFFICIAL_MARKETPLACE_LINKS.shopee.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded-md bg-[#ee4d2d]/15 hover:bg-[#ee4d2d] text-[#ee4d2d] hover:text-white font-black text-[10.5px] border border-[#ee4d2d]/30 transition-all flex items-center gap-1"
+                    >
+                      <ShoppingBag className="h-3 w-3" />
+                      Shopee
+                    </a>
+                    <a
+                      href={OFFICIAL_MARKETPLACE_LINKS.mercadolivre.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded-md bg-[#ffe600]/30 hover:bg-[#ffe600] text-slate-950 font-black text-[10.5px] border border-[#ffe600]/50 transition-all flex items-center gap-1"
+                    >
+                      <Store className="h-3 w-3" />
+                      Mercado Livre
+                    </a>
+                    <a
+                      href={OFFICIAL_MARKETPLACE_LINKS.discogs.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-900 text-slate-200 hover:text-white font-black text-[10.5px] border border-slate-700 transition-all flex items-center gap-1"
+                    >
+                      <Disc className="h-3 w-3" />
+                      Discogs
+                    </a>
                   </div>
                 </div>
 

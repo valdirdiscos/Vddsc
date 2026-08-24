@@ -1653,8 +1653,8 @@ export default function App() {
   };
 
   const displayCover = (coverSource === 'real' && activeCover && activeCover !== release?.coverImage)
-    ? (activeCover.startsWith('data:') ? activeCover : (activeCover.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(activeCover)}` : activeCover))
-    : (release?.coverImage ? (release.coverImage.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(release.coverImage)}` : release.coverImage) : '');
+    ? activeCover
+    : (release?.coverImage || '');
 
   if (appMode === 'storefront' || !isStaff) {
     return (
@@ -2835,10 +2835,11 @@ export default function App() {
                           }`}
                         >
                           <img 
-                            src={release.coverImage.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(release.coverImage)}` : release.coverImage} 
+                            src={release.coverImage} 
                             alt="Capa Oficial" 
                             className="w-full h-full object-cover"
                             referrerPolicy="no-referrer"
+                            loading="lazy"
                           />
                           <span className="absolute bottom-0 inset-x-0 text-[8px] font-extrabold text-white bg-slate-900/80 py-0.5 text-center leading-none">
                             Discogs

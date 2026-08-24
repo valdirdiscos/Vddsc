@@ -34,9 +34,10 @@ export function TShirtDetailModal({
   if (!isOpen || !tshirt) return null;
 
   const getProductImage = (p: TShirtProduct) => {
-    if (p.id.includes('selo') || p.category === 'selo_oficial') return logoBadge;
-    if (p.id.includes('color') || p.id.includes('mascote') || p.category === 'mascote_color') return logoColor;
-    if (p.id.includes('bw') || p.category === 'monocromatico') return logoBw;
+    const pId = p.id.toLowerCase();
+    if (pId.includes('selo') || p.category === 'selo_oficial') return logoBadge;
+    if (pId.includes('color') || pId.includes('mascote')) return logoColor;
+    if (pId.includes('bw') || pId.includes('mono')) return logoBw;
     return p.image;
   };
 

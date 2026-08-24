@@ -1155,10 +1155,11 @@ Colecionar é preservar a história.`;
                         />
                       ) : item.release.coverImage && item.release.coverImage.trim() !== '' ? (
                         <img
-                          src={item.release.coverImage.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(item.release.coverImage)}` : item.release.coverImage}
+                          src={item.release.coverImage}
                           alt={item.release.title}
                           className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
                           referrerPolicy="no-referrer"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="flex flex-col items-center gap-1.5 text-slate-300">
@@ -1885,10 +1886,11 @@ Colecionar é preservar a história.`;
                       />
                     ) : selectedListing.release.coverImage && selectedListing.release.coverImage.trim() !== '' ? (
                       <img
-                        src={selectedListing.release.coverImage.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(selectedListing.release.coverImage)}` : selectedListing.release.coverImage}
+                        src={selectedListing.release.coverImage}
                         alt={selectedListing.release.title}
                         className="h-full w-full object-cover"
                         referrerPolicy="no-referrer"
+                        loading="lazy"
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-slate-300">

@@ -191,15 +191,11 @@ export function PublicProductModal({
                 <div className="aspect-square w-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-lg relative group">
                   {currentCover ? (
                     <img
-                      src={currentCover.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(currentCover)}` : currentCover}
+                      src={currentCover}
                       alt={`${release.artist} - ${release.title}`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        if (currentCover.startsWith('http') && !e.currentTarget.src.includes('/api/proxy-image')) {
-                          e.currentTarget.src = `/api/proxy-image?url=${encodeURIComponent(currentCover)}`;
-                        }
-                      }}
+                      loading="lazy"
                     />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
@@ -225,10 +221,11 @@ export function PublicProductModal({
                         }`}
                       >
                         <img 
-                          src={img.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(img)}` : img} 
+                          src={img} 
                           alt={`Foto ${idx + 1}`} 
                           className="w-full h-full object-cover" 
                           referrerPolicy="no-referrer"
+                          loading="lazy"
                         />
                       </button>
                     ))}

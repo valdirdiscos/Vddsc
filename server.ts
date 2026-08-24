@@ -178,12 +178,104 @@ async function startServer() {
       const contentType = response.headers.get("content-type") || "image/jpeg";
       res.set("Content-Type", contentType);
       res.set("Access-Control-Allow-Origin", "*");
-      res.set("Cache-Control", "public, max-age=86400");
+      res.set("Cache-Control", "public, max-age=31536000, s-maxage=31536000, immutable");
       const buffer = await response.arrayBuffer();
       res.send(Buffer.from(buffer));
     } catch (err) {
       console.error("Error proxying image:", err);
       res.status(500).send("Internal server error proxying image");
+    }
+  });
+
+  // Valdir Virtual - Atendente Inteligente para a Loja
+  app.post("/api/valdir-chat", async (req, res) => {
+    const { message, history, catalogContext } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: "Mensagem obrigatória." });
+    }
+
+    try {
+      const ai = getGeminiClient();
+      const systemInstruction = `Você é o "Valdir Virtual", o atendente inteligente e consultor oficial da loja **Valdir Discos** (acervo de música física localizado em Santa Maria - RS).
+Seu tom de voz é amigável, acolhedor, conhecedor profundo de música brasileira (MPB, Samba, Bossa Nova, Rock Nacional, Soul, Forró, Regional), Rock clássico, Jazz e colecionismo de vinil.
+
+INFORMAÇÕES ESSENCIAIS DA VALDIR DISCOS:
+1. **Envio & Embalagem**: Embalagem blindada com caixas de papelão reforçado duplo sob medida, plástico bolha reforçado, e discos acompanhados de plásticos protetores internos e externos novos de alta gramatura. Todos os vinis usados são higienizados e testados antes do envio. Enviamos para todo o Brasil.
+2. **Pagamentos**: Aceitamos Pix (com desconto especial de 5% à vista), cartões de crédito em até 12x via Mercado Pago, e boleto.
+3. **Graduação Goldmine**:
+   - **M (Mint)**: Novo e lacrado de fábrica.
+   - **NM (Near Mint)**: Quase novo, sem marcas ou chiados.
+   - **VG+ (Very Good Plus)**: Excelente estado, marcas superficiais mínimas que não afetam a audição.
+   - **VG (Very Good)**: Muito bom estado, pode ter chiado leve de fundo em trechos silenciosos, mas sem pular.
+   - **G+ / G**: Bom/regular com marcas e chiados audíveis.
+   - **Sessão Garimpo**: Itens com valores promocionais ou detalhes físicos informados com total transparência.
+4. **Camisetas Oficiais**: Camisetas em malha 100% algodão penteado 30.1 com estampas retrô do selo Valdir Discos ("Disco é Cultura", "Mascote Valdir", "Selo Vintage"). Modelos Unissex e Baby Look do P ao XGG.
+5. **Downloads Digitais**: Áudio em alta resolução (24-bit / 96kHz Lossless WAV/FLAC e MP3 320k) digitalizados diretamente de vinis raros com agulhas profissionais.
+6. **WhatsApp Oficial**: Para negociar lotes, pedir fotos ou falar com o Valdir real, o cliente pode clicar no botão de WhatsApp ou chamar em (55) 98116-4666.
+
+${catalogContext ? `ESTOQUE ATUAL EM DESTAQUE NA LOJA:\n${catalogContext}` : ""}
+
+INSTRUÇÕES DE RESPOSTA:
+- Responda de forma concisa, educada e prestativa em português brasileiro (máximo 2 a 3 parágrafos curtos).
+- Use termos carinhosos do meio de vinil como "Fala, colecionador!", "Grande amante da boa música!", etc.
+- Se o usuário perguntar por um artista ou disco, verifique o estoque fornecido ou sugira buscar na loja pelo nome do artista.
+- Sempre ofereça ajuda para finalizar pelo carrinho da loja ou pelo WhatsApp direto.`;
+
+      // Build contents array
+      const contents: any[] = [];
+      if (Array.isArray(history) && history.length > 0) {
+        history.slice(-6).forEach(h => {
+          if (h.role && h.text) {
+            contents.push({
+              role: h.role === 'user' ? 'user' : 'model',
+              parts: [{ text: h.text }]
+            });
+          }
+        });
+      }
+
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }]
+      });
+
+      const response = await generateContentWithFallback(ai, {
+        model: "gemini-3.5-flash",
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
+      });
+
+      const replyText = response.text ? response.text.trim() : "Olá! Sou o Valdir Virtual. Como posso te ajudar com sua coleção hoje?";
+      return res.json({ success: true, reply: replyText });
+    } catch (err: any) {
+      console.warn("Valdir Virtual Gemini chat error, using smart fallback answer:", err);
+      
+      // Smart local fallback answering engine
+      const lower = message.toLowerCase();
+      let reply = "Olá, colecionador! Sou o Valdir Virtual. Estou à sua disposição para tirar dúvidas sobre nosso acervo de LPs, frete blindado, camisetas e pagamentos.";
+
+      if (lower.includes('frete') || lower.includes('envio') || lower.includes('embalagem') || lower.includes('entrega') || lower.includes('chegar')) {
+        reply = "📦 **Envio Seguro & Embalagem Blindada Valdir Discos:**\nEnviamos para todo o Brasil via Correios e transportadoras parceiras! Nossos discos vão em caixas de papelão duplo super reforçadas com plástico bolha extra, acompanhados de plásticos protetores internos e externos novos. Todos os vinis são higienizados e testados antes do envio.";
+      } else if (lower.includes('pix') || lower.includes('pagamento') || lower.includes('cartao') || lower.includes('cartão') || lower.includes('desconto') || lower.includes('parcel')) {
+        reply = "💳 **Formas de Pagamento & Desconto:**\n• **Pix:** 5% de desconto à vista imediato!\n• **Cartão de Crédito:** Parcelamento em até 12x pelo Mercado Pago.\n• **Boleto Bancário** e compra direta pelo WhatsApp.";
+      } else if (lower.includes('estado') || lower.includes('conservacao') || lower.includes('conservação') || lower.includes('goldmine') || lower.includes('risco') || lower.includes('chiado') || lower.includes('vg') || lower.includes('nm') || lower.includes('mint')) {
+        reply = "🎵 **Classificação de Conservação (Padrão Internacional Goldmine):**\n• **M (Mint):** Novo, lacrado de fábrica.\n• **NM (Near Mint):** Quase novo, sem marcas visíveis.\n• **VG+ (Very Good Plus):** Excelente estado, pouquíssimas marcas superficiais, som limpo.\n• **VG (Very Good):** Muito bom estado, com chiados leves ocasionais de fundo, sem pulos.\n• **Garimpo:** Itens com preço reduzido e detalhes descritos com total transparência.";
+      } else if (lower.includes('camiseta') || lower.includes('camisa') || lower.includes('tshirt') || lower.includes('t-shirt') || lower.includes('tamanho')) {
+        reply = "👕 **Camisetas Oficiais Valdir Discos:**\nFeitas em malha premium 100% algodão penteado fio 30.1 com estampas retrô dos nossos selos clássicos. Temos tamanhos do P ao XGG nos modelos Unissex Tradicional e Baby Look!";
+      } else if (lower.includes('download') || lower.includes('digital') || lower.includes('flac') || lower.includes('wav') || lower.includes('mp3') || lower.includes('alta resolucao') || lower.includes('hi-res')) {
+        reply = "🎧 **Músicas e Álbuns Digitais (Hi-Res):**\nDigitalizamos vinis raros diretamente da agulha em estúdio com qualidade 24-bit / 96kHz. Você pode baixar o álbum completo ou faixas avulsas em WAV, FLAC Lossless ou MP3 320kbps assim que o pagamento for confirmado!";
+      } else if (lower.includes('whatsapp') || lower.includes('zap') || lower.includes('contato') || lower.includes('telefone') || lower.includes('valdir real') || lower.includes('falar com')) {
+        reply = "📱 **Fale com o Valdir no WhatsApp:**\nPara negociar lotes, tirar fotos detalhadas ou encomendar discos específicos, chame direto no WhatsApp: **(55) 98116-4666**. Teremos o maior prazer em conversar sobre música!";
+      } else if (lower.includes('onde') || lower.includes('endereco') || lower.includes('endereço') || lower.includes('cidade') || lower.includes('loja fisica') || lower.includes('santa maria')) {
+        reply = "📍 **Nossa Loja Física:**\nA Valdir Discos fica em **Santa Maria - Rio Grande do Sul**. Atendemos colecionadores de todo o Brasil pela internet com envio expresso e seguro!";
+      } else {
+        reply = `🎵 **Valdir Virtual:** Encontrei você procurando por "${message}". Você pode navegar pelas abas do nosso catálogo ou usar a barra de busca acima. Se quiser um atendimento personalizado com fotos e vídeos do disco tocando, me chame no WhatsApp oficial!`;
+      }
+
+      return res.json({ success: true, reply });
     }
   });
 

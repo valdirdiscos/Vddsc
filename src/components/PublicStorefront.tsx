@@ -49,6 +49,7 @@ import { CuratedPlaylistsSection } from './CuratedPlaylistsSection';
 import { CustomerAuthModal } from './CustomerAuthModal';
 import { CustomerDashboardModal } from './CustomerDashboardModal';
 import { LogoUploadModal } from './LogoUploadModal';
+import { ValdirVirtualChat } from './ValdirVirtualChat';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { useLogos } from '../hooks/useLogos';
 import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
@@ -1449,16 +1450,11 @@ export function PublicStorefront({
                       >
                         {cover ? (
                           <img
-                            src={cover.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(cover)}` : cover}
+                            src={cover}
                             alt={`${release.artist} - ${release.title}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             loading="lazy"
                             referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              if (cover.startsWith('http') && !e.currentTarget.src.includes('/api/proxy-image')) {
-                                e.currentTarget.src = `/api/proxy-image?url=${encodeURIComponent(cover)}`;
-                              }
-                            }}
                           />
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 p-2 text-center">
@@ -1821,6 +1817,13 @@ export function PublicStorefront({
       <LogoUploadModal
         isOpen={isLogoUploadModalOpen}
         onClose={() => setIsLogoUploadModalOpen(false)}
+      />
+
+      {/* Valdir Virtual - Atendente Virtual */}
+      <ValdirVirtualChat
+        listings={listings}
+        whatsappNumber={whatsappNumber}
+        onSelectProduct={(listing) => setSelectedProduct(listing)}
       />
 
     </div>

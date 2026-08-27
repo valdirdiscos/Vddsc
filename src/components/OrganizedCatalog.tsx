@@ -235,9 +235,14 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
   const reservedListings = listings.filter(item => item.status === 'reserved');
   const personalListings = listings.filter(item => item.status === 'personal');
 
+  // Helper for item store price
+  const getItemPrice = (item: SavedListing) => {
+    return item.pricing?.directPrice || item.pricing?.basePriceBrl || item.shopee?.suggestedPrice || 0;
+  };
+
   // Available inventory metrics (projected values)
   const totalCostAvailable = availableListings.reduce((sum, item) => sum + getItemCost(item), 0);
-  const totalProjectedRevenue = availableListings.reduce((sum, item) => sum + (item.shopee.suggestedPrice || 0), 0);
+  const totalProjectedRevenue = availableListings.reduce((sum, item) => sum + getItemPrice(item), 0);
   const totalProjectedProfit = totalProjectedRevenue - totalCostAvailable;
 
   // Realized Sales metrics
@@ -404,10 +409,10 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
       return a.release.artist.localeCompare(b.release.artist);
     }
     if (sortBy === 'price-desc') {
-      return (b.shopee.suggestedPrice || 0) - (a.shopee.suggestedPrice || 0);
+      return getItemPrice(b) - getItemPrice(a);
     }
     if (sortBy === 'price-asc') {
-      return (a.shopee.suggestedPrice || 0) - (b.shopee.suggestedPrice || 0);
+      return getItemPrice(a) - getItemPrice(b);
     }
     return 0;
   });
@@ -534,7 +539,7 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
   // Open the sale registration modal
   const openSellModal = (item: SavedListing) => {
     setSellingListing(item);
-    const suggested = item.shopee?.suggestedPrice || 0;
+    const suggested = getItemPrice(item);
     setSalePrice(suggested);
     setSalePlatform('shopee');
     
@@ -1171,7 +1176,7 @@ Colecionar é preservar a história.`;
                       {/* Overlays */}
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3 flex items-end justify-between text-white">
                         <span className="text-xs font-black bg-emerald-500 text-white px-2.5 py-1 rounded-xl shadow font-mono">
-                          R$ {(itemStatus === 'sold' && item.saleDetails ? item.saleDetails.salePrice : item.shopee.suggestedPrice).toFixed(0)}
+                          R$ {(itemStatus === 'sold' && item.saleDetails ? item.saleDetails.salePrice : getItemPrice(item)).toFixed(0)}
                         </span>
                         {item.drawer && (
                           <span className="text-[10px] font-bold bg-indigo-950/90 border border-indigo-400/30 text-indigo-200 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
@@ -1941,7 +1946,7 @@ Colecionar é preservar a história.`;
                       <div><span className="text-slate-400 block font-medium">Gravadora:</span> <strong className="text-slate-700 font-bold">{selectedListing.release.label}</strong></div>
                       <div><span className="text-slate-400 block font-medium">Nº Catálogo:</span> <strong className="text-slate-700 font-bold font-mono">{selectedListing.release.catno || 'N/D'}</strong></div>
                       <div><span className="text-slate-400 block font-medium">Ano Edição:</span> <strong className="text-slate-700 font-bold">{selectedListing.release.year || 'N/D'}</strong></div>
-                      <div><span className="text-slate-400 block font-medium">Preço Base Sugerido:</span> <strong className="text-emerald-600 font-bold text-sm font-mono">R$ {selectedListing.shopee.suggestedPrice.toFixed(2)}</strong></div>
+                      <div><span className="text-slate-400 block font-medium">Preço da Loja:</span> <strong className="text-emerald-600 font-bold text-sm font-mono">R$ {getItemPrice(selectedListing).toFixed(2)}</strong></div>
                     </div>
                   </div>
                 </div>

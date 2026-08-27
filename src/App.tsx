@@ -911,8 +911,10 @@ export default function App() {
     }
   };
 
-  // Sync pricing if release lowest price changes
+  // Sync pricing if release lowest price changes (only on fresh searches, preserving workspace price if already selected)
   useEffect(() => {
+    if (activeListingId) return; // Do not overwrite price of loaded listing
+
     if (release && release.lowestPriceUsd && !release.isManual) {
       setPricing((prev) => {
         const usdVal = release.lowestPriceUsd || 0;
@@ -920,20 +922,25 @@ export default function App() {
         const converted = Math.round(usdVal * exchangeVal);
         return {
           ...prev,
-          basePriceBrl: usdVal || prev.basePriceBrl,
-          useExchange: true,
-          directPrice: converted > 0 ? converted : prev.directPrice
+          basePriceBrl: converted > 0 ? converted : prev.basePriceBrl,
+          useExchange: false,
+          directPrice: converted > 0 ? converted : prev.directPrice,
+          mode: 'direct'
         };
       });
     } else if (release && release.isManual) {
-      setPricing((prev) => ({
-        ...prev,
-        basePriceBrl: release.lowestPriceUsd || prev.basePriceBrl,
-        useExchange: false,
-        directPrice: release.lowestPriceUsd || prev.directPrice
-      }));
+      setPricing((prev) => {
+        const priceVal = release.lowestPriceUsd || prev.basePriceBrl;
+        return {
+          ...prev,
+          basePriceBrl: priceVal,
+          useExchange: false,
+          directPrice: priceVal,
+          mode: 'direct'
+        };
+      });
     }
-  }, [release]);
+  }, [release, activeListingId]);
 
   // Clean success/error alerts automatically
   useEffect(() => {
@@ -1061,11 +1068,14 @@ export default function App() {
   ) => {
     setGeneratingAd(true);
     try {
-      const shopeePrice = calculateShopeePrice(currentPricing);
+      const userPrice = (currentPricing.mode === 'direct' || !currentPricing.mode)
+        ? (currentPricing.directPrice !== undefined && currentPricing.directPrice !== null && currentPricing.directPrice > 0 ? currentPricing.directPrice : currentPricing.basePriceBrl)
+        : calculateShopeePrice(currentPricing);
+
       const payload = {
         release: currentRelease,
         condition: currentCondition,
-        pricing: { ...currentPricing, basePriceBrl: shopeePrice },
+        pricing: { ...currentPricing, basePriceBrl: userPrice, directPrice: userPrice },
         drawer: currentDrawer
       };
 
@@ -1098,11 +1108,14 @@ export default function App() {
     setGeneratingAd(true);
 
     try {
-      const shopeePrice = calculateShopeePrice(pricing);
+      const userPrice = (pricing.mode === 'direct' || !pricing.mode)
+        ? (pricing.directPrice !== undefined && pricing.directPrice !== null && pricing.directPrice > 0 ? pricing.directPrice : pricing.basePriceBrl)
+        : calculateShopeePrice(pricing);
+
       const payload = {
         release,
         condition,
-        pricing: { ...pricing, basePriceBrl: shopeePrice },
+        pricing: { ...pricing, basePriceBrl: userPrice, directPrice: userPrice },
         drawer,
         isGarimpo,
         garimpoDetails: isGarimpo ? garimpoDetails : undefined
@@ -1122,9 +1135,9 @@ export default function App() {
 
       setShopeeListing(data.shopee);
       setMercadoLivreListing(data.mercadolivre);
-      setSuccessMsg('Anúncios Shopee e Mercado Livre atualizados com novas condições!');
+      setSuccessMsg('Anúncios Shopee e Mercado Livre atualizados com sucesso!');
     } catch (err: any) {
-      setError(err.message || 'Erro ao re-gerar anúncios.');
+      setError(`Erro ao gerar anúncios: ${err.message}`);
     } finally {
       setGeneratingAd(false);
     }
@@ -1358,12 +1371,31 @@ export default function App() {
     setIsSavingListing(true);
     setIsSavedSuccess(false);
 
-    // Ensure we have valid Shopee and Mercado Livre listings
-    let finalShopee = shopeeListing;
-    let finalMl = mercadoLivreListing;
+    // Get the exact user-defined store price
+    const userStorePrice = (pricing.mode === 'direct' || !pricing.mode)
+      ? (pricing.directPrice !== undefined && pricing.directPrice !== null && pricing.directPrice > 0 ? pricing.directPrice : pricing.basePriceBrl)
+      : calculateShopeePrice(pricing);
 
-    const baseShopeePrice = calculateShopeePrice(pricing);
+    // Ensure pricing config itself has the correct basePriceBrl and directPrice matching the store price
+    const finalPricing: PricingConfig = {
+      ...pricing,
+      basePriceBrl: userStorePrice,
+      directPrice: userStorePrice,
+      mode: pricing.mode || 'direct'
+    };
+
     const locTag = drawer ? ` - [Loc: ${drawer}]` : '';
+
+    // Ensure we have valid Shopee and Mercado Livre listings strictly using the user's store price
+    let finalShopee = shopeeListing ? {
+      ...shopeeListing,
+      suggestedPrice: userStorePrice
+    } : null;
+
+    let finalMl = mercadoLivreListing ? {
+      ...mercadoLivreListing,
+      suggestedPrice: userStorePrice
+    } : null;
 
     if (!finalShopee) {
       const fallbackDesc = [
@@ -1383,7 +1415,7 @@ export default function App() {
       finalShopee = {
         title: `${release.artist} - ${release.title}${locTag}`.slice(0, 120),
         description: fallbackDesc,
-        suggestedPrice: baseShopeePrice,
+        suggestedPrice: userStorePrice,
         hashtags: ['#vinil', '#discodevinil', '#lp', '#valdir_discos']
       };
       setShopeeListing(finalShopee);
@@ -1394,7 +1426,7 @@ export default function App() {
       finalMl = {
         title: `Vinil LP ${release.artist} - ${release.title}${mlLocTag}`.slice(0, 60),
         description: finalShopee.description,
-        suggestedPrice: baseShopeePrice
+        suggestedPrice: userStorePrice
       };
       setMercadoLivreListing(finalMl);
     }
@@ -1413,7 +1445,7 @@ export default function App() {
       id,
       release,
       condition,
-      pricing,
+      pricing: finalPricing,
       shopee: finalShopee,
       mercadolivre: finalMl || undefined,
       createdAt: existingListing ? existingListing.createdAt : new Date().toISOString(),

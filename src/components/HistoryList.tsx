@@ -198,7 +198,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-xs font-mono font-bold text-emerald-600 mr-1">R$ {item.shopee.suggestedPrice.toFixed(0)}</span>
+                    <span className="text-xs font-mono font-bold text-emerald-600 mr-1">R$ {(item.pricing?.directPrice || item.pricing?.basePriceBrl || item.shopee?.suggestedPrice || 0).toFixed(0)}</span>
                     <button
                       type="button"
                       title="Excluir Anúncio"

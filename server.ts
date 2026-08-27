@@ -1205,17 +1205,21 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
 
       const finalDescription = sanitizePersonalAndPlatforms(description);
 
+      const resolvedPrice = (pricing.directPrice !== undefined && pricing.directPrice > 0)
+        ? pricing.directPrice
+        : (pricing.basePriceBrl || 0);
+
       return {
         shopee: {
           title: sanitizePersonalAndPlatforms(titleShopee),
           description: finalDescription,
-          suggestedPrice: rawListing.suggestedPrice || pricing.basePriceBrl,
+          suggestedPrice: resolvedPrice,
           hashtags: rawListing.hashtags?.map((h: string) => sanitizePersonalAndPlatforms(h)).filter(Boolean) || []
         },
         mercadolivre: {
           title: sanitizePersonalAndPlatforms(fullTitleMl),
           description: finalDescription,
-          suggestedPrice: rawListing.suggestedPrice || pricing.basePriceBrl
+          suggestedPrice: resolvedPrice
         }
       };
     } catch (geminiErr) {
@@ -1598,13 +1602,13 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
       const title = `${listing.release.artist} - ${listing.release.title}`;
       const condMedia = listing.condition?.mediaCondition || 'VG+';
       const condSleeve = listing.condition?.sleeveCondition || 'VG+';
-      const price = listing.pricing?.basePriceBrl || 120.00;
+      const price = listing.pricing?.directPrice || listing.pricing?.basePriceBrl || 120.00;
       const drawer = listing.drawer ? ` [Gaveta: ${listing.drawer}]` : '';
 
       // 4A. Mercado Livre Publish Logic
       if (platforms.includes('mercadolivre')) {
         const mlTitle = `Vinil LP ${listing.release.artist} ${listing.release.title}${drawer}`.slice(0, 60);
-        const mlPrice = listing.mercadolivre?.suggestedPrice || Number((price * 1.16).toFixed(2));
+        const mlPrice = listing.mercadolivre?.suggestedPrice || price;
         const mlExternalId = `MLB${Math.floor(1000000000 + Math.random() * 9000000000)}`;
 
         results.mercadolivre = {
@@ -1626,7 +1630,7 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
       // 4B. Shopee Publish Logic
       if (platforms.includes('shopee')) {
         const shpTitle = `${listing.release.artist} - ${listing.release.title} [Disco Vinil LP Original]`.slice(0, 120);
-        const shpPrice = listing.shopee?.suggestedPrice || Number((price * 1.18).toFixed(2));
+        const shpPrice = listing.shopee?.suggestedPrice || price;
         const shpExternalId = `SHP_${Math.floor(100000000 + Math.random() * 900000000)}`;
 
         results.shopee = {

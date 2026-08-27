@@ -45,6 +45,8 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         ...pricing,
         directPrice: converted,
         basePriceBrl: converted,
+        mode: 'direct',
+        useExchange: false
       });
     }
   };
@@ -105,8 +107,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         /* DIRECT PRICE MODE */
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-              Preço de Venda Final (R$)
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+              <span>Meu Preço de Venda / Preço da Loja (R$)</span>
+              <span className="text-[10px] text-emerald-600 font-semibold lowercase bg-emerald-50 px-2 py-0.5 rounded-md">salvo no banco de dados</span>
             </label>
             <div className="relative rounded-xl shadow-sm">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -117,7 +120,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 value={pricing.directPrice ?? pricing.basePriceBrl}
                 onChange={(e) => {
                   const val = parseFloat(e.target.value) || 0;
-                  onChange({ ...pricing, directPrice: val, basePriceBrl: val });
+                  onChange({ ...pricing, directPrice: val, basePriceBrl: val, mode: 'direct', useExchange: false });
                 }}
                 className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-2xl font-black font-mono text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
                 placeholder="0.00"

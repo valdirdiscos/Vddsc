@@ -76,7 +76,7 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
 
     availableItems.forEach(item => {
       const channels = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
-      const price = item.pricing?.basePriceBrl || 0;
+      const price = item.pricing?.directPrice || item.pricing?.basePriceBrl || 0;
       const shopeePrice = item.shopee?.suggestedPrice || price;
       const mlPrice = item.mercadolivre?.suggestedPrice || price;
 

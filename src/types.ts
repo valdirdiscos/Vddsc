@@ -72,6 +72,90 @@ export interface MercadoLivreListing {
   suggestedPrice: number;
 }
 
+export interface MarketplacePublication {
+  platform: 'shopee' | 'mercadolivre';
+  externalId: string; // e.g., MLB123456789 or SHP_987654321
+  status: 'active' | 'paused' | 'out_of_stock' | 'pending' | 'error';
+  permalink?: string;
+  price: number;
+  publishedAt: string;
+  lastSyncAt: string;
+  errorMsg?: string;
+}
+
+export interface MarketplaceConfig {
+  mercadolivre: {
+    clientId: string;
+    clientSecret: string;
+    redirectUri?: string;
+    accessToken?: string;
+    refreshToken?: string;
+    sellerId?: string;
+    nickname?: string;
+    isConnected: boolean;
+    autoSyncStock: boolean;
+    syncPrices: boolean;
+    lastSyncAt?: string;
+    mode: 'production' | 'sandbox';
+  };
+  shopee: {
+    partnerId: string;
+    partnerKey: string;
+    shopId: string;
+    accessToken?: string;
+    refreshToken?: string;
+    shopName?: string;
+    isConnected: boolean;
+    autoSyncStock: boolean;
+    syncPrices: boolean;
+    lastSyncAt?: string;
+    mode: 'production' | 'sandbox';
+  };
+}
+
+export interface MarketplaceQuestion {
+  id: string;
+  platform: 'mercadolivre' | 'shopee';
+  externalQuestionId: string;
+  listingId?: string;
+  listingTitle: string;
+  listingCover?: string;
+  listingPrice?: number;
+  listingDrawer?: string;
+  listingCondition?: string;
+  buyerNickname: string;
+  buyerLocation?: string;
+  questionText: string;
+  createdAt: string;
+  status: 'UNANSWERED' | 'ANSWERED' | 'CLOSED';
+  answerText?: string;
+  answeredAt?: string;
+  aiSuggestedAnswer?: string;
+}
+
+export interface MarketplaceOrder {
+  id: string;
+  platform: 'mercadolivre' | 'shopee';
+  externalOrderId: string;
+  listingId?: string;
+  listingTitle: string;
+  listingCover?: string;
+  buyerName: string;
+  buyerCity?: string;
+  buyerState?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  shippingCost?: number;
+  marketplaceFee: number;
+  netPayout: number;
+  status: 'paid' | 'ready_to_ship' | 'shipped' | 'delivered' | 'cancelled';
+  createdAt: string;
+  shippingLabelUrl?: string;
+  trackingNumber?: string;
+  shippingMethod?: string;
+}
+
 export interface PersonalFile {
   id: string;
   name: string;
@@ -91,6 +175,10 @@ export interface SavedListing {
   pricing: PricingConfig;
   shopee: ShopeeListing;
   mercadolivre?: MercadoLivreListing; // Optional Mercado Livre listing
+  marketplacePublications?: {
+    shopee?: MarketplacePublication;
+    mercadolivre?: MarketplacePublication;
+  };
   salesChannels?: SalesChannel[]; // Channels where the product is available: 'physical_store' | 'online_store' | 'shopee' | 'mercadolivre'
   createdAt: string;
   drawer?: string; // storage location designated by Valdir

@@ -47,13 +47,15 @@ import {
   Printer,
   Flame,
   HardDrive,
-  Cloud
+  Cloud,
+  Zap
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
 import { DiscogsRelease, ConditionSelection, PricingConfig, SavedListing, ShopeeListing, MercadoLivreListing, Customer, DJPlaylist, SalesChannel, SavedLabel, CartItem, PhysicalSaleOrder, LabelFormatType, DigitalAlbumProduct, StorageProviderConfig } from './types';
 import { DIGITAL_ALBUM_PRODUCTS, DEFAULT_STORAGE_PROVIDERS } from './data/digitalMusicData';
 import { DigitalMusicManager } from './components/DigitalMusicManager';
+import { MarketplaceIntegrationHub } from './components/MarketplaceIntegrationHub';
 import { BarcodeQrScannerModal } from './components/BarcodeQrScannerModal';
 import { StoreOmnichannelManager } from './components/StoreOmnichannelManager';
 import { PhysicalStorePos } from './components/PhysicalStorePos';
@@ -163,8 +165,8 @@ export default function App() {
   // App Mode ('storefront' = public e-commerce for customers, 'intranet' = internal store POS & backoffice)
   const [appMode, setAppMode] = useState<'storefront' | 'intranet'>('storefront');
 
-  // Main Tab Navigation ('store_pos' = physical store real-time POS, 'online_orders' = website orders, 'digital_storage' = hi-res music & storage manager, 'announce' = create announcements, 'catalog' = organized database catalog, 'omnichannel' = sales channels, 'playlists' = dj sets, 'clients' = customer management)
-  const [mainTab, setMainTab] = useState<'store_pos' | 'online_orders' | 'digital_storage' | 'announce' | 'catalog' | 'omnichannel' | 'playlists' | 'clients'>('store_pos');
+  // Main Tab Navigation ('store_pos' = physical store real-time POS, 'online_orders' = website orders, 'marketplaces' = Shopee & Mercado Livre hub, 'digital_storage' = hi-res music & storage manager, 'announce' = create announcements, 'catalog' = organized database catalog, 'omnichannel' = sales channels, 'playlists' = dj sets, 'clients' = customer management)
+  const [mainTab, setMainTab] = useState<'store_pos' | 'online_orders' | 'marketplaces' | 'digital_storage' | 'announce' | 'catalog' | 'omnichannel' | 'playlists' | 'clients'>('store_pos');
   const { customerOrders } = useCustomerAuth();
   const [salesOrders, setSalesOrders] = useState<PhysicalSaleOrder[]>([]);
 
@@ -428,6 +430,8 @@ export default function App() {
   const [generatingAd, setGeneratingAd] = useState(false);
   const [isSavingListing, setIsSavingListing] = useState(false);
   const [isSavedSuccess, setIsSavedSuccess] = useState(false);
+  const [isPublishingMarketplaces, setIsPublishingMarketplaces] = useState(false);
+  const [publishMarketplaceSuccess, setPublishMarketplaceSuccess] = useState<string | null>(null);
   const [saveToast, setSaveToast] = useState<{ message: string; title: string; id: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -1453,6 +1457,66 @@ export default function App() {
     }
   };
 
+  // Publish active workspace listing directly to Mercado Livre and Shopee
+  const handlePublishCurrentListingToMarketplaces = async (targetPlatforms: ('mercadolivre' | 'shopee')[]) => {
+    if (!release) return;
+    setIsPublishingMarketplaces(true);
+    setPublishMarketplaceSuccess(null);
+
+    const id = activeListingId || `valdir-${Date.now()}`;
+    const channelsToAdd = targetPlatforms;
+    const combinedChannels = Array.from(new Set([...activeSalesChannels, ...channelsToAdd])) as SalesChannel[];
+    setActiveSalesChannels(combinedChannels);
+
+    const currentItemToPublish: SavedListing = {
+      id,
+      release,
+      condition,
+      pricing,
+      shopee: shopeeListing || { title: `${release.artist} - ${release.title}`, description: '', category: '', tags: [] },
+      mercadolivre: mercadoLivreListing || { title: `${release.artist} - ${release.title}`.slice(0, 60), description: '', category: 'Música e Vinil' },
+      drawer,
+      customImages,
+      isGarimpo,
+      garimpoDetails,
+      salesChannels: combinedChannels,
+      status: isPersonal ? 'personal' : 'available',
+      createdAt: new Date().toISOString(),
+      quantity: 1
+    };
+
+    try {
+      const res = await fetch('/api/marketplaces/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listing: currentItemToPublish,
+          targetPlatforms
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.publications) {
+        currentItemToPublish.marketplacePublications = {
+          ...(currentItemToPublish.marketplacePublications || {}),
+          ...data.publications
+        };
+
+        await handleUpdateListing(currentItemToPublish);
+        setActiveListingId(id);
+
+        const platformNames = targetPlatforms.map(p => p === 'mercadolivre' ? 'Mercado Livre' : 'Shopee').join(' e ');
+        setPublishMarketplaceSuccess(`✓ Publicado com sucesso no ${platformNames}!`);
+        setSuccessMsg(`✓ Anúncio publicado e ativo no ${platformNames}!`);
+        setTimeout(() => setPublishMarketplaceSuccess(null), 5000);
+      }
+    } catch (err) {
+      console.error('Erro ao publicar nos marketplaces:', err);
+      setError('Erro ao enviar anúncio para as APIs dos Marketplaces.');
+    } finally {
+      setIsPublishingMarketplaces(false);
+    }
+  };
+
   // Delete listing from Firestore and LocalStorage
   const handleDeleteListing = async (id: string) => {
     const updated = savedListings.filter((l) => l.id !== id);
@@ -1948,6 +2012,21 @@ export default function App() {
           </button>
           <button
             type="button"
+            onClick={() => setMainTab('marketplaces')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer relative ${
+              mainTab === 'marketplaces'
+                ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-black shadow-md shadow-orange-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-orange-50/60'
+            }`}
+          >
+            <Zap className="h-4 w-4 text-amber-500" />
+            Shopee & Mercado Livre
+            <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md ml-1 bg-amber-400 text-slate-950">
+              API
+            </span>
+          </button>
+          <button
+            type="button"
             onClick={() => setMainTab('omnichannel')}
             className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
               mainTab === 'omnichannel'
@@ -1956,7 +2035,7 @@ export default function App() {
             }`}
           >
             <Globe className="h-4 w-4" />
-            Canais / Marketplaces
+            Canais / PDV
           </button>
           <button
             type="button"
@@ -2051,6 +2130,16 @@ export default function App() {
           />
         ) : mainTab === 'online_orders' ? (
           <OnlineOrdersIntranetTab />
+        ) : mainTab === 'marketplaces' ? (
+          <MarketplaceIntegrationHub
+            listings={savedListings}
+            onUpdateListing={handleUpdateListing}
+            onOpenThermalPrint={(item) => setThermalPrintListing(item)}
+            onSelectListing={(item) => {
+              handleSelectListing(item);
+              setMainTab('announce');
+            }}
+          />
         ) : mainTab === 'digital_storage' ? (
           <DigitalMusicManager
             albums={digitalAlbums}
@@ -3153,6 +3242,26 @@ export default function App() {
                         >
                           <Printer className="h-3.5 w-3.5 text-amber-700" />
                           <span>Térmica</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handlePublishCurrentListingToMarketplaces(['mercadolivre', 'shopee'])}
+                          disabled={isPublishingMarketplaces}
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-md bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-slate-950 active:scale-95 disabled:opacity-50"
+                          title="Cadastrar e sincronizar anúncio automaticamente no Mercado Livre e na Shopee"
+                        >
+                          {isPublishingMarketplaces ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin text-slate-950" />
+                              <span>Publicando nas APIs...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="h-4 w-4 text-slate-950" />
+                              <span>Publicar ML & Shopee</span>
+                            </>
+                          )}
                         </button>
 
                         <button

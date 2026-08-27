@@ -295,13 +295,14 @@ export const OFFICIAL_MARKETPLACE_LINKS = {
 };
 
 export const DEFAULT_PRICING = {
-  basePriceBrl: 120,
+  costPrice: 0,
+  basePriceBrl: 80,
   exchangeRate: 5.60,
   useExchange: false,
   shopeeCommissionPercent: 14,
   shopeeFixedFee: 4.00,
-  packagingCost: 5.00,
+  packagingCost: 4.00,
   profitMarginPercent: 20,
   mode: 'direct' as const,
-  directPrice: 120
+  directPrice: 80
 };

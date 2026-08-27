@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { DollarSign, Percent, Plus, HelpCircle, ArrowRight, ShieldCheck, Tag, Calculator, Info } from 'lucide-react';
+import { DollarSign, Percent, Tag, Calculator, Info, Package, TrendingUp, HelpCircle } from 'lucide-react';
 import { PricingConfig } from '../types';
 
 interface PricingCalculatorProps {
@@ -20,27 +20,34 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 }) => {
   const mode = pricing.mode || 'direct';
 
-  // Conversions and calculations for Advanced Mode
-  const baseInBrl = pricing.useExchange
-    ? pricing.basePriceBrl * pricing.exchangeRate
-    : pricing.basePriceBrl;
-
-  const costWithPackaging = baseInBrl + pricing.packagingCost;
-  const targetNetPayout = costWithPackaging * (1 + pricing.profitMarginPercent / 100);
-
-  const commissionRate = pricing.shopeeCommissionPercent / 100;
-  const divisor = 1 - commissionRate;
+  // Direct sale price (what customer pays in store/ads)
+  const directSalePrice = pricing.directPrice ?? pricing.basePriceBrl ?? 80;
   
-  const finalShopeePrice = divisor > 0 
-    ? (targetNetPayout + pricing.shopeeFixedFee) / divisor 
-    : 0;
+  // Real acquisition cost paid for the disc
+  const discCost = pricing.costPrice ?? 0;
+  const packaging = pricing.packagingCost ?? 4.0;
+  const totalCost = discCost + packaging;
+  const estimatedProfit = directSalePrice - totalCost;
+  const profitMarginPct = directSalePrice > 0 ? ((estimatedProfit / directSalePrice) * 100).toFixed(0) : '0';
 
-  const totalShopeeFee = finalShopeePrice * commissionRate + pricing.shopeeFixedFee;
-  const realProfit = finalShopeePrice - totalShopeeFee - costWithPackaging;
+  // Advanced Mode Formulas
+  const baseInBrl = pricing.useExchange
+    ? (pricing.costPrice || pricing.basePriceBrl) * pricing.exchangeRate
+    : (pricing.costPrice || pricing.basePriceBrl);
+
+  const costWithPackaging = baseInBrl + packaging;
+  const targetNetPayout = costWithPackaging * (1 + (pricing.profitMarginPercent || 20) / 100);
+  const commissionRate = (pricing.shopeeCommissionPercent || 14) / 100;
+  const divisor = 1 - commissionRate;
+  const finalShopeePrice = divisor > 0 
+    ? (targetNetPayout + (pricing.shopeeFixedFee || 4.0)) / divisor 
+    : 0;
+  const totalShopeeFee = finalShopeePrice * commissionRate + (pricing.shopeeFixedFee || 4.0);
+  const realProfitAdvanced = finalShopeePrice - totalShopeeFee - costWithPackaging;
 
   const handleUseDiscogsPriceDirect = () => {
     if (discogsLowestPriceUsd) {
-      const converted = Math.round(discogsLowestPriceUsd * pricing.exchangeRate);
+      const converted = Math.round(discogsLowestPriceUsd * (pricing.exchangeRate || 5.60));
       onChange({
         ...pricing,
         directPrice: converted,
@@ -51,24 +58,19 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     }
   };
 
-  const handleUseDiscogsPriceAdvanced = () => {
-    if (discogsLowestPriceUsd) {
-      onChange({
-        ...pricing,
-        basePriceBrl: discogsLowestPriceUsd,
-        useExchange: true,
-      });
-    }
-  };
-
   return (
     <div className="space-y-5" id="pricing-calculator-container">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-indigo-600" />
-          Precificação do Anúncio
-        </h3>
+        <div>
+          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-indigo-600" />
+            Precificação & Custos do Disco
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Defina o preço de venda da loja e o custo real de aquisição para cálculo de lucro.
+          </p>
+        </div>
         <span className="text-[10px] uppercase font-extrabold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-xl border border-indigo-200">
           Valdir Discos
         </span>
@@ -86,7 +88,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           }`}
         >
           <Tag className="h-4 w-4 text-indigo-500" />
-          Definir Preço Direto
+          Preço Direto da Loja
         </button>
         <button
           type="button"
@@ -98,7 +100,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           }`}
         >
           <Calculator className="h-4 w-4 text-indigo-500" />
-          Calculadora de Margem
+          Calculadora de Margem / Taxas
         </button>
       </div>
 
@@ -106,76 +108,137 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       {mode === 'direct' ? (
         /* DIRECT PRICE MODE */
         <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-              <span>Meu Preço de Venda / Preço da Loja (R$)</span>
-              <span className="text-[10px] text-emerald-600 font-semibold lowercase bg-emerald-50 px-2 py-0.5 rounded-md">salvo no banco de dados</span>
-            </label>
-            <div className="relative rounded-xl shadow-sm">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                <span className="text-slate-400 text-lg font-black font-mono">R$</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Preço de Venda da Loja */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <span>Preço de Venda na Loja (R$)</span>
+                <span className="text-[10px] text-emerald-600 font-semibold lowercase bg-emerald-50 px-2 py-0.5 rounded-md">valor cobrado</span>
+              </label>
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <span className="text-slate-400 text-base font-black font-mono">R$</span>
+                </div>
+                <input
+                  type="number"
+                  value={pricing.directPrice ?? pricing.basePriceBrl ?? ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    onChange({ ...pricing, directPrice: val, basePriceBrl: val, mode: 'direct', useExchange: false });
+                  }}
+                  className="block w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xl font-black font-mono text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                  placeholder="80.00"
+                  step="any"
+                />
               </div>
-              <input
-                type="number"
-                value={pricing.directPrice ?? pricing.basePriceBrl}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value) || 0;
-                  onChange({ ...pricing, directPrice: val, basePriceBrl: val, mode: 'direct', useExchange: false });
-                }}
-                className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-2xl font-black font-mono text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-                placeholder="0.00"
-                step="any"
-              />
+              <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                Preço final anunciado no balcão, site e marketplaces.
+              </p>
             </div>
-            <p className="text-[10px] text-slate-400 font-medium leading-relaxed flex items-start gap-1">
-              <Info className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
-              <span>Digite diretamente o preço pelo qual o disco será anunciado. Este valor será sincronizado automaticamente no título e na descrição das duas plataformas.</span>
-            </p>
+
+            {/* Custo de Aquisição (O que pagou no disco) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <span>Custo de Aquisição / Compra (R$)</span>
+                <span className="text-[10px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-md">opcional</span>
+              </label>
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <span className="text-slate-400 text-base font-black font-mono">R$</span>
+                </div>
+                <input
+                  type="number"
+                  value={pricing.costPrice !== undefined ? pricing.costPrice : ''}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                    onChange({ ...pricing, costPrice: val });
+                  }}
+                  className="block w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xl font-black font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                  placeholder="0.00"
+                  step="any"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                Quanto você pagou no lote ou garimpo por este vinil (R$ 0 se não souber).
+              </p>
+            </div>
           </div>
 
-          {discogsLowestPriceUsd && (
-            <button
-              type="button"
-              onClick={handleUseDiscogsPriceDirect}
-              className="w-full flex items-center justify-between px-3.5 py-3 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100/70 rounded-xl text-xs text-emerald-800 transition-all cursor-pointer shadow-sm shadow-emerald-50/50"
-            >
-              <span className="flex items-center gap-1.5 text-left font-semibold">
-                <DollarSign className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                <span>
-                  Sugerido do Discogs convertido: <strong className="text-emerald-950">R$ {Math.round(discogsLowestPriceUsd * pricing.exchangeRate).toFixed(2)}</strong>
+          {/* Embalagem e Resumo de Lucro */}
+          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 text-slate-600 font-bold">
+                <Package className="h-4 w-4 text-slate-400" />
+                <span>Custo de Embalagem & Plásticos:</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-mono">R$</span>
+                <input
+                  type="number"
+                  value={pricing.packagingCost ?? 4.0}
+                  onChange={(e) => onChange({ ...pricing, packagingCost: parseFloat(e.target.value) || 0 })}
+                  className="w-16 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-right text-slate-800"
+                  step="0.50"
+                />
+              </div>
+            </div>
+
+            {/* Profit summary card */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">Lucro Bruto Estimado</span>
+                <span className="text-[11px] text-emerald-700 font-medium">
+                  Venda R$ {directSalePrice.toFixed(2)} - Custo Total R$ {totalCost.toFixed(2)}
                 </span>
-              </span>
-              <span className="bg-emerald-600 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white uppercase tracking-wider flex-shrink-0">
-                Usar Preço
-              </span>
-            </button>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-black font-mono text-emerald-700">
+                  R$ {estimatedProfit.toFixed(2)}
+                </div>
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                  {profitMarginPct}% de margem
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Discogs optional Reference */}
+          {discogsLowestPriceUsd && discogsLowestPriceUsd > 0 && (
+            <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase font-extrabold text-amber-800 tracking-wider flex items-center gap-1">
+                    <Info className="h-3.5 w-3.5 text-amber-600" />
+                    Cotação Internacional de Referência (Discogs)
+                  </span>
+                  <p className="text-[11px] text-slate-600 leading-tight">
+                    Preço mínimo listado por vendedores estrangeiros: <strong className="text-slate-900 font-mono">${discogsLowestPriceUsd.toFixed(2)} USD</strong> (≈ R$ {Math.round(discogsLowestPriceUsd * (pricing.exchangeRate || 5.60)).toFixed(2)}).
+                  </p>
+                  <span className="text-[10px] text-slate-400 block italic">
+                    *Preço meramente informativo. Não altera automaticamente o seu valor de venda.
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleUseDiscogsPriceDirect}
+                  className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-xl whitespace-nowrap cursor-pointer transition-all active:scale-95 shrink-0 shadow-xs"
+                >
+                  Copiar para Venda
+                </button>
+              </div>
+            </div>
           )}
         </div>
       ) : (
         /* ADVANCED MODE (FORMULA CALCULATOR) */
         <div className="space-y-5 animate-fadeIn">
-          {discogsLowestPriceUsd && (
-            <button
-              type="button"
-              onClick={handleUseDiscogsPriceAdvanced}
-              className="w-full flex items-center justify-between px-3.5 py-2.5 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100/70 rounded-xl text-xs text-indigo-700 transition-all cursor-pointer"
-            >
-              <span className="flex items-center gap-1.5 font-semibold">
-                <DollarSign className="h-4 w-4 text-indigo-500" />
-                <span>Usar preço médio do Discogs: <strong className="text-indigo-950">${discogsLowestPriceUsd.toFixed(2)} USD</strong></span>
-              </span>
-              <span className="bg-indigo-600 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white uppercase tracking-wider">
-                Carregar
-              </span>
-            </button>
-          )}
-
           {/* Input Rows */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Base Price input */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                <span>Custo Base do Item ({pricing.useExchange ? 'USD' : 'R$'})</span>
+                <span>Custo do Disco ({pricing.useExchange ? 'USD' : 'R$'})</span>
                 <button
                   type="button"
                   onClick={() => onChange({ ...pricing, useExchange: !pricing.useExchange })}
@@ -190,8 +253,11 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 </div>
                 <input
                   type="number"
-                  value={pricing.basePriceBrl || ''}
-                  onChange={(e) => onChange({ ...pricing, basePriceBrl: parseFloat(e.target.value) || 0 })}
+                  value={pricing.costPrice !== undefined ? pricing.costPrice : pricing.basePriceBrl || ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    onChange({ ...pricing, costPrice: val, basePriceBrl: val });
+                  }}
                   className="block w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   placeholder="0.00"
                   step="any"
@@ -199,31 +265,11 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </div>
             </div>
 
-            {/* Exchange Rate (if USD) */}
-            {pricing.useExchange && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Taxa do Dólar (USD para BRL)</label>
-                <div className="relative rounded-xl shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-slate-400 text-xs">R$</span>
-                  </div>
-                  <input
-                    type="number"
-                    value={pricing.exchangeRate || ''}
-                    onChange={(e) => onChange({ ...pricing, exchangeRate: parseFloat(e.target.value) || 0 })}
-                    className="block w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
-                    placeholder="5.60"
-                    step="0.01"
-                  />
-                </div>
-              </div>
-            )}
-
             {/* Shopee Commission */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                <span>Comissão da Shopee (%)</span>
-                <span className="text-[10px] text-slate-400 font-medium">Padrão: 14% ou 20%</span>
+                <span>Comissão Marketplace (%)</span>
+                <span className="text-[10px] text-slate-400 font-medium">Padrão: 14%</span>
               </label>
               <div className="relative rounded-xl shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -241,7 +287,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
             {/* Fixed Fee */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Taxa Fixa Shopee por Item</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Taxa Fixa por Item</label>
               <div className="relative rounded-xl shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <span className="text-slate-400 text-xs">R$</span>
@@ -260,7 +306,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             {/* Packaging Cost */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                <span>Custo da Embalagem</span>
+                <span>Custo de Embalagem</span>
                 <span className="text-[10px] text-slate-400 font-medium">Plásticos + Caixa</span>
               </label>
               <div className="relative rounded-xl shadow-sm">
@@ -272,14 +318,14 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                   value={pricing.packagingCost || ''}
                   onChange={(e) => onChange({ ...pricing, packagingCost: parseFloat(e.target.value) || 0 })}
                   className="block w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
-                  placeholder="5.00"
+                  placeholder="4.00"
                   step="0.50"
                 />
               </div>
             </div>
 
             {/* Profit Margin slider */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 md:col-span-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Margem de Lucro Desejada</label>
                 <span className="text-xs text-emerald-600 font-bold">{pricing.profitMarginPercent}%</span>
@@ -289,7 +335,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                   type="range"
                   min="0"
                   max="100"
-                  value={pricing.profitMarginPercent}
+                  value={pricing.profitMarginPercent || 20}
                   onChange={(e) => onChange({ ...pricing, profitMarginPercent: parseInt(e.target.value) || 0 })}
                   className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                 />
@@ -303,21 +349,20 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             
             <div className="space-y-2 text-xs font-medium">
               <div className="flex justify-between text-slate-500">
-                <span>Custo Base do Disco:</span>
+                <span>Custo de Aquisição do Disco:</span>
                 <span className="font-mono text-slate-700">
-                  {pricing.useExchange ? `$${pricing.basePriceBrl.toFixed(2)} USD ≈ ` : ''}
                   R$ {baseInBrl.toFixed(2)}
                 </span>
               </div>
               
               <div className="flex justify-between text-slate-500">
                 <span>+ Custo de Embalagem Especial (Segura):</span>
-                <span className="font-mono text-slate-700 font-semibold">R$ {pricing.packagingCost.toFixed(2)}</span>
+                <span className="font-mono text-slate-700 font-semibold">R$ {(pricing.packagingCost || 4.0).toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between text-slate-500">
                 <span>+ Margem de Lucro Calculada ({pricing.profitMarginPercent}%):</span>
-                <span className="font-mono text-emerald-600 font-bold">+ R$ {(costWithPackaging * (pricing.profitMarginPercent / 100)).toFixed(2)}</span>
+                <span className="font-mono text-emerald-600 font-bold">+ R$ {(costWithPackaging * ((pricing.profitMarginPercent || 20) / 100)).toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between text-slate-600 border-t border-slate-200/80 pt-2 pb-1">
@@ -326,17 +371,17 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
               </div>
 
               <div className="flex justify-between text-slate-500">
-                <span>Taxa de Comissão Shopee ({pricing.shopeeCommissionPercent}%):</span>
+                <span>Taxa de Comissão ({pricing.shopeeCommissionPercent}%):</span>
                 <span className="font-mono text-amber-600 font-semibold">R$ {(finalShopeePrice * commissionRate).toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between text-slate-500">
-                <span>Taxa Fixa por Item Shopee:</span>
-                <span className="font-mono text-amber-600 font-semibold">R$ {pricing.shopeeFixedFee.toFixed(2)}</span>
+                <span>Taxa Fixa por Item:</span>
+                <span className="font-mono text-amber-600 font-semibold">R$ {(pricing.shopeeFixedFee || 4.0).toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between text-amber-800 font-bold bg-amber-50 px-2 py-1.5 rounded-xl border border-amber-100">
-                <span>Total de Taxas Shopee Descontadas:</span>
+                <span>Total de Taxas Descontadas:</span>
                 <span className="font-mono">- R$ {totalShopeeFee.toFixed(2)}</span>
               </div>
             </div>
@@ -348,7 +393,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 R$ {finalShopeePrice.toFixed(2)}
               </div>
               <p className="text-[10px] text-slate-500 mt-1.5 max-w-[280px] leading-relaxed font-medium">
-                Ao vender por este preço, você cobre as taxas da Shopee e garante seu lucro líquido de <strong className="text-emerald-700 font-bold">R$ {realProfit.toFixed(2)}</strong> por este disco!
+                Ao vender por este preço, você cobre as taxas e garante seu lucro líquido de <strong className="text-emerald-700 font-bold">R$ {realProfitAdvanced.toFixed(2)}</strong>!
               </p>
             </div>
           </div>
@@ -357,3 +402,4 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     </div>
   );
 };
+

@@ -210,12 +210,12 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Helper to calculate total unit cost (Base + Packaging)
+  // Helper to calculate total unit cost (Acquisition Cost + Packaging)
   const getItemCost = (item: SavedListing): number => {
-    const base = item.pricing.useExchange 
-      ? item.pricing.basePriceBrl * item.pricing.exchangeRate 
-      : item.pricing.basePriceBrl;
-    return base + (item.pricing.packagingCost || 0);
+    const discCost = (item.pricing?.costPrice !== undefined && item.pricing?.costPrice !== null)
+      ? Number(item.pricing.costPrice)
+      : 0;
+    return discCost + (item.pricing?.packagingCost ?? 4.0);
   };
 
   // Extract unique drawers and gradings for filters

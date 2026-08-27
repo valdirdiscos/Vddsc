@@ -72,6 +72,9 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
   const [copiedWebhook, setCopiedWebhook] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [notificationToast, setNotificationToast] = useState<{ title: string; message: string; type: 'sale' | 'question' } | null>(null);
+  const [selectedListingIds, setSelectedListingIds] = useState<string[]>([]);
+  const [isBatchPublishing, setIsBatchPublishing] = useState(false);
+  const [isTogglingStatus, setIsTogglingStatus] = useState<string | null>(null);
 
   // Fetch initial data
   const fetchQuestions = async () => {
@@ -254,6 +257,118 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
       console.error('Error publishing item:', err);
     } finally {
       setIsPublishingId(null);
+    }
+  };
+
+  // Handle Batch Publish Multiple Selected Listings
+  const handleBatchPublish = async (targetPlatforms: ('mercadolivre' | 'shopee')[]) => {
+    const selectedItems = listings.filter(l => selectedListingIds.includes(l.id) && l.status !== 'sold');
+    if (selectedItems.length === 0) return;
+
+    setIsBatchPublishing(true);
+    setPublishSuccessMsg(null);
+
+    try {
+      const res = await fetch('/api/marketplaces/batch-publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listings: selectedItems,
+          targetPlatforms
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.batchResults) {
+        for (const item of selectedItems) {
+          const itemPubs = data.batchResults[item.id];
+          if (itemPubs) {
+            const updatedPublications = {
+              ...(item.marketplacePublications || {}),
+              ...itemPubs
+            };
+            const updatedSalesChannels = Array.from(new Set([
+              ...(item.salesChannels || ['physical_store', 'online_store']),
+              ...targetPlatforms
+            ]));
+            onUpdateListing({
+              ...item,
+              marketplacePublications: updatedPublications,
+              salesChannels: updatedSalesChannels
+            });
+          }
+        }
+        setPublishSuccessMsg(`✓ Publicação em lote concluída com sucesso para ${selectedItems.length} discos!`);
+        setSelectedListingIds([]);
+        setTimeout(() => setPublishSuccessMsg(null), 6000);
+      }
+    } catch (err) {
+      console.error('Error batch publishing:', err);
+    } finally {
+      setIsBatchPublishing(false);
+    }
+  };
+
+  // Handle Toggle Listing Status (Pausar / Reativar Anúncio no Mercado Livre / Shopee)
+  const handleToggleListingStatus = async (listing: SavedListing, platform: 'mercadolivre' | 'shopee', currentStatus: 'active' | 'paused') => {
+    const pub = listing.marketplacePublications?.[platform];
+    if (!pub || !pub.externalId) return;
+
+    const newStatus = currentStatus === 'active' ? 'paused' : 'active';
+    setIsTogglingStatus(`${listing.id}_${platform}`);
+
+    try {
+      const res = await fetch('/api/marketplaces/toggle-item-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          externalId: pub.externalId,
+          newStatus
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const updatedPublications = {
+          ...(listing.marketplacePublications || {}),
+          [platform]: {
+            ...pub,
+            status: newStatus,
+            lastSyncAt: new Date().toISOString()
+          }
+        };
+        onUpdateListing({
+          ...listing,
+          marketplacePublications: updatedPublications
+        });
+        setPublishSuccessMsg(`✓ Anúncio ${pub.externalId} no ${platform === 'mercadolivre' ? 'Mercado Livre' : 'Shopee'} agora está ${newStatus === 'active' ? 'ATIVO' : 'PAUSADO'}.`);
+        setTimeout(() => setPublishSuccessMsg(null), 4000);
+      }
+    } catch (err) {
+      console.error('Error toggling status:', err);
+    } finally {
+      setIsTogglingStatus(null);
+    }
+  };
+
+  // Handle Save API Config
+  const handleSaveConfig = async () => {
+    try {
+      const res = await fetch('/api/marketplaces/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNotificationToast({
+          title: 'Configurações Salvas!',
+          message: 'As chaves de API, credenciais e configurações de sincronização foram salvas com sucesso.',
+          type: 'sale'
+        });
+        setTimeout(() => setNotificationToast(null), 4000);
+      }
+    } catch (err) {
+      console.error('Error saving config:', err);
     }
   };
 
@@ -1008,17 +1123,69 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
             </motion.div>
           )}
 
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-black text-slate-900">Cadastrar e Publicar Discos nos Marketplaces</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Publique o catálogo diretamente no <strong>Mercado Livre</strong> e <strong>Shopee</strong> com fotos, estado Goldmine, categorias de áudio e preços configurados.
+                  Publique o catálogo cadastrado no sistema diretamente no <strong>Mercado Livre</strong> e na <strong>Shopee</strong> com fotos, estado Goldmine, categorias de áudio e preços configurados.
                 </p>
               </div>
 
-              <div className="text-xs text-slate-600 font-bold bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-                {listings.length} discos no acervo total
+              <div className="flex items-center gap-2 text-xs font-bold">
+                <span className="text-slate-600 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                  {listings.filter(l => l.status !== 'sold').length} discos disponíveis
+                </span>
+              </div>
+            </div>
+
+            {/* Batch Publish Toolbar */}
+            <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-100">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedListingIds.length > 0 && selectedListingIds.length === listings.filter(l => l.status !== 'sold').length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedListingIds(listings.filter(l => l.status !== 'sold').map(l => l.id));
+                      } else {
+                        setSelectedListingIds([]);
+                      }
+                    }}
+                    className="rounded text-indigo-600"
+                  />
+                  <span>Selecionar Todos ({selectedListingIds.length} selecionados)</span>
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => handleBatchPublish(['mercadolivre', 'shopee'])}
+                  disabled={selectedListingIds.length === 0 || isBatchPublishing}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-40 shadow-sm"
+                >
+                  <Zap className={`h-3.5 w-3.5 ${isBatchPublishing ? 'animate-spin' : ''}`} />
+                  <span>{isBatchPublishing ? 'Publicando...' : `Publicar Selecionados no ML & Shopee (${selectedListingIds.length})`}</span>
+                </button>
+
+                <button
+                  onClick={() => handleBatchPublish(['mercadolivre'])}
+                  disabled={selectedListingIds.length === 0 || isBatchPublishing}
+                  className="px-3 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-40 shadow-sm"
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  <span>Só Mercado Livre</span>
+                </button>
+
+                <button
+                  onClick={() => handleBatchPublish(['shopee'])}
+                  disabled={selectedListingIds.length === 0 || isBatchPublishing}
+                  className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-40 shadow-sm"
+                >
+                  <ShoppingBag className="h-3.5 w-3.5" />
+                  <span>Só Shopee</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1029,7 +1196,21 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-900 text-white font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4">Disco / Álbum</th>
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedListingIds.length > 0 && selectedListingIds.length === listings.filter(l => l.status !== 'sold').length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedListingIds(listings.filter(l => l.status !== 'sold').map(l => l.id));
+                          } else {
+                            setSelectedListingIds([]);
+                          }
+                        }}
+                        className="rounded"
+                      />
+                    </th>
+                    <th className="py-3 px-3">Disco / Álbum</th>
                     <th className="py-3 px-3">Estado Goldmine</th>
                     <th className="py-3 px-3">Gaveta</th>
                     <th className="py-3 px-3 text-right">Preço Base</th>
@@ -1045,11 +1226,30 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
                     const isPublishedML = mlPub?.status === 'active' || item.salesChannels?.includes('mercadolivre');
                     const isPublishedShp = shpPub?.status === 'active' || item.salesChannels?.includes('shopee');
                     const isSold = item.status === 'sold';
+                    const isSelected = selectedListingIds.includes(item.id);
 
                     return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors ${isSelected ? 'bg-indigo-50/40' : ''}`}>
+                        {/* Checkbox */}
+                        <td className="py-3 px-3 text-center">
+                          {!isSold && (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedListingIds(prev => [...prev, item.id]);
+                                } else {
+                                  setSelectedListingIds(prev => prev.filter(id => id !== item.id));
+                                }
+                              }}
+                              className="rounded text-indigo-600"
+                            />
+                          )}
+                        </td>
+
                         {/* Cover + Title */}
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-3">
                           <div className="flex items-center gap-3">
                             {item.release?.coverImage ? (
                               <img
@@ -1093,10 +1293,28 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
                         {/* ML Status */}
                         <td className="py-3 px-3 text-center">
                           {isPublishedML ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-900 rounded-md font-bold text-[10px]">
-                              <CheckCircle2 className="h-3 w-3 text-amber-600" />
-                              {mlPub?.externalId || 'MLB Ativo'}
-                            </span>
+                            <div className="inline-flex flex-col items-center gap-1">
+                              <a
+                                href={mlPub?.permalink || `https://produto.mercadolivre.com.br/${mlPub?.externalId || ''}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-950 rounded-md font-bold text-[10px] transition-colors"
+                                title="Abrir anúncio no Mercado Livre"
+                              >
+                                <CheckCircle2 className="h-3 w-3 text-amber-600" />
+                                <span>{mlPub?.externalId || 'MLB Ativo'}</span>
+                                <ExternalLink className="h-2.5 w-2.5 ml-0.5 text-amber-800" />
+                              </a>
+                              {mlPub && (
+                                <button
+                                  onClick={() => handleToggleListingStatus(item, 'mercadolivre', mlPub.status as any || 'active')}
+                                  disabled={isTogglingStatus === `${item.id}_mercadolivre`}
+                                  className="text-[9px] text-slate-500 hover:text-slate-800 underline font-medium cursor-pointer"
+                                >
+                                  {mlPub.status === 'active' ? 'Pausar' : 'Reativar'}
+                                </button>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-slate-400 text-[10px]">Não publicado</span>
                           )}
@@ -1105,10 +1323,28 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
                         {/* Shopee Status */}
                         <td className="py-3 px-3 text-center">
                           {isPublishedShp ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-900 rounded-md font-bold text-[10px]">
-                              <CheckCircle2 className="h-3 w-3 text-orange-600" />
-                              {shpPub?.externalId || 'Shopee Ativo'}
-                            </span>
+                            <div className="inline-flex flex-col items-center gap-1">
+                              <a
+                                href={shpPub?.permalink || `https://shopee.com.br/product/${config.shopee.shopId}/${shpPub?.externalId || ''}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 hover:bg-orange-200 text-orange-950 rounded-md font-bold text-[10px] transition-colors"
+                                title="Abrir anúncio na Shopee"
+                              >
+                                <CheckCircle2 className="h-3 w-3 text-orange-600" />
+                                <span>{shpPub?.externalId || 'Shopee Ativo'}</span>
+                                <ExternalLink className="h-2.5 w-2.5 ml-0.5 text-orange-800" />
+                              </a>
+                              {shpPub && (
+                                <button
+                                  onClick={() => handleToggleListingStatus(item, 'shopee', shpPub.status as any || 'active')}
+                                  disabled={isTogglingStatus === `${item.id}_shopee`}
+                                  className="text-[9px] text-slate-500 hover:text-slate-800 underline font-medium cursor-pointer"
+                                >
+                                  {shpPub.status === 'active' ? 'Pausar' : 'Reativar'}
+                                </button>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-slate-400 text-[10px]">Não publicado</span>
                           )}
@@ -1126,6 +1362,7 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
                                 onClick={() => handlePublishListing(item, ['mercadolivre', 'shopee'])}
                                 disabled={isPublishingId === item.id}
                                 className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+                                title="Publicar simultaneamente no Mercado Livre e na Shopee"
                               >
                                 <Zap className={`h-3 w-3 ${isPublishingId === item.id ? 'animate-spin' : ''}`} />
                                 <span>{isPublishingId === item.id ? 'Publicando...' : 'Publicar nos 2'}</span>
@@ -1267,6 +1504,21 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
                 </div>
 
                 <div>
+                  <label className="font-bold text-slate-700 block mb-1">Access Token (OAuth 2.0):</label>
+                  <input
+                    type="password"
+                    value={config.mercadolivre.accessToken || ''}
+                    onChange={e => setConfig(prev => ({
+                      ...prev,
+                      mercadolivre: { ...prev.mercadolivre, accessToken: e.target.value }
+                    }))}
+                    placeholder="APP_USR-8491029481928-..."
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Gerado via OAuth no Mercado Livre Developers</span>
+                </div>
+
+                <div>
                   <label className="font-bold text-slate-700 block mb-1">Apelido da Loja (Nickname):</label>
                   <input
                     type="text"
@@ -1348,6 +1600,20 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
                 </div>
 
                 <div>
+                  <label className="font-bold text-slate-700 block mb-1">Access Token (Shopee API):</label>
+                  <input
+                    type="password"
+                    value={config.shopee.accessToken || ''}
+                    onChange={e => setConfig(prev => ({
+                      ...prev,
+                      shopee: { ...prev.shopee, accessToken: e.target.value }
+                    }))}
+                    placeholder="••••••••••••••••"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono"
+                  />
+                </div>
+
+                <div>
                   <label className="font-bold text-slate-700 block mb-1">Shop ID:</label>
                   <input
                     type="text"
@@ -1377,6 +1643,17 @@ export const MarketplaceIntegrationHub: React.FC<MarketplaceIntegrationHubProps>
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Bottom Save Bar */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+            <button
+              onClick={handleSaveConfig}
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-md shadow-indigo-100"
+            >
+              <Check className="h-4 w-4" />
+              <span>Salvar Configurações de Integração</span>
+            </button>
           </div>
         </div>
       )}

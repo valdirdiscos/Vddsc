@@ -836,13 +836,14 @@ export default function App() {
         return updated;
       });
 
-      // 2. Mark all items in listing database as 'sold'
+      // 2. Mark all items in listing database as 'sold' and trigger Omnichannel Stock Lock across Marketplaces (Mercado Livre & Shopee)
       const updatedListings = [...savedListings];
       for (const item of order.items) {
         const idx = updatedListings.findIndex(l => l.id === item.listingId || l.barcode === item.barcode);
         if (idx !== -1) {
+          const currentItem = updatedListings[idx];
           const updatedListing: SavedListing = {
-            ...updatedListings[idx],
+            ...currentItem,
             status: 'sold',
             customerId: order.customerId,
             customerName: order.customerName,
@@ -858,6 +859,26 @@ export default function App() {
           updatedListings[idx] = updatedListing;
           const cleanedListing = JSON.parse(JSON.stringify(updatedListing));
           await setDoc(doc(db, 'listings', updatedListing.id), cleanedListing);
+
+          // 🛡️ Trigger Omnichannel Stock Lock on Backend (Pauses listing on Mercado Livre & Shopee)
+          try {
+            fetch('/api/marketplaces/sync-sold-item', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                listingId: currentItem.id,
+                listing: currentItem,
+                soldPlatform: order.channel === 'physical_store' ? 'physical_store' : 'online_store',
+                orderId: order.orderNumber,
+                salePrice: item.finalPrice,
+                buyerName: order.customerName || 'Cliente Balcão',
+                buyerCity: 'Santa Maria',
+                buyerState: 'RS'
+              })
+            }).catch(e => console.warn('Aviso sincronização estoque marketplace:', e));
+          } catch (e) {
+            console.warn('Erro ao disparar trava omnichannel:', e);
+          }
         }
       }
 
@@ -911,26 +932,13 @@ export default function App() {
     }
   };
 
-  // Sync pricing if release lowest price changes (only on fresh searches, preserving workspace price if already selected)
+  // Sync pricing if release lowest price changes for manual items (do not force foreign Discogs USD onto store price)
   useEffect(() => {
     if (activeListingId) return; // Do not overwrite price of loaded listing
 
-    if (release && release.lowestPriceUsd && !release.isManual) {
+    if (release && release.isManual && release.lowestPriceUsd) {
       setPricing((prev) => {
-        const usdVal = release.lowestPriceUsd || 0;
-        const exchangeVal = prev.exchangeRate || 5.60;
-        const converted = Math.round(usdVal * exchangeVal);
-        return {
-          ...prev,
-          basePriceBrl: converted > 0 ? converted : prev.basePriceBrl,
-          useExchange: false,
-          directPrice: converted > 0 ? converted : prev.directPrice,
-          mode: 'direct'
-        };
-      });
-    } else if (release && release.isManual) {
-      setPricing((prev) => {
-        const priceVal = release.lowestPriceUsd || prev.basePriceBrl;
+        const priceVal = release.lowestPriceUsd || prev.directPrice || prev.basePriceBrl;
         return {
           ...prev,
           basePriceBrl: priceVal,

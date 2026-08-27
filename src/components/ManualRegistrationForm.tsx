@@ -42,6 +42,7 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
   const [country, setCountry] = useState('Brasil');
   const [mediaFormat, setMediaFormat] = useState('Vinyl, LP, Album');
   const [price, setPrice] = useState('80');
+  const [costPrice, setCostPrice] = useState('0');
   const [drawer, setDrawer] = useState('');
   const [coverImage, setCoverImage] = useState('');
 
@@ -115,6 +116,7 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
       });
 
     const parsedPrice = parseFloat(price.replace(',', '.')) || 80;
+    const parsedCost = parseFloat(costPrice.replace(',', '.')) || 0;
 
     const newRelease: DiscogsRelease = {
       id: `manual_${Date.now()}`,
@@ -155,11 +157,12 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
 
     const pricing: PricingConfig = {
       basePriceBrl: parsedPrice,
+      costPrice: parsedCost,
       exchangeRate: 5.6,
       useExchange: false,
       shopeeCommissionPercent: 14,
       shopeeFixedFee: 4.0,
-      packagingCost: 3.5,
+      packagingCost: 4.0,
       profitMarginPercent: 30,
       mode: 'direct',
       directPrice: parsedPrice
@@ -293,8 +296,8 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
           </div>
         </div>
 
-        {/* Pricing & Location */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+        {/* Pricing, Cost & Location */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1">
               <DollarSign className="h-3.5 w-3.5 text-indigo-600" />
@@ -311,15 +314,30 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
           </div>
 
           <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+              <DollarSign className="h-3.5 w-3.5 text-slate-400" />
+              Custo Pago (R$)
+            </label>
+            <input
+              type="number"
+              step="0.50"
+              value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+              placeholder="0.00"
+              className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="space-y-1.5">
             <label className="text-xs font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1">
               <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded font-extrabold">LOC</span>
-              Gaveta / Localização Física
+              Gaveta / Local
             </label>
             <input
               type="text"
               value={drawer}
               onChange={(e) => setDrawer(e.target.value)}
-              placeholder="Ex: Gaveta 4, Prateleira B..."
+              placeholder="Ex: Gaveta 4..."
               className="w-full px-3.5 py-2 bg-white border border-indigo-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
             />
           </div>

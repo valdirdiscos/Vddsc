@@ -47,7 +47,8 @@ export interface ConditionSelection {
 }
 
 export interface PricingConfig {
-  basePriceBrl: number;       // base item cost (or converted price)
+  costPrice?: number;         // custo real de aquisicao / compra do disco pelo lojista (R$)
+  basePriceBrl: number;       // preco base / preco de venda da loja (R$)
   exchangeRate: number;       // USD to BRL exchange rate (e.g. 5.60)
   useExchange: boolean;       // whether to convert base price from USD
   shopeeCommissionPercent: number; // e.g. 14% or 20%
@@ -56,7 +57,7 @@ export interface PricingConfig {
   profitMarginPercent: number; // e.g. 30% markup
   customNotes?: string;
   mode?: 'direct' | 'advanced'; // direct final price vs advanced calculator
-  directPrice?: number;         // user entered direct final sale price
+  directPrice?: number;         // preco de venda final digitado pelo usuario
 }
 
 export interface ShopeeListing {

@@ -105,6 +105,14 @@ const compressAndResizeImage = (file: File, maxWidth = 1200, maxHeight = 1200): 
   });
 };
 
+// Helper to get total unit cost (Acquisition cost + packaging)
+const getItemCost = (item: SavedListing): number => {
+  const discCost = (item.pricing?.costPrice !== undefined && item.pricing?.costPrice !== null)
+    ? Number(item.pricing.costPrice)
+    : 0;
+  return discCost + (item.pricing?.packagingCost ?? 4.0);
+};
+
 export default function OnlineSales({ 
   listings, 
   customers, 

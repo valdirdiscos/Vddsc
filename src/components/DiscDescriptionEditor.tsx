@@ -22,6 +22,8 @@ interface DiscDescriptionEditorProps {
   drawer?: string;
   shopeeListing: ShopeeListing | null;
   mercadoLivreListing: MercadoLivreListing | null;
+  activePlatform?: 'shopee' | 'mercadolivre';
+  onPlatformChange?: (platform: 'shopee' | 'mercadolivre') => void;
   onChangeShopeeTitle: (title: string) => void;
   onChangeMlTitle: (title: string) => void;
   onChangeShopeeDescription: (desc: string) => void;
@@ -47,6 +49,8 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
   drawer = '',
   shopeeListing,
   mercadoLivreListing,
+  activePlatform,
+  onPlatformChange,
   onChangeShopeeTitle,
   onChangeMlTitle,
   onChangeShopeeDescription,
@@ -54,7 +58,15 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
   onRegenerateAi,
   isGeneratingAi = false
 }) => {
-  const [activePlatformTab, setActivePlatformTab] = useState<'shopee' | 'mercadolivre'>('shopee');
+  const [internalPlatformTab, setInternalPlatformTab] = useState<'shopee' | 'mercadolivre'>('shopee');
+  const activePlatformTab = activePlatform !== undefined ? activePlatform : internalPlatformTab;
+  const setPlatformTab = (p: 'shopee' | 'mercadolivre') => {
+    setInternalPlatformTab(p);
+    if (onPlatformChange) {
+      onPlatformChange(p);
+    }
+  };
+
   const [copiedTitle, setCopiedTitle] = useState(false);
   const [copiedDesc, setCopiedDesc] = useState(false);
 
@@ -128,12 +140,22 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
       onChangeShopeeTitle(formatted.slice(0, 120));
     } else {
       // Mercado Livre strict 60 chars
-      let formatted = `Vinil LP ${release.artist} - ${release.title}${drawer.trim() ? ` [Loc:${drawer.trim()}]` : ''}`;
+      const drawerSuffix = drawer.trim() ? ` [${drawer.trim()}]` : '';
+      let base = `${release.artist} - ${release.title}`;
+      let prefix = 'Vinil LP ';
       if (condition.mediaCondition === 'SEM_DISCO') {
-        formatted = `Capa Vinil ${release.artist} - ${release.title}`;
+        base = `[APENAS CAPA] ${release.artist} - ${release.title}`;
+        prefix = '';
       } else if (condition.sleeveCondition === 'SEM_CAPA') {
-        formatted = `Disco Vinil ${release.artist} - ${release.title}`;
+        base = `[APENAS DISCO] ${release.artist} - ${release.title}`;
+        prefix = '';
       }
+      const maxMlLen = 60;
+      const avail = maxMlLen - prefix.length - drawerSuffix.length;
+      if (base.length > avail) {
+        base = base.slice(0, Math.max(10, avail - 3)) + '...';
+      }
+      const formatted = `${prefix}${base}${drawerSuffix}`;
       onChangeMlTitle(formatted.slice(0, 60));
     }
   };
@@ -229,7 +251,7 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
         <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
           <button
             type="button"
-            onClick={() => setActivePlatformTab('shopee')}
+            onClick={() => setPlatformTab('shopee')}
             className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
               activePlatformTab === 'shopee'
                 ? 'bg-orange-500 text-white shadow-xs'
@@ -241,7 +263,7 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setActivePlatformTab('mercadolivre')}
+            onClick={() => setPlatformTab('mercadolivre')}
             className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
               activePlatformTab === 'mercadolivre'
                 ? 'bg-amber-400 text-slate-900 shadow-xs'

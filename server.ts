@@ -494,6 +494,7 @@ function getImportTag(country?: string): string {
     if (isOnlySleeve) mlSuffix = " APENAS CAPA (SEM DISCO)";
     else if (isOnlyMedia) mlSuffix = " APENAS DISCO (SEM CAPA)";
     else if (isImported && importTag) mlSuffix = ` ${importTag}`;
+    if (drawerClean) mlSuffix += ` [${drawerClean}]`;
 
     const maxMlLen = 60;
     let baseTitleMl = `${artistName} - ${albumTitle}`;
@@ -1010,6 +1011,7 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
    - NÃO use pontuações desnecessárias, asteriscos, aspas ou excesso de parênteses.
    - Para artista único: "${formatLabel} [Artista] [Nome do Álbum] ([Ano])".
    - **PARA COLETÂNEAS**: Não coloque "Vários Artistas" nem palavras genéricas de "encher linguiça". Coloque o tipo do produto, o nome do álbum e 2 ou 3 bandas principais da coletânea que couberem no limite estrito de 60 caracteres. Exemplo: "${formatLabel} Surf Ataque NOFX Lagwagon".
+   - **LOCALIZAÇÃO OBRIGATÓRIA NO FIM DO TÍTULO**: Se a localização (Loc) estiver especificada, inclua a gaveta/localização no final do título (ex: "[${drawerClean}]"). O título completo com a localização DEVE caber dentro do limite de 60 caracteres do Mercado Livre.
    - Deve ser curto, atrativo e caber perfeitamente no limite de 60 caracteres do Mercado Livre.
 
 3. **description**:
@@ -1141,12 +1143,20 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
         .replace(/\s+/g, " ")
         .trim();
 
+      if (drawerClean) {
+        const escDrawer = drawerClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const drawerRegex = new RegExp(`\\[\\s*${escDrawer}\\s*\\]|\\b${escDrawer}\\b`, 'gi');
+        titleMl = titleMl.replace(drawerRegex, "").replace(/\s+/g, " ").trim();
+      }
+
+      const mlDrawerSuffix = drawerClean ? ` [${drawerClean}]` : "";
+      const fullMlSuffix = mlConditionSuffix + mlDrawerSuffix;
       const maxMlLen = 60;
-      const availableLenForMlTitle = maxMlLen - prefix.length - mlConditionSuffix.length;
+      const availableLenForMlTitle = maxMlLen - prefix.length - fullMlSuffix.length;
       if (titleMl.length > availableLenForMlTitle) {
         titleMl = titleMl.substring(0, Math.max(10, availableLenForMlTitle - 3)).trim() + "...";
       }
-      let fullTitleMl = `${prefix}${titleMl}${mlConditionSuffix}`.trim();
+      let fullTitleMl = `${prefix}${titleMl}${fullMlSuffix}`.trim();
 
       // Handle Description - clean platform mentions & ensure key phrases
       let description = rawListing.description || "";
@@ -1607,7 +1617,25 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
 
       // 4A. Mercado Livre Publish Logic
       if (platforms.includes('mercadolivre')) {
-        const mlTitle = `Vinil LP ${listing.release.artist} ${listing.release.title}${drawer}`.slice(0, 60);
+        const drawerTag = listing.drawer ? ` [${listing.drawer}]` : '';
+        let mlTitle = listing.mercadolivre?.title;
+        if (!mlTitle) {
+          const prefix = 'Vinil LP ';
+          const maxMlLen = 60;
+          let base = `${listing.release.artist} - ${listing.release.title}`;
+          const avail = maxMlLen - prefix.length - drawerTag.length;
+          if (base.length > avail) {
+            base = base.substring(0, Math.max(10, avail - 3)) + '...';
+          }
+          mlTitle = `${prefix}${base}${drawerTag}`.trim();
+        } else if (drawerTag && !mlTitle.includes(listing.drawer)) {
+          const maxMlLen = 60;
+          const avail = maxMlLen - drawerTag.length;
+          if (mlTitle.length > avail) {
+            mlTitle = mlTitle.substring(0, Math.max(10, avail - 3)).trim() + '...';
+          }
+          mlTitle = `${mlTitle}${drawerTag}`;
+        }
         const mlPrice = listing.mercadolivre?.suggestedPrice || price;
         const mlExternalId = `MLB${Math.floor(1000000000 + Math.random() * 9000000000)}`;
 

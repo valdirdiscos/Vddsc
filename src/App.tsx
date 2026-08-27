@@ -1143,6 +1143,53 @@ export default function App() {
     }
   };
 
+  // Real-time synchronization of location (Loc/drawer) with ad titles and descriptions
+  const handleDrawerChange = (newVal: string) => {
+    setDrawer(newVal);
+    const trimmed = newVal.trim();
+
+    // 1. Sync Mercado Livre title in real-time
+    setMercadoLivreListing(prevMl => {
+      if (!prevMl) return prevMl;
+      let baseTitle = prevMl.title || '';
+      // Strip any existing trailing bracket tags like [4], [Loc: 4], [Loc:4]
+      baseTitle = baseTitle.replace(/\s*\[\s*(Loc:)?\s*[^\]]+\]\s*$/gi, '').trim();
+      if (!baseTitle && release) {
+        baseTitle = `Vinil LP ${release.artist} - ${release.title}`.trim();
+      }
+      const mlDrawerSuffix = trimmed ? ` [${trimmed}]` : '';
+      const maxMlLen = 60;
+      const avail = maxMlLen - mlDrawerSuffix.length;
+      if (baseTitle.length > avail) {
+        baseTitle = baseTitle.slice(0, Math.max(10, avail - 3)).trim() + '...';
+      }
+      return {
+        ...prevMl,
+        title: `${baseTitle}${mlDrawerSuffix}`.slice(0, 60)
+      };
+    });
+
+    // 2. Sync Shopee title in real-time
+    setShopeeListing(prevSh => {
+      if (!prevSh) return prevSh;
+      let baseTitle = prevSh.title || '';
+      baseTitle = baseTitle.replace(/\s*\[\s*(Loc:)?\s*[^\]]+\]\s*$/gi, '').trim();
+      if (!baseTitle && release) {
+        baseTitle = `Disco De Vinil LP ${release.artist} - ${release.title}`.trim();
+      }
+      const locTag = trimmed ? ` [Loc: ${trimmed}]` : '';
+      const maxShopeeLen = 120;
+      const avail = maxShopeeLen - locTag.length;
+      if (baseTitle.length > avail) {
+        baseTitle = baseTitle.slice(0, Math.max(10, avail - 3)).trim() + '...';
+      }
+      return {
+        ...prevSh,
+        title: `${baseTitle}${locTag}`.slice(0, 120)
+      };
+    });
+  };
+
   // Robust clipboard copying function (handles iframe security)
   const copyToClipboard = (text: string, setCopied: (v: boolean) => void) => {
     try {
@@ -1422,9 +1469,16 @@ export default function App() {
     }
 
     if (!finalMl) {
-      const mlLocTag = drawer ? ` [Loc:${drawer}]` : '';
+      const mlDrawerSuffix = drawer ? ` [${drawer}]` : '';
+      const prefix = 'Vinil LP ';
+      const maxMlLen = 60;
+      let baseMl = `${release.artist} - ${release.title}`;
+      const avail = maxMlLen - prefix.length - mlDrawerSuffix.length;
+      if (baseMl.length > avail) {
+        baseMl = baseMl.slice(0, Math.max(10, avail - 3)) + '...';
+      }
       finalMl = {
-        title: `Vinil LP ${release.artist} - ${release.title}${mlLocTag}`.slice(0, 60),
+        title: `${prefix}${baseMl}${mlDrawerSuffix}`.slice(0, 60),
         description: finalShopee.description,
         suggestedPrice: userStorePrice
       };
@@ -2278,8 +2332,17 @@ export default function App() {
                   hashtags: ['#vinil', '#discodevinil', '#lp', '#valdir_discos', ...(newGarimpo ? ['#garimpo', '#promocao'] : [])]
                 });
 
+                const mlDrawerSuffix = newDraw ? ` [${newDraw}]` : '';
+                const maxMlLen = 60;
+                const prefix = 'Vinil LP ';
+                let baseMl = `${newRel.artist} - ${newRel.title}`;
+                const avail = maxMlLen - prefix.length - mlDrawerSuffix.length;
+                if (baseMl.length > avail) {
+                  baseMl = baseMl.slice(0, Math.max(10, avail - 3)) + '...';
+                }
+
                 setMercadoLivreListing({
-                  title: `Vinil LP ${newRel.artist} - ${newRel.title}${newDraw ? ` [Loc:${newDraw}]` : ''}`.slice(0, 60),
+                  title: `${prefix}${baseMl}${mlDrawerSuffix}`.slice(0, 60),
                   description: initialDesc,
                   suggestedPrice: calcPrice
                 });
@@ -3027,7 +3090,7 @@ export default function App() {
                     type="text"
                     placeholder="Ex: 4, Prateleira B-3, Caixa 10..."
                     value={drawer}
-                    onChange={(e) => setDrawer(e.target.value)}
+                    onChange={(e) => handleDrawerChange(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none rounded-xl text-sm text-slate-700 transition-all placeholder-slate-400 font-semibold"
                   />
                   <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
@@ -3375,6 +3438,8 @@ export default function App() {
                       drawer={drawer}
                       shopeeListing={shopeeListing}
                       mercadoLivreListing={mercadoLivreListing}
+                      activePlatform={activePlatform}
+                      onPlatformChange={setActivePlatform}
                       onChangeShopeeTitle={(title) => {
                         if (shopeeListing) {
                           setShopeeListing({ ...shopeeListing, title });

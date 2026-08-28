@@ -188,6 +188,14 @@ export interface SavedListing {
   quantity?: number; // Stock quantity (default 1)
   isGarimpo?: boolean; // Item belongs to the Garimpo section (low value, damaged/bargain, clearance)
   garimpoDetails?: string; // Details/notes about why it is in garimpo (e.g. risco superficial, capa desgastada, etc.)
+  isOnlineExclusive?: boolean; // Item raro vendido exclusivamente pelo site / loja online
+  onlineExclusiveDetails?: string; // Detalhes sobre a raridade e exclusividade do disco no site
+  isDoubleAlbum?: boolean; // Álbum duplo ou multi-disco (2xLP, 2xCD, etc.)
+  isBoxSet?: boolean; // Box Set ou caixa especial de colecionador
+  isSpecialEdition?: boolean; // Edição especial / limitada / deluxe / comemorativa / vinil colorido
+  isGatefold?: boolean; // Capa dupla (Gatefold)
+  hasInsert?: boolean; // Acompanha encarte original
+  specialEditionDetails?: string; // Detalhes da particularidade (ex: "Edição Comemorativa 50 Anos", "Vinil Colorido Azul", "Box 4 LPs + Livreto")
   status?: 'available' | 'sold' | 'reserved' | 'personal'; // Item status in the shop/collection
   customerId?: string; // Linked customer ID
   customerName?: string; // Cache of the linked customer's name

@@ -305,3 +305,404 @@ export function getGarimpoReason(listing?: SavedListing | null): string {
   }
   return 'Achado de menor valor de mercado';
 }
+
+/**
+ * Checks if a listing is marked as an online exclusive rare record
+ * (Discos raros vendidos exclusivamente pelo site / loja online).
+ */
+export function isOnlineExclusiveItem(listing?: SavedListing | null): boolean {
+  if (!listing) return false;
+
+  // 1. Explicit flag
+  if (listing.isOnlineExclusive === true) return true;
+
+  // 2. Storage location / Drawer indication
+  const drawer = (listing.drawer || '').toLowerCase();
+  if (drawer.includes('exclusivo') || drawer.includes('raro') || drawer.includes('raridade') || drawer.includes('online exclusive')) {
+    return true;
+  }
+
+  // 3. Channel restriction strictly to online_store only
+  const channels = listing.salesChannels;
+  if (channels && channels.length === 1 && channels[0] === 'online_store') {
+    return true;
+  }
+
+  // 4. Notes / Details indicating online store rarity exclusivity
+  const combinedNotes = `${listing.onlineExclusiveDetails || ''} ${listing.condition?.mediaDetails || ''} ${listing.shopee?.description || ''} ${listing.release?.notes || ''}`.toLowerCase();
+  if (
+    combinedNotes.includes('exclusivo do site') ||
+    combinedNotes.includes('exclusivo da loja online') ||
+    combinedNotes.includes('exclusivo no site') ||
+    combinedNotes.includes('venda exclusiva pelo site') ||
+    combinedNotes.includes('raridade exclusiva')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function getOnlineExclusiveReason(listing?: SavedListing | null): string {
+  if (!listing) return 'Disco Raro Exclusivo do Site';
+  if (listing.onlineExclusiveDetails) return listing.onlineExclusiveDetails;
+  return 'Disco raro selecionado para venda exclusiva através do site oficial.';
+}
+
+export interface AlbumParticularity {
+  id: string;
+  label: string;
+  shortLabel: string;
+  icon: string;
+  type: 'disc_count' | 'box' | 'edition' | 'packaging' | 'bonus' | 'custom';
+  badgeClass: string;
+  pillClass: string;
+  description: string;
+}
+
+/**
+ * Automatically inspects a listing or Discogs release to detect important particularities
+ * such as Double/Triple Albums, Box Sets, Special/Deluxe Editions, Gatefold covers, Colored Vinyl, Inserts, etc.
+ */
+export function getAlbumParticularities(listingOrRelease?: SavedListing | DiscogsRelease | null): AlbumParticularity[] {
+  if (!listingOrRelease) return [];
+
+  const listing: SavedListing | null = 'release' in listingOrRelease ? (listingOrRelease as SavedListing) : null;
+  const release: DiscogsRelease = 'release' in listingOrRelease ? (listingOrRelease as SavedListing).release : (listingOrRelease as DiscogsRelease);
+
+  if (!release) return [];
+
+  const particularities: AlbumParticularity[] = [];
+  const addedIds = new Set<string>();
+
+  const formats = release.formats || [];
+  const fmtNames = formats.map(f => (f.name || '').toLowerCase()).join(' ');
+  const fmtDescs = formats.flatMap(f => f.descriptions || []).map(d => d.toLowerCase()).join(' ');
+  const allFmtText = `${fmtNames} ${fmtDescs}`.toLowerCase();
+  
+  const title = (release.title || '').toLowerCase();
+  const notes = (release.notes || '').toLowerCase();
+  const sleeveDetails = (listing?.condition?.sleeveDetails || '').toLowerCase();
+  const mediaDetails = (listing?.condition?.mediaDetails || '').toLowerCase();
+  const specialText = (listing?.specialEditionDetails || '').toLowerCase();
+  
+  const fullText = `${allFmtText} ${title} ${notes} ${sleeveDetails} ${mediaDetails} ${specialText}`.toLowerCase();
+
+  // Helper to add unique
+  const add = (part: AlbumParticularity) => {
+    if (!addedIds.has(part.id)) {
+      addedIds.add(part.id);
+      particularities.push(part);
+    }
+  };
+
+  // 1. Custom Merchant Particularity (Highest priority if provided)
+  if (listing?.specialEditionDetails && listing.specialEditionDetails.trim().length > 0) {
+    const customText = listing.specialEditionDetails.trim();
+    add({
+      id: 'custom_particularity',
+      label: customText,
+      shortLabel: customText.length > 20 ? `${customText.slice(0, 18)}...` : customText,
+      icon: '⭐',
+      type: 'custom',
+      badgeClass: 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black border border-yellow-300 shadow-md',
+      pillClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold',
+      description: customText
+    });
+  }
+
+  // 2. Box Set
+  const isExplicitBox = listing?.isBoxSet === true;
+  const isBoxDetected =
+    isExplicitBox ||
+    formats.some(f => (f.name || '').toLowerCase().includes('box') || (f.descriptions || []).some(d => d.toLowerCase().includes('box set'))) ||
+    /\bbox\s*set\b|\bbox\b|\bcaixa\s+(especial|luxo|comemorativa|coletânea|de\s+luxo)\b|\bestojo\b/i.test(title) ||
+    /\bbox\s*set\b|\bbox\s+com\b|\bcaixa\s+com\b|\bestojo\s+especial\b/i.test(notes) ||
+    /\bbox\b/i.test(allFmtText);
+
+  if (isBoxDetected) {
+    add({
+      id: 'box_set',
+      label: 'Box Set Especial',
+      shortLabel: 'Box Set',
+      icon: '📦',
+      type: 'box',
+      badgeClass: 'bg-gradient-to-r from-purple-800 via-indigo-900 to-slate-950 text-amber-200 font-black border border-purple-400/50 shadow-lg ring-1 ring-purple-500/30',
+      pillClass: 'bg-purple-900 text-amber-200 border border-purple-400 font-black',
+      description: 'Caixa especial / Box Set de colecionador com acondicionamento premium e itens exclusivos.'
+    });
+  }
+
+  // 3. Multi-Disc: 4x, 3x, 2x (Double Album)
+  const isExplicitDouble = listing?.isDoubleAlbum === true;
+  const isQuadruple =
+    formats.some(f => f.qty === '4') ||
+    /\b4\s*x\s*(lp|vinil|vinyl|cd|disco)\b|\b4xlp\b|\b4xcd\b/i.test(fullText);
+
+  const isTriple =
+    formats.some(f => f.qty === '3') ||
+    /\b3\s*x\s*(lp|vinil|vinyl|cd|disco)\b|\b3xlp\b|\b3xcd\b|\btriple\s+(album|lp|cd|vinyl)\b|\b[aá]lbum\s+triplo\b/i.test(fullText);
+
+  const isDouble =
+    isExplicitDouble ||
+    formats.some(f => f.qty === '2') ||
+    /\b2\s*x\s*(lp|vinil|vinyl|cd|disco)\b|\b2xlp\b|\b2xcd\b|\bdouble\s+(album|lp|cd|vinyl)\b|\b[aá]lbum\s+duplo\b|\bdisco\s+duplo\b|\blp\s+duplo\b|\bcd\s+duplo\b/i.test(fullText);
+
+  if (isQuadruple) {
+    add({
+      id: 'quadruple_album',
+      label: 'Álbum Quádruplo (4 Discos)',
+      shortLabel: '4x Discos',
+      icon: '💿4x',
+      type: 'disc_count',
+      badgeClass: 'bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-950 text-white font-black border border-blue-400/50 shadow-md',
+      pillClass: 'bg-blue-100 text-blue-900 border border-blue-300 font-black',
+      description: 'Edição robusta com 4 discos (LPs ou CDs).'
+    });
+  } else if (isTriple) {
+    add({
+      id: 'triple_album',
+      label: 'Álbum Triplo (3 Discos)',
+      shortLabel: '3xLP Triplo',
+      icon: '💿3x',
+      type: 'disc_count',
+      badgeClass: 'bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-950 text-white font-black border border-blue-400/50 shadow-md',
+      pillClass: 'bg-blue-100 text-blue-900 border border-blue-300 font-black',
+      description: 'Edição com 3 discos (LPs ou CDs).'
+    });
+  } else if (isDouble) {
+    const isCd = fmtNames.includes('cd') || title.includes('cd');
+    const isDvd = fmtNames.includes('dvd') || title.includes('dvd');
+    const label = isCd ? 'CD Duplo (2 CDs)' : isDvd ? 'DVD Duplo (2 DVDs)' : 'Álbum Duplo (2xLP)';
+    const shortLabel = isCd ? 'CD Duplo' : isDvd ? 'DVD Duplo' : 'Álbum Duplo';
+
+    add({
+      id: 'double_album',
+      label,
+      shortLabel,
+      icon: '💿💿',
+      type: 'disc_count',
+      badgeClass: 'bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-800 text-white font-black border border-blue-300/60 shadow-md',
+      pillClass: 'bg-indigo-100 text-indigo-900 border border-indigo-300 font-black',
+      description: 'Álbum duplo contendo 2 discos completos com todas as faixas e faixas bônus originais.'
+    });
+  }
+
+  // 4. Capa Dupla (Gatefold)
+  const isExplicitGatefold = listing?.isGatefold === true;
+  const isGatefoldDetected =
+    isExplicitGatefold ||
+    allFmtText.includes('gatefold') ||
+    /\bgatefold\b|\bcapa\s+dupla\b/i.test(fullText);
+
+  if (isGatefoldDetected) {
+    add({
+      id: 'gatefold',
+      label: 'Capa Dupla (Gatefold)',
+      shortLabel: 'Capa Dupla',
+      icon: '📖',
+      type: 'packaging',
+      badgeClass: 'bg-slate-950/90 text-amber-300 font-black border border-amber-500/40 shadow-md backdrop-blur-xs',
+      pillClass: 'bg-slate-900 text-amber-300 border border-amber-500/40 font-bold',
+      description: 'Capa dobrável dupla (Gatefold) que se abre revelando artes, letras e fotografias internas.'
+    });
+  }
+
+  // 5. Vinil Colorido ou Picture Disc
+  if (/\bpicture\s+disc\b/i.test(fullText)) {
+    add({
+      id: 'picture_disc',
+      label: 'Picture Disc (Ilustrado)',
+      shortLabel: 'Picture Disc',
+      icon: '🖼️',
+      type: 'edition',
+      badgeClass: 'bg-gradient-to-r from-pink-600 to-rose-700 text-white font-black border border-pink-300/50 shadow-md',
+      pillClass: 'bg-pink-100 text-pink-900 border border-pink-300 font-black',
+      description: 'Vinil especial Picture Disc com imagem gráfica impressa diretamente no corpo do disco.'
+    });
+  } else if (/\b(colored\s+vinyl|coloured\s+vinyl|vinil\s+colorido|blue\s+vinyl|red\s+vinyl|white\s+vinyl|yellow\s+vinyl|green\s+vinyl|splatter|marble)\b/i.test(fullText)) {
+    add({
+      id: 'colored_vinyl',
+      label: 'Vinil Colorido',
+      shortLabel: 'Vinil Colorido',
+      icon: '🎨',
+      type: 'edition',
+      badgeClass: 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white font-black border border-emerald-300/50 shadow-md',
+      pillClass: 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-black',
+      description: 'Prensagem especial em vinil colorido (splatter, marble ou monocromático translúcido/opaco).'
+    });
+  }
+
+  // 6. 180 Gramas / Prensagem Audiófila
+  if (/\b180\s*g(ram|ramas)?\b|\baudiophile\b|\baudi[oó]filo\b/i.test(fullText)) {
+    add({
+      id: 'audiophile_180g',
+      label: 'Vinil 180g (Audiófilo)',
+      shortLabel: '180g Audiófilo',
+      icon: '⚖️',
+      type: 'edition',
+      badgeClass: 'bg-slate-900 text-amber-300 font-black border border-amber-400/50 shadow-md',
+      pillClass: 'bg-amber-950 text-amber-300 border border-amber-500/40 font-bold',
+      description: 'Prensagem pesada em vinil virgem de 180 gramas com alta fidelidade sonora e menor ressonância.'
+    });
+  }
+
+  // 7. Edição Especial / Deluxe / Limitada / Comemorativa
+  const isExplicitSpecial = listing?.isSpecialEdition === true;
+  const isDeluxe = /\bdeluxe(\s+edition)?\b|\bedi[cç][aã]o\s+deluxe\b/i.test(fullText);
+  const isLimited = /\blimited(\s+edition)?\b|\bedi[cç][aã]o\s+limitada\b/i.test(fullText);
+  const isAnniversary = /\b(anniversary|comemorativa|anivers[aá]rio)\b/i.test(fullText);
+  const isJapanese = /\b(japanese\s+edition|edição\s+japonesa|com\s+obi|obi\s+strip)\b/i.test(fullText);
+  const isSpecial = isExplicitSpecial || allFmtText.includes('special edition') || /\bedi[cç][aã]o\s+especial\b|\bspecial\s+edition\b/i.test(fullText);
+
+  if (isDeluxe) {
+    add({
+      id: 'deluxe_edition',
+      label: 'Edição Deluxe',
+      shortLabel: 'Deluxe',
+      icon: '💎',
+      type: 'edition',
+      badgeClass: 'bg-gradient-to-r from-violet-700 via-purple-700 to-indigo-800 text-white font-black border border-violet-300/50 shadow-md',
+      pillClass: 'bg-purple-100 text-purple-900 border border-purple-300 font-black',
+      description: 'Edição Deluxe expandida com faixas extras, acabamento superior e encartes exclusivos.'
+    });
+  } else if (isLimited) {
+    add({
+      id: 'limited_edition',
+      label: 'Edição Limitada',
+      shortLabel: 'Ed. Limitada',
+      icon: '🎖️',
+      type: 'edition',
+      badgeClass: 'bg-gradient-to-r from-red-700 via-rose-700 to-pink-800 text-white font-black border border-red-300/50 shadow-md',
+      pillClass: 'bg-red-100 text-red-900 border border-red-300 font-black',
+      description: 'Tiragem limitada e numerada de colecionador.'
+    });
+  } else if (isAnniversary) {
+    add({
+      id: 'anniversary_edition',
+      label: 'Edição Comemorativa',
+      shortLabel: 'Comemorativa',
+      icon: '🎂',
+      type: 'edition',
+      badgeClass: 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white font-black border border-amber-300/50 shadow-md',
+      pillClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black',
+      description: 'Edição comemorativa de aniversário de lançamento da obra.'
+    });
+  } else if (isJapanese) {
+    add({
+      id: 'japanese_edition',
+      label: 'Edição Japonesa (OBI)',
+      shortLabel: 'Ed. Japonesa',
+      icon: '🇯🇵',
+      type: 'edition',
+      badgeClass: 'bg-gradient-to-r from-red-800 to-slate-900 text-white font-black border border-red-300/40 shadow-md',
+      pillClass: 'bg-red-900 text-white border border-red-400 font-black',
+      description: 'Prensagem japonesa altamente cobiçada com faixa OBI original e encarte bilíngue.'
+    });
+  } else if (isSpecial) {
+    add({
+      id: 'special_edition',
+      label: 'Edição Especial',
+      shortLabel: 'Ed. Especial',
+      icon: '✨',
+      type: 'edition',
+      badgeClass: 'bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 text-white font-black border border-rose-300/50 shadow-md',
+      pillClass: 'bg-rose-100 text-rose-900 border border-rose-300 font-black',
+      description: 'Edição especial com particularidades distintas do lançamento convencional.'
+    });
+  }
+
+  // 8. Acompanha Encarte Original / Pôster
+  const hasExplicitInsert = listing?.hasInsert === true || listing?.condition?.hasInsert === true;
+  const hasInsertDetected =
+    hasExplicitInsert ||
+    /\b(com\s+encarte|encarte\s+original|encarte\s+incluso|acompanha\s+encarte|includes\s+insert|with\s+insert)\b/i.test(fullText);
+
+  if (hasInsertDetected) {
+    add({
+      id: 'insert_included',
+      label: 'Com Encarte Original',
+      shortLabel: 'C/ Encarte',
+      icon: '📄',
+      type: 'bonus',
+      badgeClass: 'bg-amber-800/90 text-amber-100 font-black border border-amber-500/40 shadow-xs backdrop-blur-xs',
+      pillClass: 'bg-amber-50 text-amber-900 border border-amber-300 font-bold',
+      description: 'Acompanha o encarte original com letras, fichas técnicas ou fotos de época.'
+    });
+  }
+
+  if (/\b(com\s+p[oô]ster|p[oô]ster\s+original|includes\s+poster|with\s+poster)\b/i.test(fullText)) {
+    add({
+      id: 'poster_included',
+      label: 'Com Pôster Original',
+      shortLabel: 'C/ Pôster',
+      icon: '📜',
+      type: 'bonus',
+      badgeClass: 'bg-amber-900/90 text-amber-200 font-black border border-amber-400/40 shadow-xs backdrop-blur-xs',
+      pillClass: 'bg-amber-100 text-amber-950 border border-amber-400 font-bold',
+      description: 'Acompanha o pôster oficial original encartado.'
+    });
+  }
+
+  return particularities;
+}
+
+/**
+ * Quick detector to pre-fill listing fields from a Discogs release.
+ */
+export function detectReleaseParticularities(release?: DiscogsRelease | null) {
+  if (!release) {
+    return {
+      isDoubleAlbum: false,
+      isBoxSet: false,
+      isSpecialEdition: false,
+      isGatefold: false,
+      hasInsert: false,
+      suggestedDetails: ''
+    };
+  }
+
+  const formats = release.formats || [];
+  const fmtNames = formats.map(f => (f.name || '').toLowerCase()).join(' ');
+  const fmtDescs = formats.flatMap(f => f.descriptions || []).map(d => d.toLowerCase()).join(' ');
+  const allFmtText = `${fmtNames} ${fmtDescs}`.toLowerCase();
+  const title = (release.title || '').toLowerCase();
+  const notes = (release.notes || '').toLowerCase();
+  const full = `${allFmtText} ${title} ${notes}`;
+
+  const isBoxSet =
+    formats.some(f => (f.name || '').toLowerCase().includes('box') || (f.descriptions || []).some(d => d.toLowerCase().includes('box set'))) ||
+    /\bbox\s*set\b|\bbox\b|\bcaixa\s+(especial|luxo)\b/i.test(title);
+
+  const isDoubleAlbum =
+    formats.some(f => f.qty === '2' || f.qty === '3' || f.qty === '4') ||
+    /\b2\s*x\s*(lp|vinil|vinyl|cd|disco)\b|\b2xlp\b|\bdouble\s+album\b|\b[aá]lbum\s+duplo\b/i.test(full);
+
+  const isGatefold = allFmtText.includes('gatefold') || /\bgatefold\b|\bcapa\s+dupla\b/i.test(full);
+
+  const isSpecialEdition =
+    allFmtText.includes('special edition') ||
+    allFmtText.includes('deluxe') ||
+    allFmtText.includes('limited') ||
+    allFmtText.includes('colored') ||
+    allFmtText.includes('picture disc') ||
+    /\b(special\s+edition|edição\s+especial|deluxe|limited\s+edition|edição\s+limitada|vinil\s+colorido|picture\s+disc)\b/i.test(full);
+
+  const hasInsert = /\b(com\s+encarte|encarte\s+incluso|includes\s+insert|with\s+insert)\b/i.test(full);
+
+  let suggestedDetails = '';
+  if (isBoxSet) suggestedDetails = 'Box Set Especial de Colecionador';
+  else if (isDoubleAlbum && isGatefold) suggestedDetails = 'Álbum Duplo com Capa Dupla (Gatefold)';
+  else if (isDoubleAlbum) suggestedDetails = 'Álbum Duplo (2 Discos)';
+  else if (isGatefold) suggestedDetails = 'Capa Dupla (Gatefold)';
+
+  return {
+    isDoubleAlbum,
+    isBoxSet,
+    isSpecialEdition,
+    isGatefold,
+    hasInsert,
+    suggestedDetails
+  };
+}
+

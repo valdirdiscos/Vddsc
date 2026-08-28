@@ -17,12 +17,13 @@ import {
   ChevronRight,
   Share2,
   Heart,
-  Flame
+  Flame,
+  Star
 } from 'lucide-react';
 import { SavedListing } from '../types';
 import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE, OFFICIAL_MARKETPLACE_LINKS } from '../constants';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
-import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason } from '../utils/formatHelper';
+import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities } from '../utils/formatHelper';
 import { Store } from 'lucide-react';
 
 interface PublicProductModalProps {
@@ -45,6 +46,7 @@ export function PublicProductModal({
   onOpenAuthModal
 }: PublicProductModalProps) {
   const { isCustomerLoggedIn, isInWishlist, toggleWishlist } = useCustomerAuth();
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
 
   if (!isOpen || !listing) return null;
 
@@ -61,6 +63,7 @@ export function PublicProductModal({
   const { release, condition, pricing, drawer, customImages } = listing;
   const formatInfo = getListingFormatInfo(listing);
   const conditionInfo = getItemConditionInfo(listing);
+  const particularities = getAlbumParticularities(listing);
 
   const mediaCondObj = GOLDMINE_VINYL_MEDIA.find(c => c.code === condition?.mediaCondition);
   const sleeveCondObj = GOLDMINE_VINYL_SLEEVE.find(c => c.code === condition?.sleeveCondition);
@@ -106,8 +109,6 @@ export function PublicProductModal({
     }
   };
 
-  const [activeImageIdx, setActiveImageIdx] = useState(0);
-
   const imagesToShow = [
     ...(customImages && customImages.length > 0 ? customImages.filter(Boolean) : []),
     ...(release.coverImage ? [release.coverImage] : [])
@@ -144,6 +145,25 @@ export function PublicProductModal({
               }`}>
                 {conditionInfo.isNew ? '✨ Novo / Lacrado' : '📻 Usado / Garimpo'}
               </span>
+
+              {/* Exclusivo Loja Online Badge */}
+              {isOnlineExclusiveItem(listing) && (
+                <span className="px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-xs flex items-center gap-1 border border-yellow-300">
+                  <Star className="h-3 w-3 fill-slate-950 text-slate-950" />
+                  ⭐ Exclusivo do Site
+                </span>
+              )}
+
+              {/* Particularities Badges in Modal Header */}
+              {particularities.map((part) => (
+                <span
+                  key={part.id}
+                  className={`px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider flex items-center gap-1 shadow-xs border ${part.badgeClass}`}
+                >
+                  <span>{part.icon}</span>
+                  <span>{part.label}</span>
+                </span>
+              ))}
 
               {listing.barcode && (
                 <span className="text-xs font-mono font-bold text-slate-500 bg-slate-200/60 px-2 py-0.5 rounded">
@@ -206,6 +226,21 @@ export function PublicProductModal({
                   
                   {/* Subtle Vinyl Groove Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-40 pointer-events-none" />
+
+                  {/* Badges on Modal Photo */}
+                  {particularities.length > 0 && (
+                    <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5 pointer-events-none z-10">
+                      {particularities.map((part) => (
+                        <span
+                          key={part.id}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg border backdrop-blur-xs ${part.badgeClass}`}
+                        >
+                          <span>{part.icon}</span>
+                          <span>{part.label}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Additional Photos if available */}
@@ -295,6 +330,52 @@ export function PublicProductModal({
                       <p className="text-orange-900/85 leading-relaxed">
                         {getGarimpoReason(listing)} — Excelente custo-benefício para sua coleção! Item disponibilizado por menor valor de mercado ou com marcas de época descritas.
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Exclusivo da Loja Online Alert Banner if applicable */}
+                {isOnlineExclusiveItem(listing) && (
+                  <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-100/60 border border-amber-300 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+                    <div className="p-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 rounded-xl font-black text-xs shrink-0 uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                      <Star className="h-3.5 w-3.5 fill-slate-950 text-slate-950" />
+                      <span>Exclusivo</span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <h4 className="font-bold text-amber-950 text-sm flex items-center gap-1.5">
+                        <span>⭐ Disco Raro — Venda Exclusiva pelo Site</span>
+                      </h4>
+                      <p className="text-amber-900/90 leading-relaxed font-medium">
+                        {getOnlineExclusiveReason(listing)} Este exemplar é reservado exclusivamente para os clientes da nossa loja online oficial (não disponível em balcão ou marketplaces).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Particularidades da Edição (Álbum Duplo, Box Set, Capa Dupla, Edição Especial) */}
+                {particularities.length > 0 && (
+                  <div className="bg-gradient-to-r from-indigo-50/70 via-purple-50/50 to-amber-50/50 border border-indigo-200/80 rounded-2xl p-4 space-y-2.5 shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers className="h-4 w-4 text-indigo-600" />
+                        Particularidades desta Edição
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {particularities.map((part) => (
+                        <div
+                          key={part.id}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-indigo-200/60 text-slate-800 shadow-2xs flex items-center gap-2"
+                        >
+                          <span className="text-base">{part.icon}</span>
+                          <div>
+                            <div className="text-[11px] font-black text-slate-900 leading-none">{part.label}</div>
+                            {part.id === 'special_edition' && listing.specialEditionDetails && (
+                              <div className="text-[10px] text-slate-500 font-medium mt-0.5">{listing.specialEditionDetails}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

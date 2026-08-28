@@ -8,7 +8,7 @@ import {
   Store, Globe, ShoppingBag, Layers, Search, Filter,
   CheckCircle, ArrowUpRight, DollarSign, TrendingUp,
   Printer, QrCode, Tag, Sparkles, RefreshCw, Check,
-  ExternalLink, Share2, Copy, AlertTriangle, Eye, ShieldCheck
+  ExternalLink, Share2, Copy, AlertTriangle, Eye, ShieldCheck, Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SavedListing, SalesChannel } from '../types';
@@ -30,7 +30,7 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
   onBatchThermalPrint
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [channelFilter, setChannelFilter] = useState<'all' | SalesChannel | 'exclusive_physical' | 'exclusive_shopee' | 'multi_channel'>('all');
+  const [channelFilter, setChannelFilter] = useState<'all' | SalesChannel | 'exclusive_online' | 'exclusive_physical' | 'exclusive_shopee' | 'multi_channel'>('all');
   const [selectedDrawer, setSelectedDrawer] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'matrix' | 'storefront'>('matrix');
   const [copiedLink, setCopiedLink] = useState(false);
@@ -157,6 +157,10 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
       if (channelFilter === 'online_store' && !channels.includes('online_store')) return false;
       if (channelFilter === 'shopee' && !channels.includes('shopee')) return false;
       if (channelFilter === 'mercadolivre' && !channels.includes('mercadolivre')) return false;
+      if (channelFilter === 'exclusive_online') {
+        const isExcl = Boolean(item.isOnlineExclusive) || (channels.length === 1 && channels.includes('online_store'));
+        if (!isExcl) return false;
+      }
       if (channelFilter === 'exclusive_physical' && (channels.length !== 1 || !channels.includes('physical_store'))) return false;
       if (channelFilter === 'exclusive_shopee' && (channels.length !== 1 || !channels.includes('shopee'))) return false;
       if (channelFilter === 'multi_channel' && channels.length <= 1) return false;
@@ -174,8 +178,22 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
     } else {
       updated = [...current, channel];
     }
-    const updatedItem = { ...item, salesChannels: updated };
+    // If online_store is removed, ensure item is no longer marked as online exclusive
+    const isExcl = channel === 'online_store' && !updated.includes('online_store') ? false : item.isOnlineExclusive;
+    const updatedItem = { ...item, salesChannels: updated, isOnlineExclusive: isExcl };
     onUpdateListing(updatedItem);
+  };
+
+  // Fast toggle online exclusive rarity
+  const handleToggleExclusive = (item: SavedListing) => {
+    const currentChannels = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
+    const newExcl = !item.isOnlineExclusive;
+    const newChannels = newExcl ? ['online_store'] : currentChannels;
+    onUpdateListing({
+      ...item,
+      isOnlineExclusive: newExcl,
+      salesChannels: newChannels
+    });
   };
 
   // Bulk enable/disable channel for all filtered items
@@ -398,6 +416,7 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
           <span className="text-xs font-bold text-slate-400 mr-1">Filtrar por Disponibilidade:</span>
           {[
             { id: 'all', label: `Todos os Discos (${listings.length})` },
+            { id: 'exclusive_online', label: '⭐ Exclusivos Loja Online (Raros)' },
             { id: 'physical_store', label: `Loja Física (${metrics.channels.physical_store.count})`, color: 'text-emerald-700' },
             { id: 'online_store', label: `Loja Online (${metrics.channels.online_store.count})`, color: 'text-indigo-700' },
             { id: 'shopee', label: `Shopee (${metrics.channels.shopee.count})`, color: 'text-orange-700' },
@@ -478,13 +497,14 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
                 <th className="py-3 px-3 text-center">🌐 Loja Online</th>
                 <th className="py-3 px-3 text-center">🛍️ Shopee</th>
                 <th className="py-3 px-3 text-center">💛 Mercado Livre</th>
+                <th className="py-3 px-3 text-center">⭐ Exclusivo Site</th>
                 <th className="py-3 px-4 text-right">Etiqueta</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
               {filteredListings.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={10} className="py-12 text-center text-slate-400">
                     Nenhum disco encontrado para os filtros selecionados.
                   </td>
                 </tr>
@@ -604,6 +624,22 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
                           title="Disponível no Mercado Livre"
                         >
                           <Check className="h-4 w-4" />
+                        </button>
+                      </td>
+
+                      {/* 5. Exclusivo Loja Online (Raro) */}
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleExclusive(item)}
+                          className={`w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all cursor-pointer ${
+                            item.isOnlineExclusive || (channels.length === 1 && channels[0] === 'online_store')
+                              ? 'bg-amber-400 text-slate-950 shadow-sm border border-yellow-300 ring-2 ring-yellow-400/40'
+                              : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+                          }`}
+                          title={item.isOnlineExclusive ? "Disco Raro Exclusivo do Site (Clique para desmarcar)" : "Marcar como Disco Raro Exclusivo do Site"}
+                        >
+                          <Star className={`h-4 w-4 ${item.isOnlineExclusive ? 'fill-slate-950 text-slate-950' : ''}`} />
                         </button>
                       </td>
 

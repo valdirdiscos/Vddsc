@@ -46,6 +46,7 @@ import {
   Tag,
   Printer,
   Flame,
+  Star,
   HardDrive,
   Cloud,
   Zap
@@ -68,6 +69,8 @@ import { OnlineOrdersIntranetTab } from './components/OnlineOrdersIntranetTab';
 import { IntranetAuthModal } from './components/IntranetAuthModal';
 import { useCustomerAuth } from './context/CustomerAuthContext';
 import { getSalesChannelMeta } from './utils/qrcode';
+import { detectReleaseParticularities } from './utils/formatHelper';
+import { SEED_LISTINGS } from './data/seedListings';
 
 function isImportedCountry(country?: string): boolean {
   if (!country) return false;
@@ -423,6 +426,13 @@ export default function App() {
   const [isPersonal, setIsPersonal] = useState<boolean>(false);
   const [isGarimpo, setIsGarimpo] = useState<boolean>(false);
   const [garimpoDetails, setGarimpoDetails] = useState<string>('');
+  const [isOnlineExclusive, setIsOnlineExclusive] = useState<boolean>(false);
+  const [onlineExclusiveDetails, setOnlineExclusiveDetails] = useState<string>('');
+  const [isDoubleAlbum, setIsDoubleAlbum] = useState<boolean>(false);
+  const [isBoxSet, setIsBoxSet] = useState<boolean>(false);
+  const [isSpecialEdition, setIsSpecialEdition] = useState<boolean>(false);
+  const [isGatefold, setIsGatefold] = useState<boolean>(false);
+  const [specialEditionDetails, setSpecialEditionDetails] = useState<string>('');
   const [activeCover, setActiveCover] = useState<string>('');
 
   // Status states
@@ -514,10 +524,42 @@ export default function App() {
           }
         }
 
+        // If no listings exist, seed initial items with rich particularities (Double album, Box set, Gatefold, Special editions)
+        if (uniqueListings.length === 0) {
+          for (const seedItem of SEED_LISTINGS) {
+            uniqueListings.push(seedItem);
+            try {
+              await setDoc(doc(db, 'listings', seedItem.id), JSON.parse(JSON.stringify(seedItem)));
+            } catch {}
+          }
+        } else {
+          // Backward compatibility: Auto-enrich any existing listings with format particularities
+          for (let i = 0; i < uniqueListings.length; i++) {
+            const it = uniqueListings[i];
+            if (it.isDoubleAlbum === undefined && it.isBoxSet === undefined && it.isGatefold === undefined) {
+              const detected = detectReleaseParticularities(it.release);
+              if (detected.isDoubleAlbum || detected.isBoxSet || detected.isSpecialEdition || detected.isGatefold) {
+                uniqueListings[i] = {
+                  ...it,
+                  isDoubleAlbum: it.isDoubleAlbum ?? detected.isDoubleAlbum,
+                  isBoxSet: it.isBoxSet ?? detected.isBoxSet,
+                  isSpecialEdition: it.isSpecialEdition ?? detected.isSpecialEdition,
+                  isGatefold: it.isGatefold ?? detected.isGatefold,
+                  specialEditionDetails: it.specialEditionDetails || detected.suggestedDetails
+                };
+              }
+            }
+          }
+        }
+
         setSavedListings(uniqueListings);
         localStorage.setItem('valdir_shopee_listings', JSON.stringify(uniqueListings));
       } catch (err) {
         console.warn('Aviso: Operando em modo cache local para anúncios (Firestore offline/conectando):', err);
+        if (localData.length === 0) {
+          setSavedListings(SEED_LISTINGS);
+          localStorage.setItem('valdir_shopee_listings', JSON.stringify(SEED_LISTINGS));
+        }
       }
     };
 
@@ -1056,6 +1098,17 @@ export default function App() {
       setIsPersonal(false);
       setActiveCover(data.release.coverImage || '');
       setCoverSource('discogs');
+
+      // Auto-detect album particularities (Álbum Duplo, Box Set, Capa Dupla Gatefold, Edição Especial)
+      const detectedPart = detectReleaseParticularities(data.release);
+      setIsDoubleAlbum(detectedPart.isDoubleAlbum);
+      setIsBoxSet(detectedPart.isBoxSet);
+      setIsGatefold(detectedPart.isGatefold);
+      setIsSpecialEdition(detectedPart.isSpecialEdition);
+      if (detectedPart.suggestedDetails) {
+        setSpecialEditionDetails(detectedPart.suggestedDetails);
+      }
+
       setSuccessMsg('Metadados extraídos com sucesso! Gerando anúncio...');
       
       // Auto-trigger Dual Ad Generation for an absolute magic experience
@@ -1517,7 +1570,14 @@ export default function App() {
       barcode,
       salesChannels: activeSalesChannels.length > 0 ? activeSalesChannels : ['physical_store', 'online_store', 'shopee', 'mercadolivre'],
       isGarimpo: isGarimpo || undefined,
-      garimpoDetails: isGarimpo && garimpoDetails.trim() ? garimpoDetails.trim() : undefined
+      garimpoDetails: isGarimpo && garimpoDetails.trim() ? garimpoDetails.trim() : undefined,
+      isOnlineExclusive: isOnlineExclusive || undefined,
+      onlineExclusiveDetails: isOnlineExclusive && onlineExclusiveDetails.trim() ? onlineExclusiveDetails.trim() : undefined,
+      isDoubleAlbum: isDoubleAlbum || undefined,
+      isBoxSet: isBoxSet || undefined,
+      isSpecialEdition: isSpecialEdition || undefined,
+      isGatefold: isGatefold || undefined,
+      specialEditionDetails: specialEditionDetails.trim() ? specialEditionDetails.trim() : undefined
     };
 
     // Optimistically update local state & storage first
@@ -1573,6 +1633,13 @@ export default function App() {
       customImages,
       isGarimpo,
       garimpoDetails,
+      isOnlineExclusive,
+      onlineExclusiveDetails,
+      isDoubleAlbum,
+      isBoxSet,
+      isSpecialEdition,
+      isGatefold,
+      specialEditionDetails,
       salesChannels: combinedChannels,
       status: isPersonal ? 'personal' : 'available',
       createdAt: new Date().toISOString(),
@@ -1662,6 +1729,13 @@ export default function App() {
     setIsPersonal(item.status === 'personal');
     setIsGarimpo(Boolean(item.isGarimpo));
     setGarimpoDetails(item.garimpoDetails || '');
+    setIsOnlineExclusive(Boolean(item.isOnlineExclusive));
+    setOnlineExclusiveDetails(item.onlineExclusiveDetails || '');
+    setIsDoubleAlbum(Boolean(item.isDoubleAlbum));
+    setIsBoxSet(Boolean(item.isBoxSet));
+    setIsSpecialEdition(Boolean(item.isSpecialEdition));
+    setIsGatefold(Boolean(item.isGatefold));
+    setSpecialEditionDetails(item.specialEditionDetails || '');
     setActiveSalesChannels(item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre']);
     setActiveCover(imgs.length > 0 ? imgs[0] : (item.release.coverImage || ''));
     setCoverSource(imgs.length > 0 ? 'real' : 'discogs');
@@ -1693,6 +1767,13 @@ export default function App() {
     setIsPersonal(false);
     setIsGarimpo(false);
     setGarimpoDetails('');
+    setIsOnlineExclusive(false);
+    setOnlineExclusiveDetails('');
+    setIsDoubleAlbum(false);
+    setIsBoxSet(false);
+    setIsSpecialEdition(false);
+    setIsGatefold(false);
+    setSpecialEditionDetails('');
     setActiveCover('');
     setDiscogsUrl('');
     setManualQuery('');
@@ -2306,11 +2387,23 @@ export default function App() {
 
           {activeTab === 'custom_manual' ? (
             <ManualRegistrationForm
-              onComplete={({ release: newRel, condition: newCond, pricing: newPrice, drawer: newDraw, description: newDesc, coverImage: newCov, isGarimpo: newGarimpo, garimpoDetails: newGarimpoDetails }) => {
+              onComplete={({ release: newRel, condition: newCond, pricing: newPrice, drawer: newDraw, description: newDesc, coverImage: newCov, isGarimpo: newGarimpo, garimpoDetails: newGarimpoDetails, isOnlineExclusive: newExclusive, onlineExclusiveDetails: newExclusiveDetails, isDoubleAlbum: newDouble, isBoxSet: newBox, isSpecialEdition: newSpecial, isGatefold: newGate, specialEditionDetails: newSpecialDetails }) => {
                 setRelease(newRel);
                 setCondition(newCond);
                 setPricing(newPrice);
                 setDrawer(newDraw);
+                setIsGarimpo(Boolean(newGarimpo));
+                setGarimpoDetails(newGarimpoDetails || '');
+                setIsOnlineExclusive(Boolean(newExclusive));
+                setOnlineExclusiveDetails(newExclusiveDetails || '');
+                setIsDoubleAlbum(Boolean(newDouble));
+                setIsBoxSet(Boolean(newBox));
+                setIsSpecialEdition(Boolean(newSpecial));
+                setIsGatefold(Boolean(newGate));
+                setSpecialEditionDetails(newSpecialDetails || '');
+                if (newExclusive) {
+                  setActiveSalesChannels(['online_store']);
+                }
                 if (newCov) {
                   setCustomImages([newCov]);
                   setActiveCover(newCov);
@@ -3214,6 +3307,172 @@ export default function App() {
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* Disco Raro — Exclusivo da Loja Online Card */}
+              <div 
+                className={`rounded-2xl border p-5 space-y-4 transition-all shadow-sm ${
+                  isOnlineExclusive
+                    ? 'bg-gradient-to-br from-amber-50/90 via-yellow-50/50 to-white border-amber-300 ring-1 ring-yellow-400/40'
+                    : 'bg-white border-slate-200 hover:border-amber-200'
+                }`} 
+                id="workspace-exclusive-card"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Star className={`h-5 w-5 ${isOnlineExclusive ? 'text-amber-500 fill-amber-400' : 'text-slate-400'}`} />
+                    <h3 className="text-sm font-bold text-slate-800">⭐ Disco Raro — Exclusivo da Loja Online</h3>
+                  </div>
+                  {isOnlineExclusive && (
+                    <span className="px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[10px] font-black rounded-md uppercase tracking-wider shadow-xs">
+                      Exclusivo do Site
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Marque para <strong>edições raras, primeiras prensagens ou itens de colecionador</strong> que serão vendidos exclusivamente pelo site (não disponibilizados no balcão ou marketplaces).
+                </p>
+
+                <label className="flex items-center gap-2.5 cursor-pointer select-none bg-slate-50 hover:bg-amber-50/60 p-3 rounded-xl border border-slate-200 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={isOnlineExclusive}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsOnlineExclusive(checked);
+                      if (checked) {
+                        setActiveSalesChannels(['online_store']);
+                      }
+                    }}
+                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-slate-800">
+                    Vender exclusivamente pelo site (Loja Online)
+                  </span>
+                </label>
+
+                {isOnlineExclusive && (
+                  <div className="space-y-2 pt-2 border-t border-amber-200/70">
+                    <label className="text-xs font-bold text-amber-950 block">
+                      Detalhes da Raridade / Exclusividade (Exibido para o cliente na loja):
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={onlineExclusiveDetails}
+                      onChange={(e) => setOnlineExclusiveDetails(e.target.value)}
+                      placeholder="Ex: Primeira prensagem original brasileira de 1972 com selo Odeon / Exemplar de colecionador impecável..."
+                      className="w-full text-xs text-amber-950 bg-white border border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-xl p-3 focus:outline-none transition-all placeholder-amber-400/70 font-medium"
+                    />
+                    <p className="text-[10px] text-amber-800/80 leading-relaxed font-medium">
+                      ⭐ O disco receberá a insígnia dourada de estrela na vitrine e banner explicativo no site.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Particularidades Importantes do Álbum (Álbum Duplo, Box Set, Edição Especial, etc.) */}
+              <div 
+                className={`rounded-2xl border p-5 space-y-4 transition-all shadow-sm ${
+                  isDoubleAlbum || isBoxSet || isSpecialEdition || isGatefold || specialEditionDetails
+                    ? 'bg-gradient-to-br from-indigo-50/70 via-blue-50/40 to-white border-indigo-200 ring-1 ring-indigo-300/40'
+                    : 'bg-white border-slate-200 hover:border-indigo-200'
+                }`} 
+                id="workspace-particularities-card"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💿</span>
+                    <h3 className="text-sm font-bold text-slate-800">Particularidades da Edição (Destaque na Capa/Foto)</h3>
+                  </div>
+                  {(isDoubleAlbum || isBoxSet || isSpecialEdition || isGatefold || specialEditionDetails) && (
+                    <span className="px-2.5 py-0.5 bg-indigo-600 text-white text-[10px] font-black rounded-md uppercase tracking-wider shadow-xs">
+                      Ativo na Capa
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Quando o álbum for duplo, box, tiver capa dupla (gatefold) ou edição especial, marque abaixo para <strong>indicar automaticamente na fotinho da capa</strong> na loja online e no catálogo.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none bg-slate-50 hover:bg-indigo-50/60 p-3 rounded-xl border border-slate-200 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isDoubleAlbum}
+                      onChange={(e) => setIsDoubleAlbum(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>💿💿</span> Álbum Duplo (2xLP / 2xCD)
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">Indica "2 LPs / 2 CDs" na foto</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none bg-slate-50 hover:bg-purple-50/60 p-3 rounded-xl border border-slate-200 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isBoxSet}
+                      onChange={(e) => setIsBoxSet(e.target.checked)}
+                      className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>📦</span> Box Set / Caixa Especial
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">Indica "Box Set" na foto</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none bg-slate-50 hover:bg-amber-50/60 p-3 rounded-xl border border-slate-200 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isGatefold}
+                      onChange={(e) => setIsGatefold(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>📖</span> Capa Dupla (Gatefold)
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">Indica "Capa Dupla" na foto</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none bg-slate-50 hover:bg-rose-50/60 p-3 rounded-xl border border-slate-200 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isSpecialEdition}
+                      onChange={(e) => setIsSpecialEdition(e.target.checked)}
+                      className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>✨</span> Edição Especial / Deluxe
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">Indica "Ed. Especial" na foto</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t border-slate-200/70">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Outro Destaque / Detalhe Importante da Tiragem:
+                  </label>
+                  <input
+                    type="text"
+                    value={specialEditionDetails}
+                    onChange={(e) => setSpecialEditionDetails(e.target.value)}
+                    placeholder="Ex: Vinil Colorido Azul Translúcido / Prensagem Japonesa com OBI / Acompanha Pôster e Encarte..."
+                    className="w-full text-xs text-slate-800 bg-white border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl p-2.5 focus:outline-none transition-all placeholder-slate-400 font-medium"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    💡 Se preenchido, um selo com essa informação aparecerá na foto do disco na vitrine e nos detalhes do produto.
+                  </p>
+                </div>
               </div>
 
               {/* Grading Condition Box */}

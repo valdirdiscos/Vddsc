@@ -9,12 +9,13 @@ import {
   FileAudio, Download, X, Check, Copy, TrendingUp, MapPin, 
   Sparkles, Calendar, Layers, Shield, Tag, DollarSign, Eye, Play,
   ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Bookmark, AlertTriangle,
-  Edit3, FileText, Phone, Plus, Heart, QrCode, Printer
+  Edit3, FileText, Phone, Plus, Heart, QrCode, Printer, Flame, Star
 } from 'lucide-react';
 import { SavedListing, Customer } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { SalesChannel } from '../types';
 import { getSalesChannelMeta } from '../utils/qrcode';
+import { isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities } from '../utils/formatHelper';
 import { BatchQRCodeModal } from './BatchQRCodeModal';
 import { DiscQRCodeModal } from './DiscQRCodeModal';
 import { ThermalPrintModal } from './ThermalPrintModal';
@@ -47,7 +48,7 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
   const [selectedDrawer, setSelectedDrawer] = useState<string>('all');
   const [selectedGrading, setSelectedGrading] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [selectedChannel, setSelectedChannel] = useState<'all' | SalesChannel>('all');
+  const [selectedChannel, setSelectedChannel] = useState<'all' | SalesChannel | 'online_exclusive' | 'garimpo'>('all');
   const [diagnosticFilter, setDiagnosticFilter] = useState<'all' | 'no-loc' | 'no-photos'>('all');
   const [sortBy, setSortBy] = useState<string>('date-desc');
   const [selectedListing, setSelectedListing] = useState<SavedListing | null>(null);
@@ -375,9 +376,13 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
 
     // 6. Sales Channels Filter
     let matchesChannel = true;
-    if (selectedChannel !== 'all') {
+    if (selectedChannel === 'online_exclusive') {
+      matchesChannel = isOnlineExclusiveItem(item);
+    } else if (selectedChannel === 'garimpo') {
+      matchesChannel = isGarimpoItem(item);
+    } else if (selectedChannel !== 'all') {
       const channels = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
-      matchesChannel = channels.includes(selectedChannel);
+      matchesChannel = channels.includes(selectedChannel as SalesChannel);
     }
 
     // 7. Diagnostic Filter
@@ -1050,8 +1055,10 @@ Colecionar é preservar a história.`;
                   className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="all">Todos os Canais</option>
+                  <option value="online_exclusive">⭐ Exclusivos Loja Online (Raros)</option>
+                  <option value="garimpo">🔥 Sessão Garimpo & Oportunidades</option>
+                  <option value="online_store">🌐 Loja Online (Ativos no Site)</option>
                   <option value="physical_store">🏬 Loja Física</option>
-                  <option value="online_store">🌐 Loja Online</option>
                   <option value="shopee">🛍️ Shopee</option>
                   <option value="mercadolivre">💛 Mercado Livre</option>
                 </select>
@@ -1186,7 +1193,7 @@ Colecionar é preservar a história.`;
                       </div>
 
                       {/* Status Badges */}
-                      <div className="absolute top-2.5 left-2.5 flex items-center gap-1">
+                      <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start max-w-[85%]">
                         {itemStatus === 'sold' ? (
                           <span className="text-[9px] font-black uppercase bg-slate-900 text-slate-300 px-2 py-1 rounded-md backdrop-blur-sm tracking-wider flex items-center gap-1 border border-slate-700">
                             <ShoppingBag className="h-2.5 w-2.5" />
@@ -1203,6 +1210,34 @@ Colecionar é preservar a história.`;
                             Disponível
                           </span>
                         )}
+
+                        {/* Garimpo Marker */}
+                        {isGarimpoItem(item) && (
+                          <span className="text-[9px] font-black uppercase bg-gradient-to-r from-orange-600 to-amber-600 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 border border-orange-400/30">
+                            <Flame className="h-2.5 w-2.5 fill-white" />
+                            Garimpo
+                          </span>
+                        )}
+
+                        {/* Estrela / Exclusivo Loja Online Marker */}
+                        {isOnlineExclusiveItem(item) && (
+                          <span className="text-[9px] font-black uppercase bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 border border-yellow-300">
+                            <Star className="h-2.5 w-2.5 fill-slate-950 text-slate-950" />
+                            Exclusivo Site
+                          </span>
+                        )}
+
+                        {/* Particularidades da Edição (Duplo, Box, Gatefold, Especial) */}
+                        {getAlbumParticularities(item).map((part) => (
+                          <span
+                            key={part.id}
+                            title={part.label}
+                            className={`text-[8.5px] font-black uppercase px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 border ${part.badgeClass}`}
+                          >
+                            <span>{part.icon}</span>
+                            <span>{part.shortLabel}</span>
+                          </span>
+                        ))}
                       </div>
 
                       <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
@@ -1243,24 +1278,88 @@ Colecionar é preservar a história.`;
                         <span className="text-[9px] text-slate-400 font-mono ml-auto font-medium">{formattedDate}</span>
                       </div>
 
-                      {/* Sales Channels Badges */}
+                      {/* Sales Channels Badges with Interactive Toggles */}
                       <div className="flex items-center gap-1 flex-wrap">
                         {(() => {
                           const channels = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
+                          const hasOnline = channels.includes('online_store');
+                          const isExcl = Boolean(item.isOnlineExclusive);
                           return (
                             <>
-                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${channels.includes('physical_store') ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400 line-through'}`}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newChannels = channels.includes('physical_store')
+                                    ? channels.filter(c => c !== 'physical_store')
+                                    : [...channels, 'physical_store'];
+                                  onUpdate({ ...item, salesChannels: newChannels });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${channels.includes('physical_store') ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-400 line-through'}`}
+                                title="Alternar Loja Física"
+                              >
                                 Física
-                              </span>
-                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${channels.includes('online_store') ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-400 line-through'}`}>
-                                Online
-                              </span>
-                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${channels.includes('shopee') ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-400 line-through'}`}>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newChannels = hasOnline
+                                    ? channels.filter(c => c !== 'online_store')
+                                    : [...channels, 'online_store'];
+                                  onUpdate({ 
+                                    ...item, 
+                                    salesChannels: newChannels,
+                                    isOnlineExclusive: hasOnline ? false : item.isOnlineExclusive 
+                                  });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${hasOnline ? 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 ring-1 ring-indigo-300' : 'bg-rose-50 text-rose-500 line-through border border-rose-200'}`}
+                                title={hasOnline ? "Ativo na Loja Online (Clique para desativar da loja)" : "Desativado da Loja Online (Clique para reativar)"}
+                              >
+                                {hasOnline ? '🌐 Online (Ativo)' : '❌ Fora do Site'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newChannels = channels.includes('shopee')
+                                    ? channels.filter(c => c !== 'shopee')
+                                    : [...channels, 'shopee'];
+                                  onUpdate({ ...item, salesChannels: newChannels });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${channels.includes('shopee') ? 'bg-orange-100 text-orange-800 hover:bg-orange-200' : 'bg-slate-100 text-slate-400 line-through'}`}
+                                title="Alternar Shopee"
+                              >
                                 Shopee
-                              </span>
-                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${channels.includes('mercadolivre') ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-400 line-through'}`}>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newChannels = channels.includes('mercadolivre')
+                                    ? channels.filter(c => c !== 'mercadolivre')
+                                    : [...channels, 'mercadolivre'];
+                                  onUpdate({ ...item, salesChannels: newChannels });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${channels.includes('mercadolivre') ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-slate-100 text-slate-400 line-through'}`}
+                                title="Alternar Mercado Livre"
+                              >
                                 ML
-                              </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newExcl = !isExcl;
+                                  const newChannels = newExcl ? ['online_store'] : channels;
+                                  onUpdate({ ...item, isOnlineExclusive: newExcl, salesChannels: newChannels });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all flex items-center gap-0.5 ${isExcl ? 'bg-amber-400 text-slate-950 font-black shadow-xs' : 'bg-slate-100 text-slate-400 hover:text-amber-600'}`}
+                                title={isExcl ? "Disco Raro Exclusivo do Site (Clique para desmarcar)" : "Marcar como Disco Raro Exclusivo do Site"}
+                              >
+                                <Star className={`h-2.5 w-2.5 ${isExcl ? 'fill-slate-950' : ''}`} />
+                                {isExcl ? 'Raro Exclusivo' : 'Exclusivo?'}
+                              </button>
                             </>
                           );
                         })()}
@@ -1916,6 +2015,25 @@ Colecionar é preservar a história.`;
                           📁 Loc: {selectedListing.drawer}
                         </span>
                       )}
+
+                      {/* Exclusivo Loja Online pill */}
+                      {isOnlineExclusiveItem(selectedListing) && (
+                        <span className="text-[10px] bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black px-2 py-0.5 rounded-md flex items-center gap-1 border border-yellow-300 shadow-xs">
+                          <Star className="h-3 w-3 fill-slate-950 text-slate-950" />
+                          Exclusivo Site
+                        </span>
+                      )}
+
+                      {/* Particularidades (Duplo, Box, Especial, Gatefold) */}
+                      {getAlbumParticularities(selectedListing).map((part) => (
+                        <span
+                          key={part.id}
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 border shadow-xs ${part.badgeClass}`}
+                        >
+                          <span>{part.icon}</span>
+                          <span>{part.label}</span>
+                        </span>
+                      ))}
                       
                       {/* Status pill in drawer */}
                       {selectedListing.status === 'sold' ? (

@@ -53,7 +53,7 @@ import { ValdirVirtualChat } from './ValdirVirtualChat';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { useLogos } from '../hooks/useLogos';
 import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
-import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason } from '../utils/formatHelper';
+import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities } from '../utils/formatHelper';
 
 interface PublicStorefrontProps {
   listings: SavedListing[];
@@ -82,8 +82,8 @@ export function PublicStorefront({
   const [isLogoUploadModalOpen, setIsLogoUploadModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'register'>('login');
 
-  // Main Category & Navigation: 'discos' | 'cds' | 'dvds' | 'garimpo' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about'
-  const [activeMainTab, setActiveMainTab] = useState<'discos' | 'cds' | 'dvds' | 'garimpo' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about'>('discos');
+  // Main Category & Navigation: 'discos' | 'cds' | 'dvds' | 'garimpo' | 'exclusivos' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about'
+  const [activeMainTab, setActiveMainTab] = useState<'discos' | 'cds' | 'dvds' | 'garimpo' | 'exclusivos' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about'>('discos');
   const [onlineMusicSubTab, setOnlineMusicSubTab] = useState<'digital' | 'streaming' | 'dj_sets'>('digital');
   
   // Search & Filters
@@ -92,6 +92,7 @@ export function PublicStorefront({
   const [selectedFormat, setSelectedFormat] = useState<string>('vinyl');
   const [selectedCondition, setSelectedCondition] = useState<string>('all');
   const [conditionCategory, setConditionCategory] = useState<'all' | 'new' | 'used'>('all');
+  const [particularityFilter, setParticularityFilter] = useState<'all' | 'double' | 'box' | 'gatefold' | 'special'>('all');
   const [garimpoSubFilter, setGarimpoSubFilter] = useState<'all' | 'under25' | 'under40' | 'under60' | 'damaged'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'artist_asc'>('newest');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'sold'>('all');
@@ -226,7 +227,12 @@ export function PublicStorefront({
   // Filter listings based on public store criteria
   const filteredListings = useMemo(() => {
     return listings.filter(item => {
-      // Availability filter
+      // 1. Exclui itens do acervo pessoal
+      if (item.status === 'personal') {
+        return false;
+      }
+
+      // 2. Disponibilidade (Disponível vs Vendido)
       if (availabilityFilter === 'available' && item.status === 'sold') {
         return false;
       }
@@ -234,9 +240,12 @@ export function PublicStorefront({
         return false;
       }
 
-      // If item is restricted or explicitly removed from online store
-      if (item.salesChannels && item.salesChannels.length > 0 && !item.salesChannels.includes('online_store') && !item.salesChannels.includes('physical_store')) {
-        // if explicitly assigned to shopee/mercadolivre only
+      // 3. Regra Estrita de Canais da Loja Online:
+      // O item SÓ DEVE APARECER na loja online se o canal 'online_store' estiver marcado.
+      // Se a caixa da loja online estiver desmarcada, ele não deve aparecer na loja online,
+      // devendo permanecer apenas no banco de dados e no sistema da intranet!
+      const channels = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
+      if (!channels.includes('online_store')) {
         return false;
       }
 
@@ -309,6 +318,15 @@ export function PublicStorefront({
         if (selectedCondition === 'vg_plus' && cond !== 'M' && cond !== 'NM' && cond !== 'EX' && cond !== 'VG+') return false;
       }
 
+      // Particularity Filter (Álbum Duplo, Box Set, Capa Dupla Gatefold, Edição Especial)
+      if (particularityFilter !== 'all') {
+        const parts = getAlbumParticularities(item);
+        if (particularityFilter === 'double' && !parts.some(p => p.id === 'double_album' || p.id === 'triple_album' || p.id === 'quadruple_album' || p.type === 'disc_count')) return false;
+        if (particularityFilter === 'box' && !parts.some(p => p.id === 'box_set' || p.type === 'box')) return false;
+        if (particularityFilter === 'gatefold' && !parts.some(p => p.id === 'gatefold')) return false;
+        if (particularityFilter === 'special' && !parts.some(p => p.id === 'special_edition' || p.id === 'deluxe_edition' || p.id === 'limited_edition' || p.type === 'edition' || p.type === 'custom')) return false;
+      }
+
       // Tab Highlights
       if (activeMainTab === 'highlights') {
         const price = item.pricing?.directPrice || item.pricing?.basePriceBrl || 0;
@@ -339,6 +357,11 @@ export function PublicStorefront({
         }
       }
 
+      // Tab Exclusivos do Site / Discos Raros
+      if (activeMainTab === 'exclusivos') {
+        if (!isOnlineExclusiveItem(item)) return false;
+      }
+
       return true;
     }).sort((a, b) => {
       const priceA = a.pricing?.directPrice || a.pricing?.basePriceBrl || 0;
@@ -349,7 +372,7 @@ export function PublicStorefront({
       if (sortBy === 'artist_asc') return (a.release.artist || '').localeCompare(b.release.artist || '');
       return (b.createdAt || '').localeCompare(a.createdAt || '');
     });
-  }, [listings, searchQuery, selectedGenre, selectedFormat, selectedCondition, conditionCategory, garimpoSubFilter, sortBy, availabilityFilter, activeMainTab]);
+  }, [listings, searchQuery, selectedGenre, selectedFormat, selectedCondition, conditionCategory, particularityFilter, garimpoSubFilter, sortBy, availabilityFilter, activeMainTab]);
 
   const genresPills = [
     { id: 'all', label: '🔥 Todo o Acervo' },
@@ -763,6 +786,23 @@ export function PublicStorefront({
                   <span>Sessão Garimpo</span>
                 </button>
 
+                {/* ⭐ Exclusivos do Site / Discos Raros */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('exclusivos');
+                    setSelectedFormat('all');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'exclusivos'
+                      ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border-amber-400 shadow-xs ring-1 ring-yellow-400'
+                      : 'bg-amber-50/80 text-amber-950 border-amber-200/90 hover:bg-amber-100/90'
+                  }`}
+                >
+                  <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                  <span>⭐ Exclusivos do Site</span>
+                </button>
+
                 {/* Camisetas */}
                 <button
                   type="button"
@@ -878,7 +918,7 @@ export function PublicStorefront({
         </div>
 
         {/* Music Genre Filter Strip (Only shown when browsing music items, never on tshirts) */}
-        {(activeMainTab === 'discos' || activeMainTab === 'cds' || activeMainTab === 'dvds' || activeMainTab === 'garimpo' || activeMainTab === 'highlights') && (
+        {(activeMainTab === 'discos' || activeMainTab === 'cds' || activeMainTab === 'dvds' || activeMainTab === 'garimpo' || activeMainTab === 'exclusivos' || activeMainTab === 'highlights') && (
           <div className="border-t border-slate-100 bg-white">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
@@ -1050,6 +1090,55 @@ export function PublicStorefront({
                   <h3 className="text-base font-black text-white">Garimpo Transparente</h3>
                   <p className="text-[11px] text-orange-200/80 leading-snug">
                     Todas as condições e detalhes visuais são informados com clareza. Você sabe exatamente o estado de cada exemplar!
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Exclusivos do Site Spotlight Banner (when on Exclusivos tab and not searching) */}
+        {!searchQuery && activeMainTab === 'exclusivos' && (
+          <div className="bg-gradient-to-br from-[#1c160c] via-[#2f220f] to-[#453213] text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-amber-500/40 relative overflow-hidden">
+            <div className="absolute right-0 top-0 bottom-0 w-full lg:w-1/2 opacity-15 pointer-events-none flex items-center justify-end pr-6">
+              <div className="w-80 h-80 rounded-full border-[14px] border-amber-300/40 border-dashed animate-spin" style={{ animationDuration: '80s' }} />
+            </div>
+
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              <div className="lg:col-span-8 space-y-3.5">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-xs font-black shadow-xs uppercase tracking-wide">
+                  <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
+                  <span>Discos Raros • Exclusividade da Loja Online</span>
+                </div>
+                
+                <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight font-sans">
+                  ⭐ Acervo de Raridades Vendidas Exclusivamente pelo Site.
+                </h2>
+                
+                <p className="text-xs sm:text-sm text-amber-100/90 leading-relaxed font-medium max-w-xl">
+                  Discos de vinil raros, primeiras prensagens originais, edições históricas para colecionadores e tiragens especiais selecionadas pelo Valdir para venda exclusiva através do nosso site oficial.
+                </p>
+
+                <div className="pt-2 flex items-center gap-3 text-xs text-amber-200">
+                  <span className="flex items-center gap-1 font-bold">
+                    <CheckCircle2 className="h-4 w-4 text-amber-400" />
+                    Higienizados & Plásticos Novos
+                  </span>
+                  <span className="flex items-center gap-1 font-bold">
+                    <CheckCircle2 className="h-4 w-4 text-amber-400" />
+                    Envio Seguro com Embalagem Reforçada
+                  </span>
+                </div>
+              </div>
+
+              <div className="lg:col-span-4 flex flex-col items-center justify-center">
+                <div className="p-5 bg-black/40 border border-amber-500/30 rounded-3xl text-center space-y-2 backdrop-blur-sm">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 flex items-center justify-center shadow-lg">
+                    <Star className="h-8 w-8 fill-slate-950" />
+                  </div>
+                  <h3 className="text-base font-black text-white">Exemplares Selecionados</h3>
+                  <p className="text-[11px] text-amber-200/80 leading-snug">
+                    Títulos de alto valor histórico e colecionável que não estão à venda em balcão ou marketplaces externos.
                   </p>
                 </div>
               </div>
@@ -1294,6 +1383,8 @@ export function PublicStorefront({
                   {filteredListings.length} {
                     activeMainTab === 'garimpo'
                       ? (filteredListings.length === 1 ? 'item no garimpo' : 'itens no garimpo')
+                      : activeMainTab === 'exclusivos'
+                      ? (filteredListings.length === 1 ? 'raridade exclusiva' : 'raridades exclusivas do site')
                       : activeMainTab === 'cds'
                       ? (filteredListings.length === 1 ? 'CD encontrado' : 'CDs no acervo')
                       : activeMainTab === 'dvds'
@@ -1370,6 +1461,19 @@ export function PublicStorefront({
                   <option value="nm_plus">Near Mint / Mint</option>
                   <option value="vg_plus">VG+ ou superior</option>
                 </select>
+
+                {/* Particularity / Edition Filter */}
+                <select
+                  value={particularityFilter}
+                  onChange={(e) => setParticularityFilter(e.target.value as any)}
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden"
+                >
+                  <option value="all">📦 Todas as Edições</option>
+                  <option value="double">💿 Álbuns Duplos (2xLP/2xCD)</option>
+                  <option value="box">📦 Box Sets & Caixas</option>
+                  <option value="gatefold">📖 Capa Dupla (Gatefold)</option>
+                  <option value="special">✨ Edições Especiais & Deluxe</option>
+                </select>
               </div>
 
               {/* Sorting */}
@@ -1412,6 +1516,7 @@ export function PublicStorefront({
                     setSearchQuery('');
                     setSelectedGenre('all');
                     setConditionCategory('all');
+                    setParticularityFilter('all');
                     if (activeMainTab === 'cds') {
                       setSelectedFormat('cd');
                     } else if (activeMainTab === 'dvds') {
@@ -1434,6 +1539,7 @@ export function PublicStorefront({
                   const cover = (item.customImages && item.customImages.length > 0 && item.customImages[0]) || release.coverImage;
                   const formatInfo = getListingFormatInfo(item);
                   const conditionInfo = getItemConditionInfo(item);
+                  const particularities = getAlbumParticularities(item);
 
                   return (
                     <motion.div
@@ -1476,6 +1582,14 @@ export function PublicStorefront({
                             </span>
                           )}
 
+                          {/* Estrela / Exclusivo Loja Online Badge */}
+                          {isOnlineExclusiveItem(item) && (
+                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-md flex items-center gap-1 border border-yellow-300 uppercase tracking-wider">
+                              <Star className="h-2.5 w-2.5 fill-slate-950 text-slate-950" />
+                              ⭐ Exclusivo do Site
+                            </span>
+                          )}
+
                           {conditionInfo.isNew ? (
                             <span className="px-2 py-0.5 rounded-md text-[9.5px] font-black bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md flex items-center gap-1 border border-emerald-400/50 uppercase tracking-wide">
                               <Sparkles className="h-2.5 w-2.5 text-emerald-200 fill-emerald-200" />
@@ -1487,6 +1601,27 @@ export function PublicStorefront({
                             </span>
                           ) : null}
                         </div>
+
+                        {/* Particularidades na Fotinho/Capa (Álbum Duplo, Box Set, Edição Especial, Gatefold, etc.) */}
+                        {particularities.length > 0 && (
+                          <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1 pointer-events-none z-10">
+                            {particularities.slice(0, 2).map((part) => (
+                              <span
+                                key={part.id}
+                                title={part.label}
+                                className={`px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md border backdrop-blur-xs ${part.badgeClass}`}
+                              >
+                                <span className="shrink-0">{part.icon}</span>
+                                <span className="truncate max-w-[120px]">{part.shortLabel}</span>
+                              </span>
+                            ))}
+                            {particularities.length > 2 && (
+                              <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-black/85 text-amber-300 border border-amber-400/40 shadow-xs">
+                                +{particularities.length - 2}
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Heart Wishlist Button */}
                         <button
@@ -1536,6 +1671,21 @@ export function PublicStorefront({
                           <p className="text-[10px] text-slate-500 truncate">
                             {release.label || 'Nacional'} {release.year ? `• ${release.year}` : ''}
                           </p>
+
+                          {/* Particularidades chips in card info */}
+                          {particularities.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                              {particularities.slice(0, 2).map((part) => (
+                                <span
+                                  key={part.id}
+                                  className="text-[9px] font-bold text-amber-950 bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 rounded flex items-center gap-1"
+                                >
+                                  <span>{part.icon}</span>
+                                  <span className="truncate max-w-[120px]">{part.shortLabel}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         {/* Pricing & Action */}

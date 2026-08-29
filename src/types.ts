@@ -58,6 +58,25 @@ export interface PricingConfig {
   customNotes?: string;
   mode?: 'direct' | 'advanced'; // direct final price vs advanced calculator
   directPrice?: number;         // preco de venda final digitado pelo usuario
+  promoActive?: boolean;        // promocao / desconto ativado
+  discountPercent?: number;     // e.g. 15 for 15% OFF
+  originalPrice?: number;       // preco original antes do desconto (R$)
+  promoPrice?: number;          // preco promocional liquido final (R$)
+  promoBadge?: string;          // e.g. "15% OFF", "PROMOÇÃO", "OFERTA RELÂMPAGO"
+  bonusDescription?: string;    // e.g. "Plásticos protetores novos inclusos + frete reduzido"
+}
+
+export interface LoteItem {
+  id?: string;
+  title: string;
+  artist: string;
+  year?: string | number;
+  label?: string;
+  coverImage?: string;
+  price?: number;
+  condition?: string;
+  format?: string;
+  tracklist?: Track[];
 }
 
 export interface ShopeeListing {
@@ -196,6 +215,15 @@ export interface SavedListing {
   isGatefold?: boolean; // Capa dupla (Gatefold)
   hasInsert?: boolean; // Acompanha encarte original
   specialEditionDetails?: string; // Detalhes da particularidade (ex: "Edição Comemorativa 50 Anos", "Vinil Colorido Azul", "Box 4 LPs + Livreto")
+  isLote?: boolean; // Lote promocional / combo de discos (ex: lote de 4 discos)
+  loteItems?: LoteItem[]; // Lista dos itens que compõem o lote
+  loteItemCount?: number; // Quantidade de itens no lote (ex: 4)
+  promoActive?: boolean; // Se a promoção / desconto % está ativa no item
+  discountPercent?: number; // Porcentagem de desconto (ex: 15 para 15% OFF)
+  originalPrice?: number; // Preço original de referência antes do desconto (R$)
+  promoPrice?: number; // Preço promocional líquido à vista (R$)
+  promoBadge?: string; // Selo customizado da promoção (ex: "15% OFF", "QUEIMA DE ESTOQUE")
+  bonusDescription?: string; // Bônus / brindes da promoção (ex: "Bônus: Plásticos protetores novos inclusos")
   status?: 'available' | 'sold' | 'reserved' | 'personal'; // Item status in the shop/collection
   customerId?: string; // Linked customer ID
   customerName?: string; // Cache of the linked customer's name

@@ -49,7 +49,8 @@ import {
   Star,
   HardDrive,
   Cloud,
-  Zap
+  Zap,
+  Package
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
@@ -116,6 +117,7 @@ import { HistoryList } from './components/HistoryList';
 import { TracklistViewer } from './components/TracklistViewer';
 import { DiscDescriptionEditor } from './components/DiscDescriptionEditor';
 import { ManualRegistrationForm } from './components/ManualRegistrationForm';
+import { LoteRegistrationForm } from './components/LoteRegistrationForm';
 import { OrganizedCatalog } from './components/OrganizedCatalog';
 import { CustomersManager } from './components/CustomersManager';
 import { DjPlaylists } from './components/DjPlaylists';
@@ -384,7 +386,7 @@ export default function App() {
   const [customers, setCustomers] = useState<Customer[]>([]);
 
   // Navigation / Extraction Tab State
-  const [activeTab, setActiveTab] = useState<'url' | 'manual' | 'custom_manual' | 'batch'>('url');
+  const [activeTab, setActiveTab] = useState<'url' | 'manual' | 'custom_manual' | 'batch' | 'lote'>('url');
 
   // Batch extraction states
   const [batchText, setBatchText] = useState('');
@@ -2383,9 +2385,30 @@ export default function App() {
               <Database className="h-3.5 w-3.5" />
               Importação em Lote (Fila)
             </button>
+            <button
+              onClick={() => { setActiveTab('lote'); setError(null); }}
+              className={`pb-3 text-xs font-bold px-4 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'lote'
+                  ? 'border-amber-500 text-amber-600 font-black'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Package className="h-3.5 w-3.5" />
+              Montar Lote (4 Discos)
+            </button>
           </div>
 
-          {activeTab === 'custom_manual' ? (
+          {activeTab === 'lote' ? (
+            <LoteRegistrationForm
+              catalogListings={savedListings}
+              onSaveLote={async (newLote) => {
+                await handleUpdateListing(newLote);
+                setSuccessMsg(`Lote "${newLote.release.title}" cadastrado com sucesso com foto composta!`);
+                setMainTab('catalog');
+              }}
+              onCancel={() => setActiveTab('custom_manual')}
+            />
+          ) : activeTab === 'custom_manual' ? (
             <ManualRegistrationForm
               onComplete={({ release: newRel, condition: newCond, pricing: newPrice, drawer: newDraw, description: newDesc, coverImage: newCov, isGarimpo: newGarimpo, garimpoDetails: newGarimpoDetails, isOnlineExclusive: newExclusive, onlineExclusiveDetails: newExclusiveDetails, isDoubleAlbum: newDouble, isBoxSet: newBox, isSpecialEdition: newSpecial, isGatefold: newGate, specialEditionDetails: newSpecialDetails }) => {
                 setRelease(newRel);

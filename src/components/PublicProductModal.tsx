@@ -18,12 +18,16 @@ import {
   Share2,
   Heart,
   Flame,
-  Star
+  Star,
+  Package,
+  Percent,
+  Gift,
+  Sparkles
 } from 'lucide-react';
 import { SavedListing } from '../types';
 import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE, OFFICIAL_MARKETPLACE_LINKS } from '../constants';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
-import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities } from '../utils/formatHelper';
+import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, formatTrackWithArtist, isVariousArtistsAlbum } from '../utils/formatHelper';
 import { Store } from 'lucide-react';
 
 interface PublicProductModalProps {
@@ -68,28 +72,39 @@ export function PublicProductModal({
   const mediaCondObj = GOLDMINE_VINYL_MEDIA.find(c => c.code === condition?.mediaCondition);
   const sleeveCondObj = GOLDMINE_VINYL_SLEEVE.find(c => c.code === condition?.sleeveCondition);
 
-  // Price calculation
+  // Price & Promotion calculations
   const salePrice = pricing?.directPrice || pricing?.basePriceBrl || 0;
+  const isPromo = !!(listing.promoActive || pricing?.promoActive);
+  const discountPercent = listing.discountPercent || pricing?.discountPercent || 15;
+  const originalPrice = listing.originalPrice || pricing?.originalPrice || (isPromo && discountPercent > 0 ? Math.round(salePrice / (1 - discountPercent / 100)) : salePrice);
+  const promoBadge = listing.promoBadge || pricing?.promoBadge || `${discountPercent}% OFF`;
+  const bonusDescription = listing.bonusDescription || pricing?.bonusDescription;
 
   // Format Whatsapp direct enquiry
   const handleWhatsappEnquiry = () => {
     const isSold = listing.status === 'sold';
+    const isLote = listing.isLote;
+    const promoHeader = isPromo ? `🔥 *PROMOÇÃO ATIVA: ${promoBadge}*\n` : '';
+    const loteHeader = isLote ? `📦 *LOTE / COMBO PROMOCIONAL (${listing.loteItemCount || 4} DISCOS)*\n` : '';
+    const bonusHeader = bonusDescription ? `🎁 *${bonusDescription}*\n` : '';
+
     const text = isSold 
       ? encodeURIComponent(
           `Olá Valdir! Vi no site o item que consta como *VENDIDO*:\n\n` +
+          `${loteHeader}` +
           `🎵 *${release.artist} - ${release.title}*\n` +
           `📀 Formato: ${formatInfo.fullLabel}\n` +
           `🏷️ Último Preço: R$ ${salePrice.toFixed(2)}\n` +
           `📍 Código do acervo: ${listing.barcode || listing.id}\n\n` +
-          `Gostaria de saber se você tem ou consegue encomendar outra cópia desse título para mim?`
+          `Gostaria de saber se você tem ou consegue encomendar outro similar para mim?`
         )
       : encodeURIComponent(
-          `Olá Valdir! Gostaria de saber mais informações sobre o item:\n\n` +
+          `Olá Valdir! Gostaria de comprar o item anunciado no site:\n\n` +
+          `${loteHeader}${promoHeader}${bonusHeader}` +
           `🎵 *${release.artist} - ${release.title}*\n` +
           `📀 Formato: ${formatInfo.fullLabel}\n` +
           `✨ Condição: ${conditionInfo.label}\n` +
-          `🏷️ Preço: R$ ${salePrice.toFixed(2)}\n` +
-          `📊 Estado: Mídia ${condition?.mediaCondition || 'N/A'} | Capa ${condition?.sleeveCondition || 'N/A'}\n` +
+          `🏷️ Preço: R$ ${salePrice.toFixed(2)} ${isPromo ? `(${discountPercent}% OFF)` : ''}\n` +
           `📍 Código no acervo: ${listing.barcode || listing.id}\n\n` +
           `Ainda está disponível para compra/envio?`
         );
@@ -381,26 +396,59 @@ export function PublicProductModal({
                 )}
 
                 {/* Pricing Display */}
-                <div className={`border rounded-2xl p-4 flex items-center justify-between ${
+                <div className={`border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                   listing.status === 'sold' 
                     ? 'bg-slate-100 border-slate-200 text-slate-500' 
+                    : isPromo
+                    ? 'bg-gradient-to-r from-rose-50 via-amber-50/50 to-orange-50/50 border-rose-300 shadow-xs'
                     : 'bg-amber-50/60 border-amber-200/80'
                 }`}>
                   <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider block text-slate-500">
-                      {listing.status === 'sold' ? 'Último Preço Registrado' : 'Preço de Venda'}
-                    </span>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className={`text-3xl font-black ${listing.status === 'sold' ? 'text-slate-600 line-through' : 'text-amber-950'}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider block text-slate-500">
+                        {listing.status === 'sold' ? 'Último Preço Registrado' : isPromo ? 'Preço Promocional Especial' : 'Preço de Venda'}
+                      </span>
+                      {isPromo && (
+                        <span className="px-2 py-0.5 bg-rose-600 text-white font-black text-[10px] rounded-md uppercase tracking-wider shadow-2xs flex items-center gap-1">
+                          <Percent className="h-3 w-3" />
+                          {promoBadge}
+                        </span>
+                      )}
+                      {listing.isLote && (
+                        <span className="px-2 py-0.5 bg-slate-900 text-amber-400 font-black text-[10px] rounded-md uppercase tracking-wider font-mono">
+                          LOTE {listing.loteItemCount || 4} DISCOS
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      {isPromo && originalPrice > salePrice && (
+                        <span className="text-sm line-through text-slate-400 font-mono font-bold">
+                          R$ {originalPrice.toFixed(2)}
+                        </span>
+                      )}
+                      <span className={`text-3xl font-black ${
+                        listing.status === 'sold' 
+                          ? 'text-slate-600 line-through' 
+                          : isPromo 
+                          ? 'text-rose-600' 
+                          : 'text-amber-950'
+                      }`}>
                         R$ {salePrice.toFixed(2)}
                       </span>
                       {listing.status !== 'sold' && (
                         <span className="text-xs text-amber-800 font-semibold">à vista / PIX</span>
                       )}
                     </div>
+
+                    {isPromo && originalPrice > salePrice && (
+                      <span className="text-[11px] font-bold text-emerald-700 block mt-1">
+                        Economia de R$ {(originalPrice - salePrice).toFixed(2)} ({discountPercent}% de desconto neste produto)!
+                      </span>
+                    )}
                   </div>
 
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     {listing.status === 'sold' ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-800 text-xs font-black rounded-lg">
                         Esgotado
@@ -413,6 +461,74 @@ export function PublicProductModal({
                     )}
                   </div>
                 </div>
+
+                {/* Bonus Description Banner */}
+                {bonusDescription && (
+                  <div className="p-3.5 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-300 rounded-2xl flex items-start gap-3 shadow-2xs">
+                    <div className="p-2 bg-amber-500 text-slate-950 rounded-xl shrink-0 mt-0.5">
+                      <Gift className="h-4 w-4" />
+                    </div>
+                    <div className="text-xs space-y-0.5">
+                      <span className="font-black text-amber-950 uppercase tracking-wider text-[11px] block">
+                        🎁 Brinde / Bônus Especial Incluso:
+                      </span>
+                      <p className="text-amber-900 font-bold leading-relaxed">{bonusDescription}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lote Item Cards Grid (4 Discos do Lote) */}
+                {listing.isLote && listing.loteItems && listing.loteItems.length > 0 && (
+                  <div className="space-y-3 p-4 bg-slate-50 border border-indigo-200 rounded-2xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <Package className="h-4 w-4 text-indigo-600" />
+                        Discos Inclusos Neste Lote ({listing.loteItems.length} Discos)
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-bold">
+                        Fotos & Dados dos Itens Originais
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {listing.loteItems.map((item, idx) => (
+                        <div key={item.id || idx} className="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center gap-3 shadow-2xs hover:border-indigo-300 transition-colors">
+                          <div className="w-14 h-14 bg-slate-900 rounded-lg overflow-hidden shrink-0 relative">
+                            {item.coverImage ? (
+                              <img
+                                src={item.coverImage}
+                                alt={item.title}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-500">
+                                <Disc className="h-6 w-6" />
+                              </div>
+                            )}
+                            <span className="absolute top-0 left-0 bg-slate-950/80 text-amber-400 font-mono text-[9px] font-black px-1 rounded-br">
+                              #{idx + 1}
+                            </span>
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <h5 className="font-black text-xs text-slate-900 truncate" title={item.title}>
+                              {item.title}
+                            </h5>
+                            <p className="text-[11px] font-bold text-indigo-700 truncate">
+                              {item.artist}
+                            </p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                              {item.condition && <span className="font-semibold">{item.condition}</span>}
+                              {item.year && <span>• {item.year}</span>}
+                              {item.price > 0 && <span className="font-mono font-bold text-slate-700">• R$ {item.price.toFixed(2)}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Goldmine Condition Card */}
                 <div className="space-y-2">
@@ -465,34 +581,52 @@ export function PublicProductModal({
                 </div>
 
                 {/* Tracklist Section if available */}
-                {release.tracklist && release.tracklist.length > 0 && (
-                  <div className="space-y-2">
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <Music className="h-4 w-4 text-amber-700" />
-                      Faixas do Álbum ({release.tracklist.length})
-                    </span>
+                {release.tracklist && release.tracklist.length > 0 && (() => {
+                  const isVA = isVariousArtistsAlbum(release);
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <Music className="h-4 w-4 text-amber-700" />
+                          Faixas do Álbum ({release.tracklist.length})
+                        </span>
+                        {isVA && (
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                            ✨ Coletânea V.A. (Artistas Identificados)
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="max-h-48 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5 divide-y divide-slate-200/60">
-                      {release.tracklist.map((tr, idx) => (
-                        <div key={idx} className="py-1.5 px-2 flex items-center justify-between text-xs hover:bg-slate-100/70 rounded transition-colors">
-                          <div className="flex items-center gap-2 min-w-0 pr-2">
-                            <span className="font-mono text-slate-400 font-bold text-[10px] w-6 shrink-0">
-                              {tr.position || `${idx + 1}`}
-                            </span>
-                            <span className="font-semibold text-slate-800 truncate">
-                              {tr.title}
-                            </span>
-                          </div>
-                          {tr.duration && (
-                            <span className="text-[11px] font-mono text-slate-400 shrink-0">
-                              {tr.duration}
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                      <div className="max-h-56 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5 divide-y divide-slate-200/60">
+                        {release.tracklist.map((tr, idx) => {
+                          const trInfo = formatTrackWithArtist(tr, isVA);
+                          return (
+                            <div key={idx} className="py-2 px-2 flex items-center justify-between text-xs hover:bg-slate-100/70 rounded transition-colors gap-2">
+                              <div className="flex items-center gap-2 min-w-0 pr-2 flex-1">
+                                <span className="font-mono text-slate-400 font-bold text-[10px] w-6 shrink-0">
+                                  {trInfo.position || `${idx + 1}`}
+                                </span>
+                                {trInfo.artist && (
+                                  <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50/90 border border-indigo-200/80 px-1.5 py-0.5 rounded shrink-0">
+                                    {trInfo.artist}
+                                  </span>
+                                )}
+                                <span className="font-semibold text-slate-800 truncate">
+                                  {trInfo.title}
+                                </span>
+                              </div>
+                              {tr.duration && (
+                                <span className="text-[11px] font-mono text-slate-400 shrink-0">
+                                  {tr.duration}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Guarantee & Shipping Note */}
                 <div className="bg-slate-100/70 border border-slate-200 rounded-xl p-3 flex items-start gap-2.5 text-xs text-slate-600">

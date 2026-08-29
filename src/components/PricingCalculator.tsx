@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { DollarSign, Percent, Tag, Calculator, Info, Package, TrendingUp, HelpCircle } from 'lucide-react';
+import { DollarSign, Percent, Tag, Calculator, Info, Package, TrendingUp, HelpCircle, Gift, Sparkles } from 'lucide-react';
 import { PricingConfig } from '../types';
 
 interface PricingCalculatorProps {
@@ -200,6 +200,125 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Promoção, Bônus & Desconto % OFF */}
+          <div className={`p-3.5 rounded-2xl border transition-all ${
+            pricing.promoActive 
+              ? 'bg-rose-50/60 border-rose-200 shadow-xs' 
+              : 'bg-slate-50 border-slate-200/80'
+          }`}>
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-rose-200/40">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!pricing.promoActive}
+                  onChange={(e) => {
+                    const active = e.target.checked;
+                    const discount = pricing.discountPercent || 15;
+                    const orig = pricing.originalPrice || directSalePrice;
+                    const promoP = active ? Math.round(orig * (1 - discount / 100)) : orig;
+                    onChange({
+                      ...pricing,
+                      promoActive: active,
+                      discountPercent: discount,
+                      originalPrice: orig,
+                      promoPrice: promoP,
+                      promoBadge: `${discount}% OFF`,
+                      bonusDescription: pricing.bonusDescription || 'Bônus: Plásticos protetores novos inclusos'
+                    });
+                  }}
+                  className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300 cursor-pointer"
+                />
+                <div>
+                  <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                    <Percent className="h-3.5 w-3.5 text-rose-600" />
+                    Ativar Promoção no Produto (% OFF) & Bônus
+                  </span>
+                  <p className="text-[10px] text-slate-500">
+                    Aplica porcentagem de desconto (ex: 15% OFF) com destaque no site e descrição de bônus.
+                  </p>
+                </div>
+              </label>
+
+              {pricing.promoActive && (
+                <span className="px-2 py-0.5 bg-rose-600 text-white text-[10px] font-black rounded-md uppercase tracking-wider shrink-0">
+                  {pricing.promoBadge || `${pricing.discountPercent || 15}% OFF`}
+                </span>
+              )}
+            </div>
+
+            {pricing.promoActive && (
+              <div className="pt-3 space-y-3">
+                {/* Discount % buttons */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-700">Desconto:</span>
+                    {[10, 15, 20, 25, 30].map(pct => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => {
+                          const orig = pricing.originalPrice || directSalePrice;
+                          const promoP = Math.round(orig * (1 - pct / 100));
+                          onChange({
+                            ...pricing,
+                            discountPercent: pct,
+                            promoBadge: `${pct}% OFF`,
+                            promoPrice: promoP
+                          });
+                        }}
+                        className={`px-2 py-0.5 text-xs font-black rounded-md cursor-pointer transition-all ${
+                          pricing.discountPercent === pct
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'bg-white text-rose-800 border border-rose-200 hover:bg-rose-100'
+                        }`}
+                      >
+                        {pct}% OFF
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2 text-right">
+                    <span className="text-[10px] font-bold text-slate-400">De R$ {(pricing.originalPrice || directSalePrice).toFixed(2)} por:</span>
+                    <span className="text-sm font-black text-rose-600 font-mono">
+                      R$ {(pricing.promoPrice || Math.round((pricing.originalPrice || directSalePrice) * (1 - (pricing.discountPercent || 15) / 100))).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Badge text and bonus */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
+                      <Tag className="h-3 w-3 text-rose-600" />
+                      Texto do Selo Promocional:
+                    </label>
+                    <input
+                      type="text"
+                      value={pricing.promoBadge || ''}
+                      onChange={(e) => onChange({ ...pricing, promoBadge: e.target.value })}
+                      placeholder="Ex: 15% OFF"
+                      className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
+                      <Gift className="h-3 w-3 text-amber-600" />
+                      Bônus / Brinde da Promoção:
+                    </label>
+                    <input
+                      type="text"
+                      value={pricing.bonusDescription || ''}
+                      onChange={(e) => onChange({ ...pricing, bonusDescription: e.target.value })}
+                      placeholder="Ex: Bônus: Plásticos protetores novos inclusos"
+                      className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Discogs optional Reference */}

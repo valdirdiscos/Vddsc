@@ -9,16 +9,17 @@ import {
   FileAudio, Download, X, Check, Copy, TrendingUp, MapPin, 
   Sparkles, Calendar, Layers, Shield, Tag, DollarSign, Eye, Play,
   ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Bookmark, AlertTriangle,
-  Edit3, FileText, Phone, Plus, Heart, QrCode, Printer, Flame, Star
+  Edit3, FileText, Phone, Plus, Heart, QrCode, Printer, Flame, Star, Package, Percent
 } from 'lucide-react';
 import { SavedListing, Customer } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { SalesChannel } from '../types';
 import { getSalesChannelMeta } from '../utils/qrcode';
-import { isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities } from '../utils/formatHelper';
+import { isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist } from '../utils/formatHelper';
 import { BatchQRCodeModal } from './BatchQRCodeModal';
 import { DiscQRCodeModal } from './DiscQRCodeModal';
 import { ThermalPrintModal } from './ThermalPrintModal';
+import { LoteRegistrationForm } from './LoteRegistrationForm';
 
 interface OrganizedCatalogProps {
   listings: SavedListing[];
@@ -41,6 +42,7 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
 }) => {
   const [innerTab, setInnerTab] = useState<'estoque' | 'financeiro'>('estoque');
   const [isBatchQrModalOpen, setIsBatchQrModalOpen] = useState(false);
+  const [isLoteModalOpen, setIsLoteModalOpen] = useState(false);
   const [qrModalListing, setQrModalListing] = useState<SavedListing | null>(null);
   const [thermalPrintListing, setThermalPrintListing] = useState<SavedListing | null>(null);
   const [search, setSearch] = useState('');
@@ -48,7 +50,7 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
   const [selectedDrawer, setSelectedDrawer] = useState<string>('all');
   const [selectedGrading, setSelectedGrading] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [selectedChannel, setSelectedChannel] = useState<'all' | SalesChannel | 'online_exclusive' | 'garimpo'>('all');
+  const [selectedChannel, setSelectedChannel] = useState<'all' | SalesChannel | 'online_exclusive' | 'garimpo' | 'lote' | 'promocoes'>('all');
   const [diagnosticFilter, setDiagnosticFilter] = useState<'all' | 'no-loc' | 'no-photos'>('all');
   const [sortBy, setSortBy] = useState<string>('date-desc');
   const [selectedListing, setSelectedListing] = useState<SavedListing | null>(null);
@@ -374,9 +376,13 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
     const itemStatus = item.status || 'available';
     const matchesStatus = selectedStatus === 'all' || itemStatus === selectedStatus;
 
-    // 6. Sales Channels Filter
+    // 6. Sales Channels and Special Formats Filter
     let matchesChannel = true;
-    if (selectedChannel === 'online_exclusive') {
+    if (selectedChannel === 'lote') {
+      matchesChannel = Boolean(item.isLote);
+    } else if (selectedChannel === 'promocoes') {
+      matchesChannel = Boolean(item.promoActive || item.pricing?.promoActive || (item.discountPercent && item.discountPercent > 0));
+    } else if (selectedChannel === 'online_exclusive') {
       matchesChannel = isOnlineExclusiveItem(item);
     } else if (selectedChannel === 'garimpo') {
       matchesChannel = isGarimpoItem(item);
@@ -922,6 +928,14 @@ Colecionar é preservar a história.`;
               </div>
               <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                 <button
+                  onClick={() => setIsLoteModalOpen(true)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-orange-100"
+                  title="Montar Lote de até 4 discos com foto composta gerada automaticamente para venda no site"
+                >
+                  <Package className="h-3.5 w-3.5" />
+                  <span>Montar Lote (4 Discos)</span>
+                </button>
+                <button
                   onClick={() => setIsBatchQrModalOpen(true)}
                   className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl border border-slate-900 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                   title="Gerar e imprimir folhas de etiquetas QR Code em lote"
@@ -1046,15 +1060,17 @@ Colecionar é preservar a história.`;
                 </button>
               </div>
 
-              {/* Sales Channel Filter */}
+              {/* Sales Channel and Special Format Filter */}
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-slate-400 uppercase tracking-wide text-[10px]">Canal de Venda:</span>
+                <span className="font-bold text-slate-400 uppercase tracking-wide text-[10px]">Canal / Tipo:</span>
                 <select
                   value={selectedChannel}
                   onChange={(e) => setSelectedChannel(e.target.value as any)}
                   className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                 >
-                  <option value="all">Todos os Canais</option>
+                  <option value="all">Todos os Canais e Formatos</option>
+                  <option value="lote">📦 Lotes de 4 Discos ({listings.filter(i => i.isLote).length})</option>
+                  <option value="promocoes">🏷️ Promoções Ativas (% OFF) ({listings.filter(i => i.promoActive || i.pricing?.promoActive || (i.discountPercent && i.discountPercent > 0)).length})</option>
                   <option value="online_exclusive">⭐ Exclusivos Loja Online (Raros)</option>
                   <option value="garimpo">🔥 Sessão Garimpo & Oportunidades</option>
                   <option value="online_store">🌐 Loja Online (Ativos no Site)</option>
@@ -1181,10 +1197,17 @@ Colecionar é preservar a história.`;
                       )}
 
                       {/* Overlays */}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3 flex items-end justify-between text-white">
-                        <span className="text-xs font-black bg-emerald-500 text-white px-2.5 py-1 rounded-xl shadow font-mono">
-                          R$ {(itemStatus === 'sold' && item.saleDetails ? item.saleDetails.salePrice : getItemPrice(item)).toFixed(0)}
-                        </span>
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-3 flex items-end justify-between text-white">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-black bg-emerald-500 text-white px-2.5 py-1 rounded-xl shadow font-mono">
+                            R$ {(itemStatus === 'sold' && item.saleDetails ? item.saleDetails.salePrice : getItemPrice(item)).toFixed(0)}
+                          </span>
+                          {(item.promoActive || item.pricing?.promoActive) && item.pricing?.basePriceBrl && item.pricing.basePriceBrl > getItemPrice(item) && (
+                            <span className="text-[10px] text-white/80 line-through font-mono">
+                              R$ {item.pricing.basePriceBrl.toFixed(0)}
+                            </span>
+                          )}
+                        </div>
                         {item.drawer && (
                           <span className="text-[10px] font-bold bg-indigo-950/90 border border-indigo-400/30 text-indigo-200 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
                             📁 {item.drawer}
@@ -1208,6 +1231,22 @@ Colecionar é preservar a história.`;
                           <span className="text-[9px] font-black uppercase bg-emerald-500 text-white px-2 py-1 rounded-md backdrop-blur-sm tracking-wider flex items-center gap-1 shadow-sm">
                             <CheckCircle className="h-2.5 w-2.5" />
                             Disponível
+                          </span>
+                        )}
+
+                        {/* Lote Marker */}
+                        {item.isLote && (
+                          <span className="text-[9px] font-black uppercase bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 border border-orange-400/30">
+                            <Package className="h-2.5 w-2.5" />
+                            Lote 4 Discos
+                          </span>
+                        )}
+
+                        {/* Promo / % OFF Marker */}
+                        {(item.promoActive || item.pricing?.promoActive || (item.discountPercent && item.discountPercent > 0)) && (
+                          <span className="text-[9px] font-black uppercase bg-rose-600 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 border border-rose-400/30">
+                            <Percent className="h-2.5 w-2.5" />
+                            {item.pricing?.promoBadge || `${item.discountPercent || 15}% OFF`}
                           </span>
                         )}
 
@@ -2227,21 +2266,71 @@ Colecionar é preservar a história.`;
                   </div>
                 </div>
 
+                {/* Lote Discos Incluídos (Combo 4 Discos) */}
+                {selectedListing.isLote && selectedListing.loteItems && selectedListing.loteItems.length > 0 && (
+                  <div className="space-y-2 p-4 bg-amber-50/70 rounded-2xl border border-amber-200">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black uppercase text-amber-900 flex items-center gap-1.5">
+                        <Package className="h-4 w-4 text-amber-600" />
+                        Discos Selecionados no Lote ({selectedListing.loteItems.length} Itens)
+                      </h4>
+                      <span className="text-[10px] font-black bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                        Combo Promocional
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      {selectedListing.loteItems.map((lItem, idx) => (
+                        <div key={idx} className="flex items-center gap-2.5 p-2 bg-white rounded-xl border border-amber-150 shadow-xs">
+                          <div className="h-10 w-10 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                            {lItem.coverImage ? (
+                              <img src={lItem.coverImage} alt={lItem.title} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center text-slate-400 font-bold text-xs">
+                                {idx + 1}
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1 text-xs">
+                            <span className="font-bold text-slate-800 truncate block">{lItem.title}</span>
+                            <span className="text-[10px] text-slate-500 truncate block">{lItem.artist}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Tracklist Display */}
                 {selectedListing.release.tracklist && selectedListing.release.tracklist.length > 0 && (
                   <div className="space-y-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                      <Play className="h-3.5 w-3.5 text-indigo-500" />
-                      Faixas do Álbum ({selectedListing.release.tracklist.length})
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                        <Play className="h-3.5 w-3.5 text-indigo-500" />
+                        Faixas do Álbum ({selectedListing.release.tracklist.length})
+                      </h4>
+                      {isVariousArtistsAlbum(selectedListing.release.artist, undefined, selectedListing.release.tracklist) && (
+                        <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                          Coletânea V.A. (Artistas Identificados)
+                        </span>
+                      )}
+                    </div>
                     <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-xs max-h-[160px] overflow-y-auto font-medium text-slate-700 divide-y divide-slate-200/50">
-                      {selectedListing.release.tracklist.map((track, i) => (
-                        <div key={i} className="flex items-center justify-between py-1.5 first:pt-0 last:pb-0">
-                          <span className="font-mono text-slate-400 font-semibold w-8">{track.position || (i + 1)}</span>
-                          <span className="flex-1 truncate pr-3 text-slate-800">{track.title}</span>
-                          {track.duration && <span className="text-[10px] font-mono text-slate-400">{track.duration}</span>}
-                        </div>
-                      ))}
+                      {selectedListing.release.tracklist.map((track, i) => {
+                        const isVA = isVariousArtistsAlbum(selectedListing.release.artist, undefined, selectedListing.release.tracklist);
+                        const trackInfo = formatTrackWithArtist(track.title, isVA ? (track.artist || selectedListing.release.artist) : undefined);
+                        return (
+                          <div key={i} className="flex items-center justify-between py-1.5 first:pt-0 last:pb-0 gap-2">
+                            <span className="font-mono text-slate-400 font-semibold w-8 shrink-0">{track.position || (i + 1)}</span>
+                            <div className="flex-1 truncate pr-2">
+                              {trackInfo.artist && (
+                                <strong className="text-indigo-700 font-bold mr-1.5">{trackInfo.artist} -</strong>
+                              )}
+                              <span className="text-slate-800">{trackInfo.title}</span>
+                            </div>
+                            {track.duration && <span className="text-[10px] font-mono text-slate-400 shrink-0">{track.duration}</span>}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -3163,6 +3252,23 @@ Colecionar é preservar a história.`;
           }
         }}
       />
+
+      {/* Modal de Cadastro de Lote (Combo de 4 Discos) */}
+      {isLoteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-5xl w-full max-h-[94vh] overflow-y-auto p-4 sm:p-6">
+            <LoteRegistrationForm
+              catalogListings={listings}
+              onSaveLote={(newLote) => {
+                onUpdate(newLote);
+                setIsLoteModalOpen(false);
+                setSelectedListing(newLote);
+              }}
+              onCancel={() => setIsLoteModalOpen(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -36,10 +36,14 @@ import {
   Store,
   Headphones,
   Volume2,
-  Music2
+  Music2,
+  Package,
+  Percent,
+  Gift
 } from 'lucide-react';
 import { SavedListing, DJPlaylist, TShirtProduct, TShirtSize, TShirtModel, TShirtColor, AudioFormat, DigitalAlbumProduct } from '../types';
 import { OFFICIAL_MARKETPLACE_LINKS } from '../constants';
+import { MAJOR_GENRE_GROUPS, matchMajorGenre } from '../constants/musicGenres';
 import { PublicProductModal } from './PublicProductModal';
 import { PublicCartDrawer, PublicCartItem } from './PublicCartDrawer';
 import { AboutAndContactSection } from './AboutAndContactSection';
@@ -275,12 +279,27 @@ export function PublicStorefront({
 
       // Genre Filter
       if (selectedGenre !== 'all') {
-        const allStyles = [...(item.release.genres || []), ...(item.release.styles || [])].map(s => s.toLowerCase());
-        if (selectedGenre === 'mpb' && !allStyles.some(s => s.includes('mpb') || s.includes('bossa') || s.includes('samba') || s.includes('latin') || s.includes('brazilian') || s.includes('tropicalia'))) return false;
-        if (selectedGenre === 'rock' && !allStyles.some(s => s.includes('rock') || s.includes('prog') || s.includes('hard') || s.includes('psychedelic') || s.includes('metal'))) return false;
-        if (selectedGenre === 'soul_jazz' && !allStyles.some(s => s.includes('soul') || s.includes('funk') || s.includes('jazz') || s.includes('r&b') || s.includes('boogie') || s.includes('disco'))) return false;
-        if (selectedGenre === 'eletronica' && !allStyles.some(s => s.includes('electronic') || s.includes('synth') || s.includes('house') || s.includes('techno') || s.includes('dance'))) return false;
-        if (selectedGenre === 'reggae' && !allStyles.some(s => s.includes('reggae') || s.includes('dub') || s.includes('ska'))) return false;
+        if (selectedGenre === 'promocoes') {
+          const isPromo = item.promoActive || item.pricing?.promoActive || (item.discountPercent && item.discountPercent > 0);
+          if (!isPromo) return false;
+        } else if (selectedGenre === 'lotes') {
+          if (!item.isLote) return false;
+        } else {
+          // Check matching against MAJOR_GENRE_GROUPS or legacy/custom IDs
+          const matched = matchMajorGenre(item.release.genres, item.release.styles, selectedGenre);
+          if (!matched) {
+            const allStyles = [...(item.release.genres || []), ...(item.release.styles || [])].map(s => (s || '').toLowerCase());
+            if (selectedGenre === 'mpb' && !allStyles.some(s => s.includes('mpb') || s.includes('bossa') || s.includes('samba') || s.includes('latin') || s.includes('brazilian') || s.includes('tropicalia'))) return false;
+            if (selectedGenre === 'rock' && !allStyles.some(s => s.includes('rock') || s.includes('prog') || s.includes('hard') || s.includes('psychedelic') || s.includes('metal'))) return false;
+            if (selectedGenre === 'soul_jazz' && !allStyles.some(s => s.includes('soul') || s.includes('funk') || s.includes('jazz') || s.includes('r&b') || s.includes('boogie') || s.includes('disco'))) return false;
+            if (selectedGenre === 'eletronica' && !allStyles.some(s => s.includes('electronic') || s.includes('synth') || s.includes('house') || s.includes('techno') || s.includes('dance'))) return false;
+            if (selectedGenre === 'reggae' && !allStyles.some(s => s.includes('reggae') || s.includes('dub') || s.includes('ska'))) return false;
+            if (selectedGenre === 'rap' && !allStyles.some(s => s.includes('rap') || s.includes('hip hop') || s.includes('hip-hop') || s.includes('trap') || s.includes('boom bap'))) return false;
+            if (selectedGenre === 'metal' && !allStyles.some(s => s.includes('metal') || s.includes('thrash') || s.includes('heavy') || s.includes('death') || s.includes('black metal') || s.includes('doom'))) return false;
+            if (selectedGenre === 'samba' && !allStyles.some(s => s.includes('samba') || s.includes('pagode') || s.includes('choro') || s.includes('partido alto'))) return false;
+            if (!allStyles.some(s => s.includes(selectedGenre.toLowerCase()))) return false;
+          }
+        }
       }
 
       // Format Filter
@@ -362,6 +381,17 @@ export function PublicStorefront({
         if (!isOnlineExclusiveItem(item)) return false;
       }
 
+      // Tab Lotes & Combos (4 Discos)
+      if (activeMainTab === 'lotes') {
+        if (!item.isLote) return false;
+      }
+
+      // Tab Promoções & Bônus (% OFF)
+      if (activeMainTab === 'promocoes') {
+        const isPromo = item.promoActive || item.pricing?.promoActive || (item.discountPercent && item.discountPercent > 0);
+        if (!isPromo) return false;
+      }
+
       return true;
     }).sort((a, b) => {
       const priceA = a.pricing?.directPrice || a.pricing?.basePriceBrl || 0;
@@ -376,11 +406,22 @@ export function PublicStorefront({
 
   const genresPills = [
     { id: 'all', label: '🔥 Todo o Acervo' },
-    { id: 'mpb', label: '🇧🇷 MPB, Samba & Bossa' },
-    { id: 'rock', label: '🎸 Rock Clássico & Prog' },
-    { id: 'soul_jazz', label: '🎷 Jazz, Soul & Funk' },
+    { id: 'promocoes', label: '🏷️ Promoções (% OFF)' },
+    { id: 'lotes', label: '📦 Lotes (4 Discos)' },
+    { id: 'rap_hiphop', label: '🎤 Rap & Hip-Hop' },
+    { id: 'rock', label: '🎸 Rock Clássico' },
+    { id: 'heavy_metal', label: '⚡ Metal & Hard' },
+    { id: 'mpb', label: '🇧🇷 MPB & Tropicália' },
+    { id: 'samba_pagode', label: '🪘 Samba & Pagode' },
+    { id: 'soul_funk', label: '🎷 Soul, Funk & Disco' },
+    { id: 'jazz_blues', label: '🎺 Jazz & Blues' },
     { id: 'eletronica', label: '🎛️ Eletrônica & Synth' },
-    { id: 'reggae', label: '🟢 Reggae & Dub' }
+    { id: 'reggae_ska', label: '🟢 Reggae & Dub' },
+    { id: 'sertanejo_regional', label: '🤠 Sertanejo & Forró' },
+    { id: 'pop', label: '✨ Pop' },
+    { id: 'latin_world', label: '🌎 Música Latina' },
+    { id: 'gospel_religioso', label: '🕊️ Gospel' },
+    { id: 'instrumental_soundtracks', label: '🎻 Instrumental & Trilhas' }
   ];
 
   return (
@@ -769,6 +810,40 @@ export function PublicStorefront({
                   <span>DVDs</span>
                 </button>
 
+                {/* 📦 Lotes & Combos (4 Discos) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('lotes');
+                    setSelectedFormat('all');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'lotes'
+                      ? 'bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-amber-300 border-indigo-700 shadow-xs ring-1 ring-amber-400/50'
+                      : 'bg-indigo-50/90 text-indigo-950 border-indigo-200/90 hover:bg-indigo-100/90'
+                  }`}
+                >
+                  <Package className="h-3.5 w-3.5 text-amber-500" />
+                  <span>📦 Lotes (4 Discos)</span>
+                </button>
+
+                {/* 🔥 Promoções & Bônus (% OFF) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMainTab('promocoes');
+                    setSelectedFormat('all');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    activeMainTab === 'promocoes'
+                      ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white border-rose-600 shadow-xs ring-1 ring-rose-300'
+                      : 'bg-rose-50/90 text-rose-950 border-rose-200/90 hover:bg-rose-100/90'
+                  }`}
+                >
+                  <Percent className="h-3.5 w-3.5 text-rose-600" />
+                  <span>🏷️ Promoções (% OFF)</span>
+                </button>
+
                 {/* Sessão Garimpo */}
                 <button
                   type="button"
@@ -918,7 +993,7 @@ export function PublicStorefront({
         </div>
 
         {/* Music Genre Filter Strip (Only shown when browsing music items, never on tshirts) */}
-        {(activeMainTab === 'discos' || activeMainTab === 'cds' || activeMainTab === 'dvds' || activeMainTab === 'garimpo' || activeMainTab === 'exclusivos' || activeMainTab === 'highlights') && (
+        {(activeMainTab === 'discos' || activeMainTab === 'cds' || activeMainTab === 'dvds' || activeMainTab === 'garimpo' || activeMainTab === 'exclusivos' || activeMainTab === 'highlights' || activeMainTab === 'lotes' || activeMainTab === 'promocoes') && (
           <div className="border-t border-slate-100 bg-white">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
@@ -1504,6 +1579,10 @@ export function PublicStorefront({
                       ? 'Nenhum CD encontrado com estes filtros'
                       : activeMainTab === 'dvds'
                       ? 'Nenhum DVD encontrado com estes filtros'
+                      : activeMainTab === 'lotes'
+                      ? 'Nenhum lote de 4 discos encontrado com estes filtros'
+                      : activeMainTab === 'promocoes'
+                      ? 'Nenhuma promoção ou item com bônus encontrado no momento'
                       : 'Nenhum disco encontrado com estes filtros'}
                   </h4>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -1540,6 +1619,11 @@ export function PublicStorefront({
                   const formatInfo = getListingFormatInfo(item);
                   const conditionInfo = getItemConditionInfo(item);
                   const particularities = getAlbumParticularities(item);
+                  const isPromo = !!(item.promoActive || pricing?.promoActive || (item.discountPercent && item.discountPercent > 0));
+                  const discountPercent = item.discountPercent || pricing?.discountPercent || 15;
+                  const origPrice = item.originalPrice || pricing?.originalPrice || (isPromo && discountPercent > 0 ? Math.round(price / (1 - discountPercent / 100)) : price);
+                  const promoBadge = item.promoBadge || pricing?.promoBadge || `${discountPercent}% OFF`;
+                  const bonusText = item.bonusDescription || pricing?.bonusDescription;
 
                   return (
                     <motion.div
@@ -1571,6 +1655,22 @@ export function PublicStorefront({
 
                         {/* Badges on image */}
                         <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[85%]">
+                          {/* Lote Badge */}
+                          {item.isLote && (
+                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-amber-300 shadow-md flex items-center gap-1 border border-indigo-500/50 uppercase tracking-wider">
+                              <Package className="h-2.5 w-2.5 text-amber-400" />
+                              Lote {item.loteItemCount || 4} Discos
+                            </span>
+                          )}
+
+                          {/* Promoção % OFF Badge */}
+                          {isPromo && (
+                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-md flex items-center gap-1 border border-rose-400/50 uppercase tracking-wider">
+                              <Percent className="h-2.5 w-2.5" />
+                              {promoBadge}
+                            </span>
+                          )}
+
                           <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase shadow-xs ${formatInfo.badgeBg}`}>
                             {formatInfo.badgeLabel}
                           </span>
@@ -1672,6 +1772,16 @@ export function PublicStorefront({
                             {release.label || 'Nacional'} {release.year ? `• ${release.year}` : ''}
                           </p>
 
+                          {/* Bonus text chip if exists */}
+                          {bonusText && (
+                            <div className="pt-0.5">
+                              <span className="text-[8.5px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                <Gift className="h-2.5 w-2.5 text-amber-600 shrink-0" />
+                                <span className="truncate max-w-[150px]">{bonusText}</span>
+                              </span>
+                            </div>
+                          )}
+
                           {/* Particularidades chips in card info */}
                           {particularities.length > 0 && (
                             <div className="flex items-center gap-1 flex-wrap pt-0.5">
@@ -1691,10 +1801,25 @@ export function PublicStorefront({
                         {/* Pricing & Action */}
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                           <div>
-                            <span className="text-[9px] text-slate-400 font-semibold block uppercase">Preço</span>
-                            <span className={`text-sm font-black ${item.status === 'sold' ? 'text-slate-500 line-through' : 'text-slate-950'}`}>
-                              R$ {price.toFixed(2)}
+                            <span className="text-[9px] text-slate-400 font-semibold block uppercase">
+                              {isPromo ? 'Preço Promocional' : 'Preço'}
                             </span>
+                            <div className="flex items-baseline gap-1.5 flex-wrap">
+                              {isPromo && origPrice > price && (
+                                <span className="text-[10px] line-through text-slate-400 font-bold font-mono">
+                                  R$ {origPrice.toFixed(2)}
+                                </span>
+                              )}
+                              <span className={`text-sm font-black ${
+                                item.status === 'sold' 
+                                  ? 'text-slate-500 line-through' 
+                                  : isPromo 
+                                  ? 'text-rose-600 font-mono' 
+                                  : 'text-slate-950'
+                              }`}>
+                                R$ {price.toFixed(2)}
+                              </span>
+                            </div>
                           </div>
 
                           {item.status === 'sold' ? (

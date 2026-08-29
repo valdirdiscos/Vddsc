@@ -11,9 +11,11 @@ import {
   Type,
   AlertTriangle,
   Globe,
-  Tag
+  Tag,
+  Users
 } from 'lucide-react';
 import { DiscogsRelease, ConditionSelection, PricingConfig, ShopeeListing, MercadoLivreListing } from '../types';
+import { isVariousArtistsAlbum, formatTrackWithArtist } from '../utils/formatHelper';
 
 interface DiscDescriptionEditorProps {
   release: DiscogsRelease | null;
@@ -204,11 +206,11 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
     // Tracklist
     if (release.tracklist && release.tracklist.length > 0) {
       lines.push('');
-      lines.push('🎼 **FAIXAS / MÚSICAS:**');
+      const isVA = isVariousArtistsAlbum(release);
+      lines.push(isVA ? '🎼 **FAIXAS / MÚSICAS (COLETÂNEA - ARTISTAS IDENTIFICADOS):**' : '🎼 **FAIXAS / MÚSICAS:**');
       release.tracklist.forEach((t, i) => {
-        const pos = t.position || `${i + 1}.`;
-        const dur = t.duration ? ` (${t.duration})` : '';
-        lines.push(`${pos} ${t.title}${dur}`);
+        const { fullDisplay } = formatTrackWithArtist(t, isVA);
+        lines.push(fullDisplay || `${t.position || i + 1}. ${t.title}`);
       });
     }
 
@@ -235,11 +237,17 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
             <FileText className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+            <h3 className="text-sm font-bold text-slate-900 flex flex-wrap items-center gap-1.5">
               Título e Descrição do Anúncio
               <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 100% Editável
               </span>
+              {release && isVariousArtistsAlbum(release) && (
+                <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200 flex items-center gap-1">
+                  <Users className="h-3 w-3" />
+                  Coletânea VA (Artistas Identificados)
+                </span>
+              )}
             </h3>
             <p className="text-[11px] text-slate-400">
               Ajuste o título e texto para Shopee e Mercado Livre com cópia em 1 clique.

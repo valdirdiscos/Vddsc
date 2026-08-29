@@ -1,4 +1,4 @@
-import { SavedListing, DiscogsRelease } from '../types';
+import { SavedListing, DiscogsRelease, Track, Format } from '../types';
 
 export interface ListingFormatInfo {
   type: 'vinyl_lp' | 'vinyl_single' | 'vinyl_10' | 'cd' | 'dvd' | 'cassette' | 'other';
@@ -644,7 +644,138 @@ export function getAlbumParticularities(listingOrRelease?: SavedListing | Discog
     });
   }
 
+  // 9. Coletânea / Vários Artistas (VA)
+  if (isVariousArtistsAlbum(listingOrRelease)) {
+    add({
+      id: 'various_artists_va',
+      label: 'Coletânea / Vários Artistas (VA)',
+      shortLabel: 'Coletânea VA',
+      icon: '👥',
+      type: 'custom',
+      badgeClass: 'bg-gradient-to-r from-emerald-800 via-teal-800 to-cyan-900 text-teal-100 font-black border border-teal-400/50 shadow-md',
+      pillClass: 'bg-teal-100 text-teal-900 border border-teal-300 font-black',
+      description: 'Álbum no formato Coletânea / V.A. contendo músicas de múltiplos artistas e bandas consagradas.'
+    });
+  }
+
   return particularities;
+}
+
+/**
+ * Accurately detects whether an album is a Various Artists (VA / Coletânea / Soundtrack / Trilha Sonora) compilation.
+ */
+export function isVariousArtistsAlbum(
+  releaseOrArtist?: string | DiscogsRelease | SavedListing | null,
+  formats?: Format[],
+  tracklist?: Track[]
+): boolean {
+  if (!releaseOrArtist) return false;
+
+  let artist = '';
+  let title = '';
+  let releaseFormats: Format[] = formats || [];
+  let releaseTracks: Track[] = tracklist || [];
+
+  if (typeof releaseOrArtist === 'string') {
+    artist = releaseOrArtist;
+  } else if ('release' in releaseOrArtist) {
+    const r = (releaseOrArtist as SavedListing).release;
+    artist = r.artist || '';
+    title = r.title || '';
+    if (r.formats) releaseFormats = r.formats;
+    if (r.tracklist) releaseTracks = r.tracklist;
+  } else {
+    const r = releaseOrArtist as DiscogsRelease;
+    artist = r.artist || '';
+    title = r.title || '';
+    if (r.formats) releaseFormats = r.formats;
+    if (r.tracklist) releaseTracks = r.tracklist;
+  }
+
+  const cleanArtist = (artist || '').trim().toLowerCase();
+
+  // Common VA artist representations
+  const vaPatterns = [
+    /^various(\s+artists)?$/i,
+    /^v[áa]rios(\s+artistas)?$/i,
+    /^v\.?a\.?$/i,
+    /^v\/a$/i,
+    /^colet[âa]nea$/i,
+    /^compilation$/i,
+    /^soundtrack$/i,
+    /^original\s+soundtrack$/i,
+    /^trilha\s+sonora(\s+original)?$/i,
+    /^o\.?s\.?t\.?$/i
+  ];
+
+  if (vaPatterns.some(p => p.test(cleanArtist))) {
+    return true;
+  }
+
+  if (
+    cleanArtist.includes('various artists') ||
+    cleanArtist.includes('vários artistas') ||
+    cleanArtist.includes('varios artistas') ||
+    cleanArtist.startsWith('v.a.') ||
+    cleanArtist.startsWith('v.a -') ||
+    cleanArtist.startsWith('va -')
+  ) {
+    return true;
+  }
+
+  // Check formats for "compilation" / "coletânea"
+  const isCompilationFormat = releaseFormats.some(f =>
+    (f.descriptions || []).some(d => /compilation|colet[âa]nea|sampler/i.test(d))
+  );
+
+  // Check tracklist: if 2 or more tracks have distinct artists (and not the main release artist)
+  const trackArtists = Array.from(
+    new Set(
+      releaseTracks
+        .map(t => (t.artist || '').trim())
+        .filter(a => a && !vaPatterns.some(p => p.test(a)) && a.toLowerCase() !== cleanArtist)
+    )
+  );
+
+  if (trackArtists.length >= 2) {
+    return true;
+  }
+
+  if (isCompilationFormat && (trackArtists.length >= 1 || /v[áa]rios|various|trilha\s+sonora|soundtrack/i.test(title))) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Formats a track display string, ensuring that for VA albums the artist is clearly identified alongside the song title.
+ */
+export function formatTrackWithArtist(track: Track, isVA?: boolean): { position: string; title: string; artist?: string; fullDisplay: string } {
+  const pos = track.position || '';
+  let art = track.artist?.trim() || '';
+  let title = track.title?.trim() || '';
+
+  // If artist is not set on the track object, check if title is formatted as "Artist - Title" or "Artist: Title"
+  if (!art && (isVA || title.includes(' - ') || title.includes(' – ') || title.includes(' — '))) {
+    const splitMatch = title.match(/^(.+?)\s+[-–—:]\s+(.+)$/);
+    if (splitMatch) {
+      art = splitMatch[1].trim();
+      title = splitMatch[2].trim();
+    }
+  }
+
+  const durationStr = track.duration ? ` (${track.duration})` : '';
+  const fullDisplay = art 
+    ? `${pos ? `${pos} ` : ''}${art} - ${title}${durationStr}`
+    : `${pos ? `${pos} ` : ''}${title}${durationStr}`;
+
+  return {
+    position: pos,
+    title,
+    artist: art || undefined,
+    fullDisplay
+  };
 }
 
 /**
@@ -658,10 +789,12 @@ export function detectReleaseParticularities(release?: DiscogsRelease | null) {
       isSpecialEdition: false,
       isGatefold: false,
       hasInsert: false,
+      isVariousArtists: false,
       suggestedDetails: ''
     };
   }
 
+  const isVA = isVariousArtistsAlbum(release);
   const formats = release.formats || [];
   const fmtNames = formats.map(f => (f.name || '').toLowerCase()).join(' ');
   const fmtDescs = formats.flatMap(f => f.descriptions || []).map(d => d.toLowerCase()).join(' ');
@@ -695,6 +828,7 @@ export function detectReleaseParticularities(release?: DiscogsRelease | null) {
   else if (isDoubleAlbum && isGatefold) suggestedDetails = 'Álbum Duplo com Capa Dupla (Gatefold)';
   else if (isDoubleAlbum) suggestedDetails = 'Álbum Duplo (2 Discos)';
   else if (isGatefold) suggestedDetails = 'Capa Dupla (Gatefold)';
+  else if (isVA) suggestedDetails = 'Coletânea Especial Vários Artistas (V.A.)';
 
   return {
     isDoubleAlbum,
@@ -702,6 +836,7 @@ export function detectReleaseParticularities(release?: DiscogsRelease | null) {
     isSpecialEdition,
     isGatefold,
     hasInsert,
+    isVariousArtists: isVA,
     suggestedDetails
   };
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Disc, 
   Plus, 
@@ -12,10 +12,16 @@ import {
   ListPlus,
   AlertCircle,
   Flame,
-  Star
+  Star,
+  Users,
+  Percent,
+  Tag,
+  Gift
 } from 'lucide-react';
 import { DiscogsRelease, ConditionSelection, PricingConfig, Track } from '../types';
 import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE } from '../constants';
+import { isVariousArtistsAlbum } from '../utils/formatHelper';
+import { MAJOR_GENRE_GROUPS, getAllAvailableSubstyles, saveCustomSubstyle } from '../constants/musicGenres';
 
 interface ManualRegistrationFormProps {
   onComplete: (data: {
@@ -77,11 +83,106 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
   const [hasInsert, setHasInsert] = useState(false);
   const [insertDetails, setInsertDetails] = useState('');
 
-  // Description / Notes
   const [customDescription, setCustomDescription] = useState('');
   const [tracksText, setTracksText] = useState('');
 
+  // Promoção, Desconto % e Bônus
+  const [promoActive, setPromoActive] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState<number>(15);
+  const [promoBadge, setPromoBadge] = useState('15% OFF');
+  const [bonusDescription, setBonusDescription] = useState('Bônus: Plásticos protetores novos inclusos');
+
+  // Gêneros e Sub-estilos Musicais (Grandes Grupos como Rap, Rock, MPB, etc.)
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(['Música Brasileira']);
+  const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
+  const [activeGroupFilter, setActiveGroupFilter] = useState<string>('rap_hiphop');
+  const [newSubstyleInput, setNewSubstyleInput] = useState('');
+  const [availableSubstyles, setAvailableSubstyles] = useState<string[]>([]);
+
+  useEffect(() => {
+    setAvailableSubstyles(getAllAvailableSubstyles());
+  }, []);
+
+  const handleAddCustomSubstyle = () => {
+    if (!newSubstyleInput.trim()) return;
+    const clean = newSubstyleInput.trim();
+    saveCustomSubstyle(clean);
+    setAvailableSubstyles(getAllAvailableSubstyles());
+    if (!selectedStyles.includes(clean)) {
+      setSelectedStyles(prev => [...prev, clean]);
+    }
+    setNewSubstyleInput('');
+  };
+
   const [formError, setFormError] = useState<string | null>(null);
+  const [isEnrichingVa, setIsEnrichingVa] = useState(false);
+  const [vaEnrichFeedback, setVaEnrichFeedback] = useState<string | null>(null);
+
+  const handleAutoIdentifyVaTracks = async () => {
+    if (!tracksText.trim()) return;
+    setIsEnrichingVa(true);
+    setVaEnrichFeedback(null);
+
+    try {
+      const rawLines = tracksText.split('\n').map(l => l.trim()).filter(Boolean);
+      const parsedTracks: Track[] = rawLines.map((line, idx) => {
+        const durationMatch = line.match(/\(([^)]+)\)$/) || line.match(/\[([^\]]+)\]$/);
+        const duration = durationMatch ? durationMatch[1].trim() : undefined;
+        const cleanLine = durationMatch ? line.replace(durationMatch[0], '').trim() : line;
+        
+        const posMatch = cleanLine.match(/^([A-Z0-9]+[.-]?|\d+[.-]?)\s+(.+)$/i);
+        let position = `${idx + 1}`;
+        let trackTitle = cleanLine;
+        if (posMatch) {
+          position = posMatch[1].replace(/[.-]$/, '').trim();
+          trackTitle = posMatch[2].trim();
+        }
+
+        let trackArtist: string | undefined = undefined;
+        const splitMatch = trackTitle.match(/^(.+?)\s+[-–—:]\s+(.+)$/);
+        if (splitMatch) {
+          trackArtist = splitMatch[1].trim();
+          trackTitle = splitMatch[2].trim();
+        }
+
+        return {
+          position,
+          title: trackTitle,
+          duration: duration || '03:30',
+          artist: trackArtist
+        };
+      });
+
+      const res = await fetch('/api/enrich-va-artists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          albumTitle: title || 'Coletânea V.A.',
+          albumArtist: artist || 'Vários Artistas',
+          tracklist: parsedTracks
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && Array.isArray(data.tracklist) && data.tracklist.length > 0) {
+        const formattedLines = data.tracklist.map((t: Track) => {
+          const art = t.artist ? `${t.artist} - ` : '';
+          const dur = t.duration ? ` (${t.duration})` : '';
+          const pos = t.position ? `${t.position}. ` : '';
+          return `${pos}${art}${t.title}${dur}`;
+        });
+        setTracksText(formattedLines.join('\n'));
+        setVaEnrichFeedback('✓ Artistas de cada faixa identificados com sucesso pela IA!');
+        setTimeout(() => setVaEnrichFeedback(null), 4500);
+      } else {
+        setVaEnrichFeedback(data.error || 'Não foi possível identificar todos os artistas.');
+      }
+    } catch (err: any) {
+      setVaEnrichFeedback('Erro de conexão ao identificar artistas.');
+    } finally {
+      setIsEnrichingVa(false);
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -106,6 +207,7 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
     setFormError(null);
 
     // Parse tracks from text
+    const isVA = isVariousArtistsAlbum(artist);
     const parsedTracks: Track[] = tracksText
       .split('\n')
       .map(l => l.trim())
@@ -114,6 +216,7 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
         let pos = String(idx + 1);
         let tTitle = line;
         let dur = '';
+        let art = '';
 
         const durMatch = line.match(/[\(\[]\s*(\d{1,2}:\d{2})\s*[\)\]]/);
         if (durMatch) {
@@ -127,15 +230,28 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
           tTitle = tTitle.substring(posMatch[0].length).trim();
         }
 
+        // Match artist if separated by " - " or " – " or " — " or " / "
+        const sepMatch = tTitle.match(/^(.+?)\s+[-–—/]\s+(.+)$/);
+        if (sepMatch) {
+          art = sepMatch[1].trim();
+          tTitle = sepMatch[2].trim();
+        }
+
         return {
           position: pos,
           title: tTitle || `Faixa ${idx + 1}`,
-          duration: dur || '03:30'
+          duration: dur || '03:30',
+          artist: art || undefined
         };
       });
 
     const parsedPrice = parseFloat(price.replace(',', '.')) || 80;
     const parsedCost = parseFloat(costPrice.replace(',', '.')) || 0;
+
+    const originalRefPrice = parsedPrice;
+    const finalSalePrice = promoActive && discountPercent > 0 
+      ? Math.round(parsedPrice * (1 - discountPercent / 100))
+      : parsedPrice;
 
     const newRelease: DiscogsRelease = {
       id: `manual_${Date.now()}`,
@@ -145,8 +261,8 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
       label: label.trim() || 'Independente',
       catno: catno.trim() || 'VD-001',
       country: country.trim() || 'Brasil',
-      genres: ['Música Brasileira', 'Vinil'],
-      styles: [],
+      genres: selectedGenres.length > 0 ? selectedGenres : ['Música Brasileira', 'Vinil'],
+      styles: selectedStyles.length > 0 ? selectedStyles : [],
       formats: [{
         name: mediaFormat,
         qty: '1',
@@ -160,7 +276,7 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
       ],
       coverImage: coverImage || 'https://images.unsplash.com/photo-1539185441755-769473a23570?w=600&auto=format&fit=crop&q=80',
       notes: customDescription.trim() || 'Disco da coleção Valdir Discos.',
-      lowestPriceUsd: parsedPrice,
+      lowestPriceUsd: finalSalePrice,
       isManual: true
     };
 
@@ -175,7 +291,7 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
     };
 
     const pricing: PricingConfig = {
-      basePriceBrl: parsedPrice,
+      basePriceBrl: finalSalePrice,
       costPrice: parsedCost,
       exchangeRate: 5.6,
       useExchange: false,
@@ -184,7 +300,13 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
       packagingCost: 4.0,
       profitMarginPercent: 30,
       mode: 'direct',
-      directPrice: parsedPrice
+      directPrice: finalSalePrice,
+      promoActive: promoActive,
+      discountPercent: promoActive ? discountPercent : undefined,
+      originalPrice: promoActive ? originalRefPrice : undefined,
+      promoPrice: promoActive ? finalSalePrice : undefined,
+      promoBadge: promoActive ? promoBadge : undefined,
+      bonusDescription: promoActive ? bonusDescription : undefined
     };
 
     onComplete({
@@ -241,15 +363,26 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
         {/* Core Metadata */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Artista / Banda <span className="text-rose-500">*</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Artista / Banda <span className="text-rose-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setArtist('Various Artists')}
+                className="text-[10px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                title="Definir como coletânea de vários artistas"
+              >
+                <Users className="h-3 w-3" />
+                Coletânea / V.A.
+              </button>
+            </div>
             <input
               type="text"
               required
               value={artist}
               onChange={(e) => setArtist(e.target.value)}
-              placeholder="Ex: Tim Maia, Elis Regina, Pink Floyd..."
+              placeholder="Ex: Tim Maia, Elis Regina, Various Artists..."
               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
             />
           </div>
@@ -327,7 +460,7 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1">
               <DollarSign className="h-3.5 w-3.5 text-indigo-600" />
-              Preço de Venda (R$)
+              Preço Base / Original (R$)
             </label>
             <input
               type="number"
@@ -366,6 +499,256 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
               placeholder="Ex: Gaveta 4..."
               className="w-full px-3.5 py-2 bg-white border border-indigo-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
             />
+          </div>
+        </div>
+
+        {/* Promoção, Bônus e Desconto Porcentagem (% OFF) */}
+        <div className={`p-4 rounded-2xl border transition-all ${
+          promoActive 
+            ? 'bg-rose-50/70 border-rose-200 shadow-xs' 
+            : 'bg-slate-50/70 border-slate-200'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-rose-200/50">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={promoActive}
+                onChange={(e) => setPromoActive(e.target.checked)}
+                className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300 cursor-pointer"
+              />
+              <div>
+                <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <Percent className="h-4 w-4 text-rose-600" />
+                  Ativar Promoção com Destaque de Porcentagem (% OFF) e Bônus
+                </span>
+                <p className="text-[11px] text-slate-500">
+                  Aplica desconto percentual no produto com selo no card do site e descrição de bônus.
+                </p>
+              </div>
+            </label>
+
+            {promoActive && (
+              <span className="px-2.5 py-1 bg-rose-600 text-white text-xs font-black rounded-lg uppercase tracking-wider shrink-0 shadow-xs">
+                {promoBadge || `${discountPercent}% OFF`}
+              </span>
+            )}
+          </div>
+
+          {promoActive && (
+            <div className="pt-3.5 space-y-4">
+              {/* Quick % buttons & calculated price preview */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div className="sm:col-span-7 space-y-1.5">
+                  <span className="text-[11px] font-bold text-slate-700 block">Selecione a porcentagem de desconto:</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[10, 15, 20, 25, 30, 50].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => {
+                          setDiscountPercent(pct);
+                          setPromoBadge(`${pct}% OFF`);
+                        }}
+                        className={`px-2.5 py-1 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                          discountPercent === pct
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'bg-white text-rose-800 border border-rose-200 hover:bg-rose-100'
+                        }`}
+                      >
+                        {pct}% OFF
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1 pl-1">
+                      <input
+                        type="number"
+                        min="1"
+                        max="90"
+                        value={discountPercent}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value) || 0;
+                          setDiscountPercent(v);
+                          setPromoBadge(`${v}% OFF`);
+                        }}
+                        className="w-14 px-1.5 py-1 bg-white border border-rose-300 rounded-lg text-xs font-bold text-rose-900 text-center"
+                      />
+                      <span className="text-xs font-bold text-slate-500">%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sm:col-span-5 p-3 bg-white rounded-xl border border-rose-200 text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Preço com Desconto no Site:</span>
+                  <div className="flex items-baseline justify-end gap-2">
+                    <span className="text-xs line-through text-slate-400 font-mono">
+                      R$ {(parseFloat(price.replace(',', '.')) || 80).toFixed(2)}
+                    </span>
+                    <span className="text-lg font-black text-rose-600 font-mono">
+                      R$ {(Math.round((parseFloat(price.replace(',', '.')) || 80) * (1 - discountPercent / 100))).toFixed(2)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-600 block">
+                    Economia de R$ {((parseFloat(price.replace(',', '.')) || 80) - Math.round((parseFloat(price.replace(',', '.')) || 80) * (1 - discountPercent / 100))).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Selo e Bônus */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <Tag className="h-3.5 w-3.5 text-rose-600" />
+                    Texto do Selo / Etiqueta Promocional
+                  </label>
+                  <input
+                    type="text"
+                    value={promoBadge}
+                    onChange={(e) => setPromoBadge(e.target.value)}
+                    placeholder="Ex: 15% OFF, PROMOÇÃO DA SEMANA, QUEIMA"
+                    className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <Gift className="h-3.5 w-3.5 text-amber-600" />
+                    Bônus / Brinde Oferecido
+                  </label>
+                  <input
+                    type="text"
+                    value={bonusDescription}
+                    onChange={(e) => setBonusDescription(e.target.value)}
+                    placeholder="Ex: Bônus: Plásticos protetores novos inclusos"
+                    className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Grandes Grupos Musicais e Sub-estilos */}
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <div>
+            <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <Disc className="h-3.5 w-3.5 text-indigo-600" />
+              Grandes Grupos Musicais & Sub-estilos
+            </span>
+            <p className="text-[11px] text-slate-500">
+              Escolha os grandes grupos musicais (ex: Rap, Rock, MPB, Samba) e selecione ou cadastre novos sub-estilos.
+            </p>
+          </div>
+
+          {/* Major Groups Pills */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {MAJOR_GENRE_GROUPS.map((grp) => {
+              const isGroupActive = activeGroupFilter === grp.id;
+              const isGroupSelected = selectedGenres.includes(grp.name);
+              return (
+                <button
+                  key={grp.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveGroupFilter(grp.id);
+                    if (!selectedGenres.includes(grp.name)) {
+                      setSelectedGenres(prev => [...prev, grp.name]);
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    isGroupActive
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : isGroupSelected
+                      ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:border-indigo-300'
+                  }`}
+                >
+                  <span>{grp.emoji}</span>
+                  <span>{grp.name}</span>
+                  {isGroupSelected && <Check className="h-3 w-3 text-indigo-600" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sub-styles of the active group */}
+          {(() => {
+            const currentGroup = MAJOR_GENRE_GROUPS.find(g => g.id === activeGroupFilter) || MAJOR_GENRE_GROUPS[0];
+            return (
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                <span className="text-[11px] font-bold text-slate-600 block">
+                  Sub-estilos rápidos de {currentGroup.emoji} {currentGroup.name}:
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {currentGroup.substyles.map((sub) => {
+                    const isSelected = selectedStyles.includes(sub);
+                    return (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedStyles(prev => prev.filter(s => s !== sub));
+                          } else {
+                            setSelectedStyles(prev => [...prev, sub]);
+                          }
+                        }}
+                        className={`px-2 py-0.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700'
+                        }`}
+                      >
+                        {isSelected ? `✓ ${sub}` : `+ ${sub}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Selected Substyles Chips */}
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-bold text-slate-700">Sub-estilos selecionados neste disco:</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {selectedStyles.map((style) => (
+                <span
+                  key={style}
+                  onClick={() => setSelectedStyles(prev => prev.filter(s => s !== style))}
+                  className="px-2 py-0.5 bg-indigo-50 text-indigo-800 font-bold text-xs rounded-md border border-indigo-200 flex items-center gap-1 cursor-pointer hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-colors"
+                  title="Clique para remover"
+                >
+                  <span>{style}</span>
+                  <X className="h-3 w-3" />
+                </span>
+              ))}
+              {selectedStyles.length === 0 && (
+                <span className="text-xs text-slate-400 italic">Nenhum sub-estilo selecionado ainda.</span>
+              )}
+            </div>
+          </div>
+
+          {/* Add custom sub-style input on the fly */}
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="text"
+              value={newSubstyleInput}
+              onChange={(e) => setNewSubstyleInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddCustomSubstyle();
+                }
+              }}
+              placeholder="Digitar novo sub-estilo (ex: Boom Bap, Trap Brasil, Heavy Metal 80, Samba-Rock...)"
+              className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              type="button"
+              onClick={handleAddCustomSubstyle}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+            >
+              + Adicionar Sub-estilo
+            </button>
           </div>
         </div>
 
@@ -612,17 +995,56 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <ListPlus className="h-3.5 w-3.5 text-indigo-600" />
-              Faixas / Músicas (Opcional - Cole uma música por linha)
-            </label>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <ListPlus className="h-3.5 w-3.5 text-indigo-600" />
+                Faixas / Músicas (Opcional - Cole uma música por linha)
+              </label>
+              
+              <div className="flex items-center gap-2">
+                {tracksText.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleAutoIdentifyVaTracks}
+                    disabled={isEnrichingVa}
+                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    title="Usar Inteligência Artificial para descobrir e formatar o artista de cada faixa deste álbum"
+                  >
+                    <Sparkles className={`h-3.5 w-3.5 text-indigo-600 ${isEnrichingVa ? 'animate-spin' : ''}`} />
+                    <span>{isEnrichingVa ? 'Identificando...' : 'Identificar Artistas (IA V.A.)'}</span>
+                  </button>
+                )}
+                {isVariousArtistsAlbum(artist) && (
+                  <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    V.A. (Artista - Faixa)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {vaEnrichFeedback && (
+              <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-medium text-emerald-800 flex items-center gap-1.5">
+                <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <span>{vaEnrichFeedback}</span>
+              </div>
+            )}
+
             <textarea
-              rows={3}
+              rows={4}
               value={tracksText}
               onChange={(e) => setTracksText(e.target.value)}
-              placeholder={"A1. Música 1 (03:40)\nA2. Música 2 (04:15)\nB1. Música 3 (03:20)"}
+              placeholder={isVariousArtistsAlbum(artist) 
+                ? "A1. Raul Seixas - Metamorfose Ambulante (03:50)\nA2. Tim Maia - Gostava Tanto de Você (04:15)\nB1. Rita Lee - Ovelha Negra (05:20)"
+                : "A1. Nome da Música 1 (03:40)\nA2. Nome da Música 2 (04:15)\nB1. Nome da Música 3 (03:20)"
+              }
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
+            {isVariousArtistsAlbum(artist) && (
+              <p className="text-[11px] text-teal-700 font-medium">
+                💡 Para coletâneas / V.A., o sistema identifica o artista de cada faixa automaticamente separando por "Artista - Faixa" ou use o botão com IA acima!
+              </p>
+            )}
           </div>
         </div>
 

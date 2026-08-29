@@ -38,24 +38,29 @@ function getGeminiClient(): GoogleGenAI {
 async function generateContentWithFallback(ai: GoogleGenAI, params: any): Promise<any> {
   let requestedModel = params.model || "gemini-3.5-flash";
   if (requestedModel === "gemini-flash-latest") {
-    requestedModel = "gemini-3.5-flash";
+    requestedModel = "gemini-2.5-flash";
   }
   
-  // Cleanly list potential models to try as fallbacks (excluding deprecated ones)
+  // Cleanly list potential models to try as fallbacks (including ultra-fast lite models)
   const modelsToTry = [
     requestedModel,
-    "gemini-3.5-flash",
-    "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
-    "gemini-flash-latest"
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite"
   ].filter((model, idx, self) => self.indexOf(model) === idx);
   
   // Map models to their underlying families to avoid duplicate slow failures on equivalent models
   const MODEL_FAMILIES: { [key: string]: string } = {
+    "gemini-2.5-flash": "gemini-2.5-flash",
+    "gemini-2.0-flash": "gemini-2.0-flash",
+    "gemini-2.0-flash-lite": "gemini-2.0-flash-lite",
+    "gemini-1.5-flash": "gemini-1.5-flash",
     "gemini-3.5-flash": "gemini-3.5-flash",
-    "gemini-flash-latest": "gemini-3.5-flash",
-    "gemini-3.1-flash-lite": "gemini-3.1-flash-lite",
-    "gemini-2.5-flash": "gemini-2.5-flash"
+    "gemini-flash-latest": "gemini-2.5-flash",
+    "gemini-3.1-flash-lite": "gemini-3.1-flash-lite"
   };
   
   const failedFamilies = new Set<string>();
@@ -604,12 +609,29 @@ function getImportTag(country?: string): string {
     }
 
     if (release.tracklist && release.tracklist.length > 0) {
-      descLines.push(`\n🎶 **FAIXAS / TRACKLIST**`);
+      const isVA = /various|v[áa]rios|varios|v\.?a\.?|v\/a|colet[âa]nea|compilation|soundtrack|trilha/i.test(artistName) ||
+        release.tracklist.some((t: any) => t.artist && t.artist.trim() && t.artist.trim() !== artistName);
+
+      descLines.push(isVA ? `\n🎶 **FAIXAS / TRACKLIST (COLETÂNEA - ARTISTAS IDENTIFICADOS)**` : `\n🎶 **FAIXAS / TRACKLIST**`);
       release.tracklist.forEach((t: any) => {
         const pos = t.position ? `[${t.position}] ` : "• ";
         const dur = t.duration ? ` (${t.duration})` : "";
-        const art = t.artist ? ` - ${t.artist}` : "";
-        descLines.push(`${pos}${t.title}${art}${dur}`);
+        let art = t.artist ? t.artist.trim() : "";
+        let title = t.title ? t.title.trim() : "";
+
+        if (!art && (isVA || title.includes(" - ") || title.includes(" – ") || title.includes(" — "))) {
+          const parts = title.split(/\s+[-–—]\s+/);
+          if (parts.length >= 2) {
+            art = parts[0].trim();
+            title = parts.slice(1).join(" - ").trim();
+          }
+        }
+
+        if (art) {
+          descLines.push(`${pos}${art} - ${title}${dur}`);
+        } else {
+          descLines.push(`${pos}${title}${dur}`);
+        }
       });
     }
 
@@ -787,22 +809,92 @@ Se for uma coletânea (Various Artists / Vários Artistas), você DEVE obrigator
         }
 
         // Format data to fit DiscogsRelease format
-        const artistsName = data.artists?.map((a: any) => a.name.replace(/\s\(\d+\)$/, '')).join(", ") || "Artista Desconhecido";
+        const artistsName = data.artists?.map((a: any) => a.name.replace(/\s*\(\d+\)\s*$/g, '')).join(", ") || "Artista Desconhecido";
         const labelsName = data.labels?.map((l: any) => l.name).join(", ") || "N/A";
         const catalogNo = data.labels?.map((l: any) => l.catno).filter(Boolean).join(", ") || "N/A";
 
+        const isVaRelease = /various|v[áa]rios|varios|v\.?a\.?|v\/a|colet[âa]nea|compilation|soundtrack|trilha/i.test(artistsName) ||
+          data.formats?.some((f: any) => (f.descriptions || []).some((d: string) => /compilation|colet[âa]nea/i.test(d)));
+
         const tracklist = data.tracklist?.map((t: any) => {
           let trackArtist = "";
-          if (t.artists && Array.isArray(t.artists)) {
-            trackArtist = t.artists.map((a: any) => a.name.replace(/\s\(\d+\)$/, '')).join(", ");
+          if (t.artists && Array.isArray(t.artists) && t.artists.length > 0) {
+            trackArtist = t.artists.map((a: any) => a.name.replace(/\s*\(\d+\)\s*$/g, '')).join(", ");
           }
+          if (!trackArtist && t.extraartists && Array.isArray(t.extraartists)) {
+            const vocalOrPerformer = t.extraartists.filter((ea: any) => /vocal|featuring|feat|performer|lead|singer/i.test(ea.role || ''));
+            if (vocalOrPerformer.length > 0) {
+              trackArtist = vocalOrPerformer.map((ea: any) => ea.name.replace(/\s*\(\d+\)\s*$/g, '')).join(", ");
+            }
+          }
+          let cleanTitle = t.title || "";
+          if (!trackArtist && (cleanTitle.includes(" - ") || cleanTitle.includes(" – ") || cleanTitle.includes(" — "))) {
+            const parts = cleanTitle.split(/\s+[-–—]\s+/);
+            if (parts.length >= 2) {
+              trackArtist = parts[0].trim();
+              cleanTitle = parts.slice(1).join(" - ").trim();
+            }
+          }
+
           return {
             position: t.position || "",
-            title: t.title || "",
+            title: cleanTitle || t.title || "",
             duration: t.duration || "",
             artist: trackArtist || undefined
           };
         }) || [];
+
+        // If it is a VA album and tracks are missing artists, automatically identify each artist
+        const missingTrackArtistsCount = tracklist.filter((t: any) => !t.artist).length;
+        if (isVaRelease && missingTrackArtistsCount > 0 && tracklist.length > 0) {
+          try {
+            const ai = getGeminiClient();
+            const aiPrompt = `O álbum "${data.title}" (${artistsName}, ano ${data.released_year || data.year || ''}) é um álbum coletânea / VA (Various Artists / Vários Artistas).
+A lista de faixas deste álbum é a seguinte:
+${tracklist.map((t: any) => `${t.position || ''}: "${t.title}"`).join('\n')}
+
+IMPORTANTE: Em álbuns VA, é estritamente obrigatório identificar também os artistas e não só as músicas na lista.
+Para cada uma das faixas acima, identifique com precisão o ARTISTA OU BANDA original que interpreta essa música neste lançamento específico.
+Retorne um array JSON com a lista completa das faixas contendo os campos: position, title, artist.`;
+
+            const aiRes = await generateContentWithFallback(ai, {
+              model: "gemini-2.5-flash",
+              contents: aiPrompt,
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      position: { type: Type.STRING },
+                      title: { type: Type.STRING },
+                      artist: { type: Type.STRING, description: "Nome do artista ou banda que canta esta faixa" }
+                    },
+                    required: ["position", "title", "artist"]
+                  }
+                }
+              }
+            });
+
+            const parsedArtists: any[] = JSON.parse(aiRes.text.trim());
+            if (Array.isArray(parsedArtists)) {
+              tracklist.forEach((t: any, idx: number) => {
+                if (!t.artist) {
+                  const match = parsedArtists.find((pa: any) => 
+                    (pa.position && pa.position === t.position) || 
+                    (pa.title && pa.title.toLowerCase() === t.title.toLowerCase())
+                  ) || parsedArtists[idx];
+                  if (match && match.artist && !/various|v[áa]rios/i.test(match.artist)) {
+                    t.artist = match.artist.trim();
+                  }
+                }
+              });
+            }
+          } catch (enrichErr) {
+            console.warn("Could not enrich VA track artists via Gemini in Discogs extract:", enrichErr);
+          }
+        }
 
         const formats = data.formats?.map((f: any) => ({
           name: f.name || "",
@@ -977,7 +1069,13 @@ Gravadora: ${release.label} (Catalog No: ${release.catno})
 Ano de Lançamento Original: ${release.year}
 País de Origem / Prensagem: ${countryStr}
 Gêneros/Estilos: ${release.genres?.join(", ") || ""} | ${release.styles?.join(", ") || ""}
-Músicas (Tracklist): ${JSON.stringify(release.tracklist)}
+Músicas (Tracklist Detalhada):
+${(release.tracklist || []).map((t: any, i: number) => {
+  const pos = t.position || `${i + 1}`;
+  const dur = t.duration ? ` (${t.duration})` : '';
+  const art = t.artist ? ` [Artista: ${t.artist}]` : '';
+  return `${pos}. ${t.title}${art}${dur}`;
+}).join('\n')}
 
 --- ESTADO DE CONSERVAÇÃO (ESCOLHIDO PELO VALDIR) ---
 Mídia (Disco/CD/DVD): ${condition.mediaCondition} ${condition.mediaDetails ? `(${condition.mediaDetails})` : ""}
@@ -1036,7 +1134,13 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
      • País de Origem / Prensagem: ${countryStr}  <-- É ABSOLUTAMENTE OBRIGATÓRIO INCLUIR ESTA LINHA COM O PAÍS DE ORIGEM NA FICHA TÉCNICA!
      • Catálogo: ...
      • Formato: ...
-   - Tracklist / Lista de músicas completa. Coloque cada faixa em uma nova linha separada por quebra de linha dupla. Para coletâneas (Various Artists), mostre o nome do artista de cada música.
+   - Tracklist / Lista de músicas completa:
+      * REGRA CRÍTICA PARA COLETÂNEAS (VARIOUS ARTISTS / VÁRIOS ARTISTAS / VA / COLETÂNEA / TRILHA SONORA):
+        É RIGOROSAMENTE OBRIGATÓRIO IDENTIFICAR O ARTISTA DE CADA MÚSICA NA LISTA!
+        Cada linha da lista de faixas DEVE conter obrigatoriamente: [Posição] [Nome do Artista] - [Nome da Música] ([Duração]).
+        Exemplo: "A1. Raul Seixas - Metamorfose Ambulante (03:50)" ou "1. Titãs - Flores (03:20)".
+        É TERMINANTEMENTE PROIBIDO omitir os nomes dos artistas nas faixas de uma coletânea / álbum VA!
+      * Coloque cada faixa em uma nova linha separada por quebra de linha dupla.
    - Descreva de forma compacta e objetiva o Diferencial de Envio Premium Valdir Discos (higienização profissional, plásticos novos, embalagem reforçada).
 
 4. **hashtags**:
@@ -1046,7 +1150,7 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
    - O preço sugerido (número).`;
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -1251,6 +1355,80 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
     } catch (error: any) {
       console.error("Unified Generation error:", error);
       return res.status(500).json({ error: error.message || "Erro ao processar a geração unificada dos anúncios." });
+    }
+  });
+
+  // Dedicated endpoint to automatically identify/enrich artists for all tracks in Various Artists (VA) compilations
+  app.post("/api/enrich-va-artists", async (req, res) => {
+    const { albumTitle, albumArtist, tracklist } = req.body;
+    if (!tracklist || !Array.isArray(tracklist) || tracklist.length === 0) {
+      return res.status(400).json({ error: "Tracklist inválida ou vazia." });
+    }
+
+    try {
+      const ai = getGeminiClient();
+      const prompt = `O álbum "${albumTitle || 'Coletânea'}" (${albumArtist || 'Vários Artistas'}) é um álbum VA (Various Artists / Vários Artistas / Coletânea).
+Na lista de músicas abaixo, identifique com precisão histórica e factual o ARTISTA OU BANDA original que interpreta cada uma das faixas:
+
+${tracklist.map((t: any, idx: number) => `${t.position || idx + 1}. "${t.title}" ${t.artist ? `(atualmente: ${t.artist})` : ''}`).join('\n')}
+
+REGRA CRÍTICA: Em álbuns coletâneas (VA), é estritamente obrigatório identificar o artista específico de cada música na lista.
+Retorne um JSON contendo a lista completa de faixas enriquecida com os seguintes campos por faixa:
+- position: a numeração ou posição original (ex: "A1", "1", "01")
+- title: o nome limpo da música (sem o nome do artista)
+- artist: o nome correto do artista ou banda correspondente
+- duration: duração estimada ou original (MM:SS)`;
+
+      const response = await generateContentWithFallback(ai, {
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                position: { type: Type.STRING },
+                title: { type: Type.STRING },
+                artist: { type: Type.STRING },
+                duration: { type: Type.STRING }
+              },
+              required: ["position", "title", "artist"]
+            }
+          }
+        }
+      });
+
+      const enriched = JSON.parse(response.text.trim());
+      if (Array.isArray(enriched) && enriched.length > 0) {
+        return res.json({ success: true, tracklist: enriched });
+      }
+      throw new Error("Formato de resposta inesperado da IA");
+    } catch (err: any) {
+      console.warn("AI enrichment failed or timed out, applying programmatic title extraction:", err);
+      // Fallback: parse from title if formatted like "Artist - Title" or "Title - Artist"
+      const fallbackTracks = tracklist.map((t: any) => {
+        let art = t.artist ? t.artist.trim() : "";
+        let title = t.title ? t.title.trim() : "";
+
+        if (!art && (title.includes(" - ") || title.includes(" – ") || title.includes(" — "))) {
+          const parts = title.split(/\s+[-–—]\s+/);
+          if (parts.length >= 2) {
+            art = parts[0].trim();
+            title = parts.slice(1).join(" - ").trim();
+          }
+        }
+
+        return {
+          position: t.position || "",
+          title: title || t.title,
+          artist: art || t.artist || "Artista não informado",
+          duration: t.duration || "03:30"
+        };
+      });
+
+      return res.json({ success: true, tracklist: fallbackTracks, note: "Processado localmente via separador 'Artista - Música'." });
     }
   });
 
@@ -2309,6 +2487,33 @@ Gere apenas o texto final da resposta, sem introduções ou aspas extras.`;
     }
 
     return res.status(400).json({ error: "Tipo de evento inválido." });
+  });
+
+  // CORS-friendly image proxy endpoint for generating canvas composite lote photos without tainting
+  app.get("/api/image-proxy", async (req, res) => {
+    const imageUrl = req.query.url as string;
+    if (!imageUrl || !imageUrl.startsWith("http")) {
+      return res.status(400).send("URL de imagem inválida.");
+    }
+    try {
+      const response = await fetch(imageUrl, {
+        headers: {
+          "User-Agent": "ValdirDiscosApp/1.0",
+          "Accept": "image/*,*/*;q=0.8"
+        },
+      });
+      if (!response.ok) {
+        return res.status(response.status).send("Erro ao buscar imagem remota.");
+      }
+      const contentType = response.headers.get("content-type") || "image/jpeg";
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      const arrayBuffer = await response.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+    } catch (err: any) {
+      res.status(500).send("Falha no proxy de imagem: " + (err?.message || ""));
+    }
   });
 
   // Vite development middleware setup or production static file server

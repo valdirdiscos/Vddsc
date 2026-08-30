@@ -39,7 +39,11 @@ import {
   Music2,
   Package,
   Percent,
-  Gift
+  Gift,
+  LayoutGrid,
+  Grid3X3,
+  List,
+  Table
 } from 'lucide-react';
 import { SavedListing, DJPlaylist, TShirtProduct, TShirtSize, TShirtModel, TShirtColor, AudioFormat, DigitalAlbumProduct } from '../types';
 import { OFFICIAL_MARKETPLACE_LINKS } from '../constants';
@@ -57,7 +61,8 @@ import { ValdirVirtualChat } from './ValdirVirtualChat';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { useLogos } from '../hooks/useLogos';
 import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
-import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities } from '../utils/formatHelper';
+import { getListingFormatInfo, getItemConditionInfo, isNativistaGauchoItem, getNativistaInfo, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities } from '../utils/formatHelper';
+import { StoreViewMode, getSavedStoreViewMode, saveStoreViewMode } from '../utils/cookieStorage';
 
 interface PublicStorefrontProps {
   listings: SavedListing[];
@@ -86,10 +91,18 @@ export function PublicStorefront({
   const [isLogoUploadModalOpen, setIsLogoUploadModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'register'>('login');
 
-  // Main Category & Navigation: 'discos' | 'cds' | 'dvds' | 'garimpo' | 'exclusivos' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about'
-  const [activeMainTab, setActiveMainTab] = useState<'discos' | 'cds' | 'dvds' | 'garimpo' | 'exclusivos' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about'>('discos');
+  // Main Category & Navigation: 'discos' | 'cds' | 'dvds' | 'nativista' | 'exclusivos' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about' | 'lotes' | 'promocoes'
+  const [activeMainTab, setActiveMainTab] = useState<'discos' | 'cds' | 'dvds' | 'nativista' | 'exclusivos' | 'tshirts' | 'musica_online' | 'highlights' | 'playlists' | 'about' | 'lotes' | 'promocoes'>('discos');
   const [onlineMusicSubTab, setOnlineMusicSubTab] = useState<'digital' | 'streaming' | 'dj_sets'>('digital');
   
+  // View Mode: 'grid' | 'compact' | 'list' | 'table_no_photos' (persisted via cookies + localStorage)
+  const [storeViewMode, setStoreViewMode] = useState<StoreViewMode>(() => getSavedStoreViewMode());
+
+  const handleStoreViewModeChange = (mode: StoreViewMode) => {
+    setStoreViewMode(mode);
+    saveStoreViewMode(mode);
+  };
+
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
@@ -97,7 +110,6 @@ export function PublicStorefront({
   const [selectedCondition, setSelectedCondition] = useState<string>('all');
   const [conditionCategory, setConditionCategory] = useState<'all' | 'new' | 'used'>('all');
   const [particularityFilter, setParticularityFilter] = useState<'all' | 'double' | 'box' | 'gatefold' | 'special'>('all');
-  const [garimpoSubFilter, setGarimpoSubFilter] = useState<'all' | 'under25' | 'under40' | 'under60' | 'damaged'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'artist_asc'>('newest');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'sold'>('all');
 
@@ -284,6 +296,8 @@ export function PublicStorefront({
           if (!isPromo) return false;
         } else if (selectedGenre === 'lotes') {
           if (!item.isLote) return false;
+        } else if (selectedGenre === 'nativista') {
+          if (!isNativistaGauchoItem(item)) return false;
         } else {
           // Check matching against MAJOR_GENRE_GROUPS or legacy/custom IDs
           const matched = matchMajorGenre(item.release.genres, item.release.styles, selectedGenre);
@@ -353,27 +367,9 @@ export function PublicStorefront({
         if (price < 120 && !isImported) return false;
       }
 
-      // Tab Garimpo
-      if (activeMainTab === 'garimpo') {
-        if (!isGarimpoItem(item)) return false;
-        
-        const price = item.pricing?.directPrice || item.pricing?.basePriceBrl || 0;
-        const mediaCond = (item.condition?.mediaCondition || '').trim().toUpperCase();
-        const sleeveCond = (item.condition?.sleeveCondition || '').trim().toUpperCase();
-        const combinedNotes = `${item.condition?.mediaDetails || ''} ${item.condition?.sleeveDetails || ''} ${item.garimpoDetails || ''} ${item.release?.notes || ''}`.toLowerCase();
-
-        if (garimpoSubFilter === 'under25' && price > 25) return false;
-        if (garimpoSubFilter === 'under40' && price > 40) return false;
-        if (garimpoSubFilter === 'under60' && price > 60) return false;
-        if (garimpoSubFilter === 'damaged') {
-          const isDamaged = ['G', 'G+', 'F', 'P', 'POOR', 'FAIR'].includes(mediaCond) || 
-                            ['G', 'G+', 'F', 'P', 'POOR', 'FAIR'].includes(sleeveCond) ||
-                            combinedNotes.includes('danificado') ||
-                            combinedNotes.includes('com detalhes') ||
-                            combinedNotes.includes('marcas') ||
-                            combinedNotes.includes('risco');
-          if (!isDamaged) return false;
-        }
+      // Tab Nativista / Música Gaúcha (RS)
+      if (activeMainTab === 'nativista') {
+        if (!isNativistaGauchoItem(item)) return false;
       }
 
       // Tab Exclusivos do Site / Discos Raros
@@ -402,10 +398,11 @@ export function PublicStorefront({
       if (sortBy === 'artist_asc') return (a.release.artist || '').localeCompare(b.release.artist || '');
       return (b.createdAt || '').localeCompare(a.createdAt || '');
     });
-  }, [listings, searchQuery, selectedGenre, selectedFormat, selectedCondition, conditionCategory, particularityFilter, garimpoSubFilter, sortBy, availabilityFilter, activeMainTab]);
+  }, [listings, searchQuery, selectedGenre, selectedFormat, selectedCondition, conditionCategory, particularityFilter, sortBy, availabilityFilter, activeMainTab]);
 
   const genresPills = [
     { id: 'all', label: '🔥 Todo o Acervo' },
+    { id: 'nativista', label: '🧉 Música Gaúcha (RS)' },
     { id: 'promocoes', label: '🏷️ Promoções (% OFF)' },
     { id: 'lotes', label: '📦 Lotes (4 Discos)' },
     { id: 'rap_hiphop', label: '🎤 Rap & Hip-Hop' },
@@ -648,291 +645,214 @@ export function PublicStorefront({
           </div>
         </div>
 
-        {/* 🌟 PRIMEIRO MENU: DIVISÃO ENTRE MÚSICA VENDIDA ONLINE E ARQUIVOS FÍSICOS DA LOJA */}
-        <div className="border-t border-b border-amber-900/20 bg-gradient-to-r from-amber-100/70 via-slate-100 to-indigo-100/70 py-2.5 px-3 sm:px-6 shadow-inner">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
-            
-            <div className="flex items-center gap-2 text-xs font-black text-slate-700 shrink-0 self-start md:self-center">
-              <span className="text-[10.5px] uppercase tracking-widest text-slate-600 bg-white/90 px-2.5 py-1 rounded-lg border border-slate-300 shadow-xs font-black flex items-center gap-1.5">
-                <Store className="h-3.5 w-3.5 text-amber-800" />
-                Menu Principal • Departamentos
-              </span>
-            </div>
-
-            {/* As 2 Divisões Principais da Loja */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full md:max-w-2xl">
-              {/* Divisão 1: Arquivos Físicos da Loja */}
+        {/* Categorias Principais - Menu Limpo, Direto e Focado em Vendas */}
+        <nav className="border-t border-b border-slate-200/80 bg-white/95 backdrop-blur-sm sticky top-0 z-30 shadow-xs">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Discos de Vinil */}
               <button
                 type="button"
                 onClick={() => {
-                  if (activeMainTab === 'musica_online' || activeMainTab === 'playlists') {
-                    setActiveMainTab('discos');
-                    setSelectedFormat('vinyl');
-                  }
+                  setActiveMainTab('discos');
+                  setSelectedFormat('vinyl');
                 }}
-                className={`relative p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 text-left ${
-                  activeMainTab !== 'musica_online' && activeMainTab !== 'playlists'
-                    ? 'bg-gradient-to-r from-amber-950 to-stone-900 text-white border-amber-800 shadow-md ring-2 ring-amber-500/50'
-                    : 'bg-white text-slate-800 border-slate-300 hover:border-amber-400 hover:bg-amber-50/60 shadow-xs'
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'discos'
+                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${
-                  activeMainTab !== 'musica_online' && activeMainTab !== 'playlists'
-                    ? 'bg-amber-800 text-amber-300 border border-amber-600/40 shadow-sm'
-                    : 'bg-amber-100 text-amber-900 border border-amber-200'
-                }`}>
-                  <Disc className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-black text-xs sm:text-sm uppercase tracking-tight">
-                      📦 Arquivos Físicos
-                    </span>
-                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
-                      activeMainTab !== 'musica_online' && activeMainTab !== 'playlists'
-                        ? 'bg-amber-400 text-amber-950'
-                        : 'bg-amber-200/80 text-amber-900'
-                    }`}>
-                      Mídia Física
-                    </span>
-                  </div>
-                  <p className={`text-[11px] truncate font-medium mt-0.5 ${
-                    activeMainTab !== 'musica_online' && activeMainTab !== 'playlists' ? 'text-amber-200/90' : 'text-slate-500'
-                  }`}>
-                    Discos de Vinil, CDs, DVDs, Garimpo & Camisetas
-                  </p>
-                </div>
+                <Disc className="h-3.5 w-3.5 text-amber-400" />
+                <span>Discos (Vinil)</span>
               </button>
 
-              {/* Divisão 2: Música Vendida Online */}
+              {/* CDs */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('cds');
+                  setSelectedFormat('cd');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'cds'
+                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-[11px]">💿</span>
+                <span>CDs</span>
+              </button>
+
+              {/* DVDs */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('dvds');
+                  setSelectedFormat('dvd');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'dvds'
+                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-[11px]">🎬</span>
+                <span>DVDs</span>
+              </button>
+
+              {/* Música Gaúcha (Nativista) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('nativista');
+                  setSelectedFormat('all');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'nativista'
+                    ? 'bg-emerald-800 text-white border-emerald-800 shadow-xs'
+                    : 'bg-emerald-50/80 text-emerald-950 border-emerald-200 hover:bg-emerald-100/70'
+                }`}
+              >
+                <span className="text-[12px]">🧉</span>
+                <span>Música Gaúcha</span>
+              </button>
+
+              {/* Lotes de Discos */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('lotes');
+                  setSelectedFormat('all');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'lotes'
+                    ? 'bg-slate-900 text-amber-300 border-slate-900 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <Package className="h-3.5 w-3.5 text-amber-500" />
+                <span>Lotes (4 Discos)</span>
+              </button>
+
+              {/* Promoções */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('promocoes');
+                  setSelectedFormat('all');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'promocoes'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                    : 'bg-rose-50/80 text-rose-950 border-rose-200 hover:bg-rose-100/70'
+                }`}
+              >
+                <Percent className="h-3.5 w-3.5 text-rose-600" />
+                <span>Promoções</span>
+              </button>
+
+              {/* Exclusivos do Site */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('exclusivos');
+                  setSelectedFormat('all');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'exclusivos'
+                    ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                    : 'bg-amber-50 text-amber-950 border-amber-200 hover:bg-amber-100/80'
+                }`}
+              >
+                <Star className="h-3.5 w-3.5 text-amber-600 fill-amber-600" />
+                <span>Exclusivos</span>
+              </button>
+
+              {/* Camisetas */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('tshirts');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  activeMainTab === 'tshirts'
+                    ? 'bg-amber-950 text-amber-200 border-amber-950 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <Shirt className="h-3.5 w-3.5 text-amber-600" />
+                <span>Camisetas</span>
+              </button>
+
+              {/* Música Digital */}
               <button
                 type="button"
                 onClick={() => {
                   setActiveMainTab('musica_online');
                 }}
-                className={`relative p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 text-left ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
                   activeMainTab === 'musica_online' || activeMainTab === 'playlists'
-                    ? 'bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white border-indigo-400 shadow-md ring-2 ring-indigo-400/50'
-                    : 'bg-white text-slate-800 border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/60 shadow-xs'
+                    ? 'bg-indigo-900 text-white border-indigo-900 shadow-xs'
+                    : 'bg-indigo-50/80 text-indigo-950 border-indigo-200 hover:bg-indigo-100/70'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${
-                  activeMainTab === 'musica_online' || activeMainTab === 'playlists'
-                    ? 'bg-indigo-800 text-amber-300 border border-indigo-600/40 shadow-sm'
-                    : 'bg-indigo-100 text-indigo-900 border border-indigo-200'
-                }`}>
-                  <Headphones className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-black text-xs sm:text-sm uppercase tracking-tight">
-                      🎧 Música Vendida Online
-                    </span>
-                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
-                      activeMainTab === 'musica_online' || activeMainTab === 'playlists'
-                        ? 'bg-emerald-400 text-slate-950 font-black'
-                        : 'bg-indigo-200/80 text-indigo-950'
-                    }`}>
-                      Download Imediato
-                    </span>
-                  </div>
-                  <p className={`text-[11px] truncate font-medium mt-0.5 ${
-                    activeMainTab === 'musica_online' || activeMainTab === 'playlists' ? 'text-indigo-200/90' : 'text-slate-500'
-                  }`}>
-                    Hi-Res Lossless (FLAC/WAV/MP3) & Streaming
-                  </p>
-                </div>
+                <Headphones className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Música Digital</span>
               </button>
             </div>
 
+            {/* Link Sobre a Loja */}
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto pl-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMainTab('about');
+                }}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
+                  activeMainTab === 'about'
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <Info className="h-3 w-3 text-slate-400" />
+                <span>Sobre</span>
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Sub-menu Contextual Adaptativo de Acordo com o Departamento Selecionado */}
-        <div className="border-t border-slate-100 bg-[#fdfcfb]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-            
-            {/* SE ESTIVER EM ARQUIVOS FÍSICOS */}
-            {activeMainTab !== 'musica_online' && activeMainTab !== 'playlists' ? (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-900/60 mr-1 hidden sm:inline">
-                  Formatos Físicos:
-                </span>
-                
-                {/* Discos */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMainTab('discos');
-                    setSelectedFormat('vinyl');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                    activeMainTab === 'discos'
-                      ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
-                      : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
-                  }`}
-                >
-                  <Disc className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Discos (Vinil)</span>
-                </button>
-
-                {/* CDs */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMainTab('cds');
-                    setSelectedFormat('cd');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                    activeMainTab === 'cds'
-                      ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
-                      : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="text-[11px]">💿</span>
-                  <span>CDs</span>
-                </button>
-
-                {/* DVDs */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMainTab('dvds');
-                    setSelectedFormat('dvd');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                    activeMainTab === 'dvds'
-                      ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-700/50'
-                      : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="text-[11px]">🎬</span>
-                  <span>DVDs</span>
-                </button>
-
-                {/* 📦 Lotes & Combos (4 Discos) */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMainTab('lotes');
-                    setSelectedFormat('all');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                    activeMainTab === 'lotes'
-                      ? 'bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-amber-300 border-indigo-700 shadow-xs ring-1 ring-amber-400/50'
-                      : 'bg-indigo-50/90 text-indigo-950 border-indigo-200/90 hover:bg-indigo-100/90'
-                  }`}
-                >
-                  <Package className="h-3.5 w-3.5 text-amber-500" />
-                  <span>📦 Lotes (4 Discos)</span>
-                </button>
-
-                {/* 🔥 Promoções & Bônus (% OFF) */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMainTab('promocoes');
-                    setSelectedFormat('all');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                    activeMainTab === 'promocoes'
-                      ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white border-rose-600 shadow-xs ring-1 ring-rose-300'
-                      : 'bg-rose-50/90 text-rose-950 border-rose-200/90 hover:bg-rose-100/90'
-                  }`}
-                >
-                  <Percent className="h-3.5 w-3.5 text-rose-600" />
-                  <span>🏷️ Promoções (% OFF)</span>
-                </button>
-
-                {/* Sessão Garimpo */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMainTab('garimpo');
-                    setSelectedFormat('all');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                    activeMainTab === 'garimpo'
-                      ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white border-orange-600 shadow-xs ring-1 ring-orange-400/50'
-                      : 'bg-orange-50/90 text-orange-950 border-orange-200/90 hover:bg-orange-100/80'
-                  }`}
-                >
-                  <Flame className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
-                  <span>Sessão Garimpo</span>
-                </button>
-
-                {/* ⭐ Exclusivos do Site / Discos Raros */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMainTab('exclusivos');
-                    setSelectedFormat('all');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                    activeMainTab === 'exclusivos'
-                      ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 text-slate-950 border-amber-400 shadow-xs ring-1 ring-yellow-400'
-                      : 'bg-amber-50/80 text-amber-950 border-amber-200/90 hover:bg-amber-100/90'
-                  }`}
-                >
-                  <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                  <span>⭐ Exclusivos do Site</span>
-                </button>
-
-                {/* Camisetas */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMainTab('tshirts');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                    activeMainTab === 'tshirts'
-                      ? 'bg-amber-950 text-amber-200 border-amber-950 shadow-xs ring-1 ring-amber-500/50'
-                      : 'bg-amber-50 text-amber-950 border-amber-300/80 hover:bg-amber-100'
-                  }`}
-                >
-                  <Shirt className="h-3.5 w-3.5 text-amber-600" />
-                  <span>Camisetas (DTF)</span>
-                </button>
-              </div>
-            ) : (
-              /* SE ESTIVER EM MÚSICA VENDIDA ONLINE */
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900/60 mr-1 hidden sm:inline">
-                  Formatos Digitais:
-                </span>
-
+          {/* Sub-menu minimalista quando estiver em Música Digital */}
+          {(activeMainTab === 'musica_online' || activeMainTab === 'playlists') && (
+            <div className="border-t border-indigo-100 bg-indigo-50/50 px-3 sm:px-6 py-1.5">
+              <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto no-scrollbar">
+                <span className="text-[11px] font-bold text-indigo-900/70 shrink-0">Opções Digitais:</span>
                 <button
                   type="button"
                   onClick={() => {
                     setActiveMainTab('musica_online');
                     setOnlineMusicSubTab('digital');
                   }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     activeMainTab === 'musica_online' && onlineMusicSubTab === 'digital'
-                      ? 'bg-indigo-900 text-white border-indigo-900 shadow-xs ring-1 ring-indigo-400/50'
-                      : 'bg-white text-indigo-950 border-indigo-200 hover:bg-indigo-50'
+                      ? 'bg-indigo-900 text-white shadow-xs'
+                      : 'bg-white text-indigo-950 border border-indigo-200 hover:bg-indigo-50'
                   }`}
                 >
-                  <Disc className="h-3.5 w-3.5 text-indigo-400" />
-                  <span>Downloads Hi-Res & Player (FLAC / WAV / MP3)</span>
+                  Downloads (FLAC / MP3)
                 </button>
-
                 <button
                   type="button"
                   onClick={() => {
                     setActiveMainTab('musica_online');
                     setOnlineMusicSubTab('streaming');
                   }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     activeMainTab === 'musica_online' && onlineMusicSubTab === 'streaming'
-                      ? 'bg-indigo-900 text-white border-indigo-900 shadow-xs ring-1 ring-indigo-400/50'
-                      : 'bg-white text-indigo-950 border-indigo-200 hover:bg-indigo-50'
+                      ? 'bg-indigo-900 text-white shadow-xs'
+                      : 'bg-white text-indigo-950 border border-indigo-200 hover:bg-indigo-50'
                   }`}
                 >
-                  <Radio className="h-3.5 w-3.5 text-red-500" />
-                  <span>Playlists YouTube & Spotify</span>
+                  Playlists Spotify & YouTube
                 </button>
-
                 {playlists.length > 0 && (
                   <button
                     type="button"
@@ -940,63 +860,25 @@ export function PublicStorefront({
                       setActiveMainTab('musica_online');
                       setOnlineMusicSubTab('dj_sets');
                     }}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       activeMainTab === 'musica_online' && onlineMusicSubTab === 'dj_sets'
-                        ? 'bg-indigo-900 text-white border-indigo-900 shadow-xs ring-1 ring-indigo-400/50'
-                        : 'bg-white text-indigo-950 border-indigo-200 hover:bg-indigo-50'
+                        ? 'bg-indigo-900 text-white shadow-xs'
+                        : 'bg-white text-indigo-950 border border-indigo-200 hover:bg-indigo-50'
                     }`}
                   >
-                    <Music className="h-3.5 w-3.5 text-amber-600" />
-                    <span>Sets dos DJs ({playlists.length})</span>
+                    Sets de DJs ({playlists.length})
                   </button>
                 )}
               </div>
-            )}
-
-            {/* Secondary / Utility Tabs */}
-            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-              {activeMainTab !== 'musica_online' && activeMainTab !== 'playlists' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMainTab('highlights');
-                    setSelectedFormat('all');
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
-                    activeMainTab === 'highlights'
-                      ? 'bg-amber-800 text-white border-amber-800 shadow-xs'
-                      : 'bg-white text-amber-900 border-amber-200 hover:bg-amber-50'
-                  }`}
-                >
-                  <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-                  <span>Raridades</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveMainTab('about');
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
-                  activeMainTab === 'about'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <Info className="h-3 w-3 text-slate-400" />
-                <span>Sobre a Loja</span>
-              </button>
             </div>
+          )}
+        </nav>
 
-          </div>
-        </div>
-
-        {/* Music Genre Filter Strip (Only shown when browsing music items, never on tshirts) */}
-        {(activeMainTab === 'discos' || activeMainTab === 'cds' || activeMainTab === 'dvds' || activeMainTab === 'garimpo' || activeMainTab === 'exclusivos' || activeMainTab === 'highlights' || activeMainTab === 'lotes' || activeMainTab === 'promocoes') && (
-          <div className="border-t border-slate-100 bg-white">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
+        {/* Music Genre Filter Strip */}
+        {(activeMainTab === 'discos' || activeMainTab === 'cds' || activeMainTab === 'dvds' || activeMainTab === 'nativista' || activeMainTab === 'exclusivos' || activeMainTab === 'highlights' || activeMainTab === 'lotes' || activeMainTab === 'promocoes') && (
+          <div className="border-t border-slate-100 bg-slate-50/70 py-1.5 px-3 sm:px-6">
+            <div className="max-w-7xl mx-auto flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline shrink-0">
                 Gênero:
               </span>
               {genresPills.map(g => (
@@ -1004,10 +886,10 @@ export function PublicStorefront({
                   key={g.id}
                   type="button"
                   onClick={() => setSelectedGenre(g.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
                     selectedGenre === g.id
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                      : 'bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-slate-100'
+                      ? 'bg-amber-700 text-white border-amber-700 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
                   {g.label}
@@ -1023,150 +905,77 @@ export function PublicStorefront({
         
         {/* Curated Hero Spotlight (if not searching and on Discos tab) */}
         {!searchQuery && activeMainTab === 'discos' && selectedGenre === 'all' && (
-          <div className="bg-gradient-to-br from-[#0c232a] via-[#163840] to-[#b3431f] text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-teal-900/40 relative overflow-hidden">
-            {/* Background Vinyl Graphic Rings */}
-            <div className="absolute right-0 top-0 bottom-0 w-full lg:w-1/2 opacity-15 pointer-events-none flex items-center justify-end pr-4 sm:pr-12">
-              <div className="w-96 h-96 rounded-full border-[18px] border-amber-400/40 border-dashed animate-spin" style={{ animationDuration: '45s' }} />
-            </div>
-
-            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              {/* Text & Pitch */}
-              <div className="lg:col-span-8 space-y-3.5">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-xs font-bold shadow-xs">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Curadoria Especializada & Envio para Todo o Brasil</span>
+          <div className="bg-gradient-to-r from-[#0c232a] via-[#163840] to-[#8c3518] text-white rounded-2xl p-4 sm:p-5 shadow-md border border-teal-900/40 relative overflow-hidden">
+            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="space-y-1.5 text-center sm:text-left">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-xs font-bold shadow-xs">
+                  <Sparkles className="h-3 w-3 text-amber-400" />
+                  <span>Curadoria Valdir Discos</span>
                 </div>
                 
-                <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight font-sans">
-                  O melhor do vinil, do clássico ao obscuro.
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight font-sans">
+                  Discos de Vinil Originais & Higienizados
                 </h2>
                 
-                <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium max-w-xl">
-                  Compre direto com quem ama e entende de música. Todos os discos são criteriosamente avaliados no padrão internacional Goldmine, higienizados e testados em toca-discos.
+                <p className="text-xs text-slate-200/90 leading-relaxed font-medium max-w-xl">
+                  Avaliados no padrão internacional Goldmine, testados e com envio seguro para todo o Brasil.
                 </p>
 
-                {/* Slogan pill from official badge */}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="px-3 py-1 bg-black/40 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-serif italic font-black">
-                    ★ Disco é cultura.
-                  </span>
-                  <span className="px-2.5 py-1 bg-white/10 text-slate-200 rounded-xl text-xs font-semibold">
-                    Acervo Físico & Online
-                  </span>
-                  <span className="px-2.5 py-1 bg-white/10 text-slate-200 rounded-xl text-xs font-semibold">
-                    100% Higienizados
-                  </span>
-                </div>
-
-                <div className="pt-2 flex flex-wrap items-center gap-3">
+                <div className="pt-1 flex items-center justify-center sm:justify-start gap-3">
                   <a
                     href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent('Olá Valdir! Gostaria de consultar um disco no catálogo online.')}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg shadow-emerald-950/40 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
-                    <MessageCircle className="h-4 w-4" />
-                    <span>Falar com o Valdir no WhatsApp</span>
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    <span>WhatsApp do Valdir</span>
                   </a>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveMainTab('tshirts')}
-                    className="px-3.5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Shirt className="h-4 w-4 text-amber-400" />
-                    <span>Conheça as Camisetas Oficiais (DTF)</span>
-                  </button>
-
-                  <span className="text-xs text-slate-300 font-medium hidden sm:inline">
-                    Monte seu carrinho e faça seu pedido direto
+                  <span className="text-xs text-amber-300/80 font-serif italic font-bold">
+                    ★ Disco é cultura
                   </span>
                 </div>
               </div>
 
-              {/* Logo Emblem Badge Visual Artwork */}
-              <div className="lg:col-span-4 flex flex-col items-center justify-center">
-                <div className="relative group">
-                  <div className="absolute -inset-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-full blur-lg opacity-40 group-hover:opacity-75 transition duration-500" />
-                  <div className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full p-1.5 bg-[#fdfcf9] shadow-2xl border-4 border-amber-400/80 flex items-center justify-center overflow-hidden">
-                    <img 
-                      src={logoBadge} 
-                      alt="Valdir Discos - Disco é cultura" 
-                      className="w-full h-full object-contain rounded-full hover:rotate-6 transition-transform duration-500"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        e.currentTarget.src = "/valdir-logo-badge.jpg";
-                      }}
-                    />
-                  </div>
+              {/* Logo Emblem Badge Compact */}
+              <div className="hidden sm:flex items-center justify-center shrink-0">
+                <div className="w-20 h-20 rounded-full p-1 bg-white/95 shadow-md border-2 border-amber-400 overflow-hidden">
+                  <img 
+                    src={logoBadge} 
+                    alt="Valdir Discos" 
+                    className="w-full h-full object-contain rounded-full"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.src = "/valdir-logo-badge.jpg";
+                    }}
+                  />
                 </div>
-                <span className="text-[11px] font-bold text-amber-200 mt-2 font-serif italic text-center">
-                  Selo Oficial Valdir Discos
-                </span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Garimpo Spotlight Banner (when on Garimpo tab and not searching) */}
-        {!searchQuery && activeMainTab === 'garimpo' && (
-          <div className="bg-gradient-to-br from-[#2a1306] via-[#4d1f0d] to-[#9c3614] text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-orange-900/50 relative overflow-hidden">
-            {/* Background elements */}
-            <div className="absolute right-0 top-0 bottom-0 w-full lg:w-1/2 opacity-15 pointer-events-none flex items-center justify-end pr-6">
-              <div className="w-80 h-80 rounded-full border-[14px] border-orange-400/40 border-dashed animate-spin" style={{ animationDuration: '60s' }} />
-            </div>
-
-            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              <div className="lg:col-span-8 space-y-3.5">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/25 text-orange-200 border border-orange-400/30 text-xs font-black shadow-xs uppercase tracking-wide">
-                  <Flame className="h-4 w-4 text-orange-400 fill-orange-400" />
-                  <span>Sessão Garimpo & Oportunidades</span>
+        {/* Nativista & Música Gaúcha Spotlight Banner (when on Nativista tab and not searching) */}
+        {!searchQuery && activeMainTab === 'nativista' && (
+          <div className="bg-gradient-to-r from-[#062419] via-[#0d3b2a] to-[#14532d] text-white rounded-2xl p-4 sm:p-5 shadow-md border border-emerald-600/40 relative overflow-hidden">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/25 text-emerald-200 border border-emerald-400/30 text-xs font-bold uppercase tracking-wide">
+                  <span>🧉</span>
+                  <span>Música Gaúcha & Festivais</span>
                 </div>
                 
-                <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight font-sans">
-                  Achados, pechinchas e oportunidades para garimpar.
+                <h2 className="text-lg sm:text-xl font-black text-white leading-tight">
+                  Cancioneiro Gaúcho, Milongas e Tradição Nativista
                 </h2>
                 
-                <p className="text-xs sm:text-sm text-orange-100/90 leading-relaxed font-medium max-w-xl">
-                  Aqui você encontra discos e mídias de menor valor de mercado, títulos com preços populares e edições especiais com marcas de época ou detalhes físicos descritos. A oportunidade perfeita para expandir seu acervo pagando pouco!
+                <p className="text-xs text-emerald-100/90 font-medium max-w-xl">
+                  Discos de música regional do Rio Grande do Sul, festivais nativistas, milongas e chamamés em prensagens originais.
                 </p>
-
-                {/* Sub-filters for Garimpo */}
-                <div className="pt-2 flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-bold text-orange-200/80 mr-1 block sm:inline">Filtrar Achados:</span>
-                  {[
-                    { id: 'all', label: '🔥 Todos do Garimpo' },
-                    { id: 'under25', label: '🏷️ Até R$ 25' },
-                    { id: 'under40', label: '💰 Até R$ 40' },
-                    { id: 'under60', label: '📦 Até R$ 60' },
-                    { id: 'damaged', label: '🔍 Com Detalhes / Marcas' },
-                  ].map(chip => (
-                    <button
-                      key={chip.id}
-                      type="button"
-                      onClick={() => setGarimpoSubFilter(chip.id as any)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border flex items-center gap-1 ${
-                        garimpoSubFilter === chip.id
-                          ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md scale-105'
-                          : 'bg-black/30 text-orange-100 border-orange-500/30 hover:bg-black/45'
-                      }`}
-                    >
-                      <span>{chip.label}</span>
-                    </button>
-                  ))}
-                </div>
               </div>
 
-              <div className="lg:col-span-4 flex flex-col items-center justify-center">
-                <div className="p-5 bg-black/40 border border-orange-500/30 rounded-3xl text-center space-y-2 backdrop-blur-sm">
-                  <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-lg">
-                    <Flame className="h-8 w-8 fill-white" />
-                  </div>
-                  <h3 className="text-base font-black text-white">Garimpo Transparente</h3>
-                  <p className="text-[11px] text-orange-200/80 leading-snug">
-                    Todas as condições e detalhes visuais são informados com clareza. Você sabe exatamente o estado de cada exemplar!
-                  </p>
-                </div>
+              <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-emerald-950/60 border border-emerald-500/30 items-center justify-center text-2xl shrink-0">
+                🧉
               </div>
             </div>
           </div>
@@ -1174,48 +983,25 @@ export function PublicStorefront({
 
         {/* Exclusivos do Site Spotlight Banner (when on Exclusivos tab and not searching) */}
         {!searchQuery && activeMainTab === 'exclusivos' && (
-          <div className="bg-gradient-to-br from-[#1c160c] via-[#2f220f] to-[#453213] text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-amber-500/40 relative overflow-hidden">
-            <div className="absolute right-0 top-0 bottom-0 w-full lg:w-1/2 opacity-15 pointer-events-none flex items-center justify-end pr-6">
-              <div className="w-80 h-80 rounded-full border-[14px] border-amber-300/40 border-dashed animate-spin" style={{ animationDuration: '80s' }} />
-            </div>
-
-            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              <div className="lg:col-span-8 space-y-3.5">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-xs font-black shadow-xs uppercase tracking-wide">
-                  <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
-                  <span>Discos Raros • Exclusividade da Loja Online</span>
+          <div className="bg-gradient-to-r from-[#1c160c] via-[#2f220f] to-[#453213] text-white rounded-2xl p-4 sm:p-5 shadow-md border border-amber-500/40 relative overflow-hidden">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-xs font-bold uppercase tracking-wide">
+                  <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                  <span>Raridades & Edições Especiais</span>
                 </div>
                 
-                <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight font-sans">
-                  ⭐ Acervo de Raridades Vendidas Exclusivamente pelo Site.
+                <h2 className="text-lg sm:text-xl font-black text-white leading-tight">
+                  Acervo Selecionado Exclusivo do Site
                 </h2>
                 
-                <p className="text-xs sm:text-sm text-amber-100/90 leading-relaxed font-medium max-w-xl">
-                  Discos de vinil raros, primeiras prensagens originais, edições históricas para colecionadores e tiragens especiais selecionadas pelo Valdir para venda exclusiva através do nosso site oficial.
+                <p className="text-xs text-amber-100/90 font-medium max-w-xl">
+                  Discos de vinil raros, primeiras prensagens e tiragens históricas selecionadas pelo Valdir.
                 </p>
-
-                <div className="pt-2 flex items-center gap-3 text-xs text-amber-200">
-                  <span className="flex items-center gap-1 font-bold">
-                    <CheckCircle2 className="h-4 w-4 text-amber-400" />
-                    Higienizados & Plásticos Novos
-                  </span>
-                  <span className="flex items-center gap-1 font-bold">
-                    <CheckCircle2 className="h-4 w-4 text-amber-400" />
-                    Envio Seguro com Embalagem Reforçada
-                  </span>
-                </div>
               </div>
 
-              <div className="lg:col-span-4 flex flex-col items-center justify-center">
-                <div className="p-5 bg-black/40 border border-amber-500/30 rounded-3xl text-center space-y-2 backdrop-blur-sm">
-                  <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 flex items-center justify-center shadow-lg">
-                    <Star className="h-8 w-8 fill-slate-950" />
-                  </div>
-                  <h3 className="text-base font-black text-white">Exemplares Selecionados</h3>
-                  <p className="text-[11px] text-amber-200/80 leading-snug">
-                    Títulos de alto valor histórico e colecionável que não estão à venda em balcão ou marketplaces externos.
-                  </p>
-                </div>
+              <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-amber-950/60 border border-amber-500/30 items-center justify-center text-amber-300 shrink-0">
+                <Star className="h-6 w-6 fill-amber-400" />
               </div>
             </div>
           </div>
@@ -1403,96 +1189,38 @@ export function PublicStorefront({
           </div>
         ) : (
           <>
-            {/* Official Marketplaces Quick Bar */}
-            <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 text-xs w-full md:w-auto">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-800 border border-amber-500/30 flex items-center justify-center font-bold shrink-0">
-                  <Store className="h-4 w-4 text-amber-800" />
-                </div>
-                <div>
-                  <h4 className="font-black text-slate-900 text-xs sm:text-sm">Lojas Oficiais nos Marketplaces</h4>
-                  <p className="text-[11px] text-slate-500">Compre com frete reduzido ou cupons exclusivos do seu app favorito</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-start md:justify-end">
-                <a
-                  href={OFFICIAL_MARKETPLACE_LINKS.shopee.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl text-xs font-black bg-orange-50 text-[#ee4d2d] hover:bg-[#ee4d2d] hover:text-white border border-orange-200 hover:border-[#ee4d2d] transition-all flex items-center gap-1.5 shadow-xs"
-                >
-                  <ShoppingBag className="h-3.5 w-3.5" />
-                  <span>Shopee Oficial</span>
-                  <ExternalLink className="h-3 w-3 opacity-60" />
-                </a>
-
-                <a
-                  href={OFFICIAL_MARKETPLACE_LINKS.mercadolivre.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl text-xs font-black bg-yellow-50 text-slate-900 hover:bg-[#ffe600] border border-yellow-200 hover:border-yellow-400 transition-all flex items-center gap-1.5 shadow-xs"
-                >
-                  <Store className="h-3.5 w-3.5 text-amber-600" />
-                  <span>Mercado Livre</span>
-                  <ExternalLink className="h-3 w-3 opacity-60" />
-                </a>
-
-                <a
-                  href={OFFICIAL_MARKETPLACE_LINKS.discogs.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl text-xs font-black bg-slate-900 text-white hover:bg-slate-800 border border-slate-700 transition-all flex items-center gap-1.5 shadow-xs"
-                >
-                  <Disc className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Discogs Global</span>
-                  <ExternalLink className="h-3 w-3 opacity-60" />
-                </a>
-              </div>
-            </div>
-
-            {/* Filter and Sorting Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+            {/* Filter and Sorting Toolbar - Limpo, Direto e Focado no Produto */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black text-slate-800">
-                  {filteredListings.length} {
-                    activeMainTab === 'garimpo'
-                      ? (filteredListings.length === 1 ? 'item no garimpo' : 'itens no garimpo')
-                      : activeMainTab === 'exclusivos'
-                      ? (filteredListings.length === 1 ? 'raridade exclusiva' : 'raridades exclusivas do site')
-                      : activeMainTab === 'cds'
-                      ? (filteredListings.length === 1 ? 'CD encontrado' : 'CDs no acervo')
-                      : activeMainTab === 'dvds'
-                      ? (filteredListings.length === 1 ? 'DVD encontrado' : 'DVDs no acervo')
-                      : (filteredListings.length === 1 ? 'disco encontrado' : 'discos no acervo')
-                  }
+                <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg">
+                  {filteredListings.length} {filteredListings.length === 1 ? 'item' : 'itens'}
                 </span>
 
                 {/* Format Filter */}
                 <select
                   value={selectedFormat}
                   onChange={(e) => setSelectedFormat(e.target.value)}
-                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden"
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden cursor-pointer"
                 >
                   {activeMainTab === 'discos' ? (
                     <>
-                      <option value="vinyl">Todos os Discos de Vinil</option>
-                      <option value="lp">Apenas LPs 12"</option>
-                      <option value="single">Apenas Compactos 7"</option>
-                      <option value="vinyl_10">Apenas Vinil 10"</option>
+                      <option value="vinyl">Vinis: Todos</option>
+                      <option value="lp">LPs 12"</option>
+                      <option value="single">Compactos 7"</option>
+                      <option value="vinyl_10">Vinil 10"</option>
                     </>
                   ) : activeMainTab === 'cds' ? (
                     <>
-                      <option value="cd">Todos os CDs (Compact Disc)</option>
+                      <option value="cd">CDs: Todos</option>
                     </>
                   ) : activeMainTab === 'dvds' ? (
                     <>
-                      <option value="dvd">Todos os DVDs de Shows/Música</option>
+                      <option value="dvd">DVDs: Todos</option>
                     </>
                   ) : (
                     <>
-                      <option value="all">Todos os Formatos</option>
-                      <option value="vinyl">Discos de Vinil (LP / Compacto)</option>
+                      <option value="all">Formato: Todos</option>
+                      <option value="vinyl">Discos de Vinil</option>
                       <option value="cd">CDs</option>
                       <option value="dvd">DVDs</option>
                     </>
@@ -1503,11 +1231,11 @@ export function PublicStorefront({
                 <select
                   value={availabilityFilter}
                   onChange={(e) => setAvailabilityFilter(e.target.value as any)}
-                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-bold text-slate-800 focus:outline-hidden"
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-bold text-slate-800 focus:outline-hidden cursor-pointer"
                 >
-                  <option value="all">📦 Todos (Disponíveis e Vendidos)</option>
-                  <option value="available">🟢 Apenas Disponíveis</option>
-                  <option value="sold">🔴 Apenas Vendidos (Histórico)</option>
+                  <option value="all">Todos</option>
+                  <option value="available">🟢 Disponíveis</option>
+                  <option value="sold">🔴 Vendidos</option>
                 </select>
 
                 {/* Condition Filter */}
@@ -1529,11 +1257,11 @@ export function PublicStorefront({
                       setSelectedCondition(val);
                     }
                   }}
-                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden"
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden cursor-pointer"
                 >
-                  <option value="all">Todas as Condições</option>
-                  <option value="new">✨ Apenas Novos & Lacrados</option>
-                  <option value="nm_plus">Near Mint / Mint</option>
+                  <option value="all">Condição: Todas</option>
+                  <option value="new">Novos / Lacrados</option>
+                  <option value="nm_plus">Near Mint (NM)</option>
                   <option value="vg_plus">VG+ ou superior</option>
                 </select>
 
@@ -1541,29 +1269,89 @@ export function PublicStorefront({
                 <select
                   value={particularityFilter}
                   onChange={(e) => setParticularityFilter(e.target.value as any)}
-                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden"
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden cursor-pointer"
                 >
-                  <option value="all">📦 Todas as Edições</option>
-                  <option value="double">💿 Álbuns Duplos (2xLP/2xCD)</option>
-                  <option value="box">📦 Box Sets & Caixas</option>
-                  <option value="gatefold">📖 Capa Dupla (Gatefold)</option>
-                  <option value="special">✨ Edições Especiais & Deluxe</option>
+                  <option value="all">Edição: Todas</option>
+                  <option value="double">Álbuns Duplos</option>
+                  <option value="box">Box Sets</option>
+                  <option value="gatefold">Capa Dupla</option>
+                  <option value="special">Edição Especial</option>
                 </select>
               </div>
 
-              {/* Sorting */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 font-medium hidden sm:inline">Ordenar por:</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-bold text-slate-800 focus:outline-hidden"
-                >
-                  <option value="newest">🔥 Mais Recentes</option>
-                  <option value="price_asc">💰 Menor Preço</option>
-                  <option value="price_desc">💎 Maior Preço</option>
-                  <option value="artist_asc">🔤 Artista (A-Z)</option>
-                </select>
+              {/* Sorting & View Mode Controls */}
+              <div className="flex items-center gap-2 flex-wrap self-end sm:self-center">
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="newest">🔥 Mais Recentes</option>
+                    <option value="price_asc">💰 Menor Preço</option>
+                    <option value="price_desc">💎 Maior Preço</option>
+                    <option value="artist_asc">🔤 Artista (A-Z)</option>
+                  </select>
+                </div>
+
+                {/* View Mode Switcher */}
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => handleStoreViewModeChange('grid')}
+                    className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      storeViewMode === 'grid'
+                        ? 'bg-white text-slate-950 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Modo Grade Vitrine"
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                    <span className="text-[10px] hidden md:inline">Grade</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStoreViewModeChange('compact')}
+                    className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      storeViewMode === 'compact'
+                        ? 'bg-white text-slate-950 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Modo Grade Compacta"
+                  >
+                    <Grid3X3 className="h-3.5 w-3.5" />
+                    <span className="text-[10px] hidden md:inline">Compacto</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStoreViewModeChange('list')}
+                    className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      storeViewMode === 'list'
+                        ? 'bg-white text-slate-950 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Modo Lista Detalhada"
+                  >
+                    <List className="h-3.5 w-3.5" />
+                    <span className="text-[10px] hidden md:inline">Lista</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStoreViewModeChange('table_no_photos')}
+                    className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      storeViewMode === 'table_no_photos'
+                        ? 'bg-white text-slate-950 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Modo Tabela Rápida"
+                  >
+                    <Table className="h-3.5 w-3.5" />
+                    <span className="text-[10px] hidden md:inline">Tabela</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1610,8 +1398,148 @@ export function PublicStorefront({
                   Limpar Todos os Filtros
                 </button>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+            ) : storeViewMode === 'table_no_photos' ? (
+              /* Modo Tabela de Consulta Rápida */
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/90 text-slate-600 border-b border-slate-200 text-[11px] uppercase tracking-wider font-black">
+                        <th className="py-3 px-3 w-12 text-center">Capa</th>
+                        <th className="py-3 px-3">Título & Artista</th>
+                        <th className="py-3 px-3 w-28">Formato</th>
+                        <th className="py-3 px-3 w-24">Condição</th>
+                        <th className="py-3 px-3 w-28">Gênero</th>
+                        <th className="py-3 px-3 w-28 text-right">Preço</th>
+                        <th className="py-3 px-3 w-24 text-center">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {filteredListings.map((item) => {
+                        const { release, condition, pricing } = item;
+                        const price = pricing?.directPrice || pricing?.basePriceBrl || 0;
+                        const cover = (item.customImages && item.customImages.length > 0 && item.customImages[0]) || release.coverImage;
+                        const formatInfo = getListingFormatInfo(item);
+                        const conditionInfo = getItemConditionInfo(item);
+                        const isPromo = !!(item.promoActive || pricing?.promoActive || (item.discountPercent && item.discountPercent > 0));
+                        const discountPercent = item.discountPercent || pricing?.discountPercent || 15;
+                        const origPrice = item.originalPrice || pricing?.originalPrice || (isPromo && discountPercent > 0 ? Math.round(price / (1 - discountPercent / 100)) : price);
+                        const isOutOfStock = !item.salesChannels || item.salesChannels.length === 0 || (item.salesChannels.length === 1 && item.salesChannels[0] === 'none');
+                        const isSoldOrUnavailable = item.status === 'sold' || isOutOfStock;
+                        const isNativista = isNativistaGauchoItem(item);
+
+                        return (
+                          <tr 
+                            key={item.id}
+                            className={`hover:bg-amber-50/40 transition-colors cursor-pointer ${
+                              isSoldOrUnavailable ? 'opacity-60 bg-slate-50/60' : ''
+                            }`}
+                            onClick={() => setSelectedProduct(item)}
+                          >
+                            <td className="py-2 px-3 text-center">
+                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 mx-auto relative shrink-0 border border-slate-200">
+                                {cover ? (
+                                  <img 
+                                    src={cover} 
+                                    alt={release.title} 
+                                    className="w-full h-full object-cover" 
+                                    loading="lazy" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <Disc className="w-5 h-5 text-slate-400 m-auto mt-2.5" />
+                                )}
+                                {isSoldOrUnavailable && (
+                                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                    <span className="text-[7px] text-white font-black uppercase">Esgotado</span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-bold text-slate-900 line-clamp-1">{release.title}</div>
+                              <div className="text-[11px] text-amber-800 font-semibold line-clamp-1 flex items-center gap-1.5">
+                                <span>{release.artist}</span>
+                                {release.year && <span className="text-slate-400 font-normal font-mono text-[10px]">({release.year})</span>}
+                                {isNativista && (
+                                  <span className="px-1 py-0.2 rounded text-[8px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    🧉 Nativista
+                                  </span>
+                                )}
+                                {item.isLote && (
+                                  <span className="px-1 py-0.2 rounded text-[8px] font-black bg-indigo-100 text-indigo-800 border border-indigo-300">
+                                    Lote {item.loteItemCount || 4}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase inline-block ${formatInfo.badgeBg}`}>
+                                {formatInfo.badgeLabel}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {conditionInfo.isNew ? (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-600 text-white uppercase">
+                                  Novo
+                                </span>
+                              ) : condition?.mediaCondition ? (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-slate-800 text-slate-100 uppercase">
+                                  {condition.mediaCondition}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">-</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-[120px]">
+                              {release.genres?.[0] || release.styles?.[0] || 'Geral'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              {isPromo && origPrice > price && (
+                                <div className="text-[9px] line-through text-slate-400 font-mono font-bold">
+                                  R$ {origPrice.toFixed(2)}
+                                </div>
+                              )}
+                              <span className={`font-mono font-black ${
+                                isSoldOrUnavailable 
+                                  ? 'text-slate-500 line-through' 
+                                  : isPromo 
+                                  ? 'text-rose-600' 
+                                  : 'text-slate-900'
+                              }`}>
+                                R$ {price.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              {isSoldOrUnavailable ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedProduct(item)}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold border border-slate-300 cursor-pointer"
+                                >
+                                  Esgotado
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddToCart(item)}
+                                  className="p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-all cursor-pointer shadow-xs active:scale-95 inline-flex items-center justify-center"
+                                  title="Adicionar ao Carrinho"
+                                >
+                                  <ShoppingBag className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : storeViewMode === 'list' ? (
+              /* Modo Lista Detalhada */
+              <div className="flex flex-col gap-3">
                 {filteredListings.map((item) => {
                   const { release, condition, pricing } = item;
                   const price = pricing?.directPrice || pricing?.basePriceBrl || 0;
@@ -1624,6 +1552,223 @@ export function PublicStorefront({
                   const origPrice = item.originalPrice || pricing?.originalPrice || (isPromo && discountPercent > 0 ? Math.round(price / (1 - discountPercent / 100)) : price);
                   const promoBadge = item.promoBadge || pricing?.promoBadge || `${discountPercent}% OFF`;
                   const bonusText = item.bonusDescription || pricing?.bonusDescription;
+                  const isOutOfStock = !item.salesChannels || item.salesChannels.length === 0 || (item.salesChannels.length === 1 && item.salesChannels[0] === 'none');
+                  const isSoldOrUnavailable = item.status === 'sold' || isOutOfStock;
+                  const isNativista = isNativistaGauchoItem(item);
+
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col sm:flex-row items-stretch overflow-hidden group hover:border-amber-400/60 p-3 sm:p-4 gap-3.5"
+                    >
+                      {/* Left: Cover Thumbnail with Minimal Badges */}
+                      <div 
+                        onClick={() => setSelectedProduct(item)}
+                        className="w-full sm:w-28 sm:h-28 aspect-square rounded-xl bg-slate-900 relative overflow-hidden cursor-pointer shrink-0"
+                      >
+                        {cover ? (
+                          <img
+                            src={cover}
+                            alt={`${release.artist} - ${release.title}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 p-2 text-center">
+                            <Disc className="h-8 w-8 mb-1 text-slate-700" />
+                            <span className="text-[9px] font-bold">Sem Foto</span>
+                          </div>
+                        )}
+
+                        {/* Minimal Badges on image */}
+                        <div className="absolute top-1.5 left-1.5 flex flex-col gap-0.5 items-start">
+                          <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase shadow-xs ${formatInfo.badgeBg}`}>
+                            {formatInfo.badgeLabel}
+                          </span>
+                          {conditionInfo.isNew ? (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-emerald-600 text-white shadow-xs uppercase">
+                              Novo
+                            </span>
+                          ) : condition?.mediaCondition ? (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-slate-950/80 text-slate-100 backdrop-blur-xs shadow-xs">
+                              {condition.mediaCondition}
+                            </span>
+                          ) : null}
+                          {isNativista && (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-emerald-800 text-white shadow-xs">
+                              🧉 Nativista
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Sold overlay */}
+                        {isSoldOrUnavailable && (
+                          <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[1px] flex items-center justify-center p-1 text-center">
+                            <span className="px-2 py-0.5 bg-rose-600/90 text-white font-black text-[9px] uppercase tracking-wider rounded">
+                              Esgotado
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Middle: Info */}
+                      <div 
+                        onClick={() => setSelectedProduct(item)}
+                        className="flex-1 min-w-0 flex flex-col justify-between cursor-pointer space-y-1"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-sm text-slate-900 group-hover:text-amber-700 transition-colors line-clamp-1">
+                              {release.title}
+                            </h4>
+                            {release.year && (
+                              <span className="text-xs text-slate-400 font-mono">({release.year})</span>
+                            )}
+                          </div>
+                          <p className="text-xs font-bold text-amber-800 truncate">
+                            {release.artist}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {release.label || 'Nacional'} {release.country ? `• ${release.country}` : ''}
+                          </p>
+                        </div>
+
+                        {/* Tags & Particularities */}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          {isNativista && (
+                            <span className="text-[9px] font-black text-emerald-900 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <span>🧉</span>
+                              <span>Música Gaúcha (RS)</span>
+                            </span>
+                          )}
+                          {item.isLote && (
+                            <span className="text-[9px] font-black text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <Package className="h-2.5 w-2.5 text-indigo-600" />
+                              <span>Lote {item.loteItemCount || 4} Discos</span>
+                            </span>
+                          )}
+                          {isOnlineExclusiveItem(item) && (
+                            <span className="text-[9px] font-black text-amber-950 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              ⭐ Exclusivo do Site
+                            </span>
+                          )}
+                          {particularities.slice(0, 3).map((part) => (
+                            <span
+                              key={part.id}
+                              className="text-[9px] font-bold text-amber-950 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-md flex items-center gap-1"
+                            >
+                              <span>{part.icon}</span>
+                              <span>{part.shortLabel}</span>
+                            </span>
+                          ))}
+                          {bonusText && (
+                            <span className="text-[9px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <Gift className="h-2.5 w-2.5 text-amber-600 shrink-0" />
+                              <span className="truncate max-w-[200px]">{bonusText}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Pricing & Cart Action */}
+                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 border-t sm:border-t-0 sm:border-l border-slate-100 pt-2 sm:pt-0 sm:pl-4 shrink-0">
+                        <div className="text-left sm:text-right">
+                          <span className="text-[9px] text-slate-400 font-semibold block uppercase">
+                            {isPromo ? 'Preço Promocional' : 'Preço'}
+                          </span>
+                          <div className="flex items-baseline gap-1.5">
+                            {isPromo && origPrice > price && (
+                              <span className="text-[11px] line-through text-slate-400 font-bold font-mono">
+                                R$ {origPrice.toFixed(2)}
+                              </span>
+                            )}
+                            <span className={`text-base font-black ${
+                              isSoldOrUnavailable 
+                                ? 'text-slate-500 line-through' 
+                                : isPromo 
+                                ? 'text-rose-600 font-mono' 
+                                : 'text-slate-950'
+                            }`}>
+                              R$ {price.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isCustomerLoggedIn) {
+                                setAuthModalTab('login');
+                                setIsAuthModalOpen(true);
+                                return;
+                              }
+                              toggleWishlist(item.id);
+                            }}
+                            className={`p-2 rounded-xl transition-all cursor-pointer border ${
+                              isInWishlist(item.id)
+                                ? 'bg-rose-50 border-rose-200 text-rose-600'
+                                : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-700'
+                            }`}
+                            title="Favoritos"
+                          >
+                            <Heart className={`h-4 w-4 ${isInWishlist(item.id) ? 'fill-rose-600' : ''}`} />
+                          </button>
+
+                          {isSoldOrUnavailable ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProduct(item)}
+                              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl transition-all cursor-pointer border border-slate-300 flex items-center gap-1.5"
+                              title="Ver detalhes do item"
+                            >
+                              <Eye className="h-4 w-4 text-slate-500" />
+                              <span>Esgotado</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleAddToCart(item)}
+                              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+                              title="Adicionar ao Carrinho"
+                            >
+                              <ShoppingBag className="h-4 w-4" />
+                              <span>Comprar</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Modo Grade (grid padrão ou compact densa) */
+              <div className={
+                storeViewMode === 'compact'
+                  ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3.5"
+                  : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5"
+              }>
+                {filteredListings.map((item) => {
+                  const { release, condition, pricing } = item;
+                  const price = pricing?.directPrice || pricing?.basePriceBrl || 0;
+                  const cover = (item.customImages && item.customImages.length > 0 && item.customImages[0]) || release.coverImage;
+                  const formatInfo = getListingFormatInfo(item);
+                  const conditionInfo = getItemConditionInfo(item);
+                  const particularities = getAlbumParticularities(item);
+                  const isPromo = !!(item.promoActive || pricing?.promoActive || (item.discountPercent && item.discountPercent > 0));
+                  const discountPercent = item.discountPercent || pricing?.discountPercent || 15;
+                  const origPrice = item.originalPrice || pricing?.originalPrice || (isPromo && discountPercent > 0 ? Math.round(price / (1 - discountPercent / 100)) : price);
+                  const promoBadge = item.promoBadge || pricing?.promoBadge || `${discountPercent}% OFF`;
+                  const bonusText = item.bonusDescription || pricing?.bonusDescription;
+                  const isOutOfStock = !item.salesChannels || item.salesChannels.length === 0 || (item.salesChannels.length === 1 && item.salesChannels[0] === 'none');
+                  const isSoldOrUnavailable = item.status === 'sold' || isOutOfStock;
+                  const isNativista = isNativistaGauchoItem(item);
 
                   return (
                     <motion.div
@@ -1631,7 +1776,9 @@ export function PublicStorefront({
                       layout
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col overflow-hidden group hover:border-amber-400/60"
+                      className={`bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col overflow-hidden group hover:border-amber-400/60 ${
+                        storeViewMode === 'compact' ? 'rounded-xl' : 'rounded-2xl'
+                      }`}
                     >
                       {/* Card Image */}
                       <div 
@@ -1653,75 +1800,53 @@ export function PublicStorefront({
                           </div>
                         )}
 
-                        {/* Badges on image */}
-                        <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[85%]">
-                          {/* Lote Badge */}
+                        {/* Minimal, Uncluttered Badges on Image */}
+                        <div className="absolute top-1.5 left-1.5 flex flex-col gap-0.5 items-start max-w-[85%]">
+                          {/* Lote */}
                           {item.isLote && (
-                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-amber-300 shadow-md flex items-center gap-1 border border-indigo-500/50 uppercase tracking-wider">
-                              <Package className="h-2.5 w-2.5 text-amber-400" />
-                              Lote {item.loteItemCount || 4} Discos
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-slate-900 text-amber-300 shadow-xs uppercase tracking-wider border border-amber-500/40">
+                              Lote {item.loteItemCount || 4}
                             </span>
                           )}
 
-                          {/* Promoção % OFF Badge */}
+                          {/* Promo */}
                           {isPromo && (
-                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-md flex items-center gap-1 border border-rose-400/50 uppercase tracking-wider">
-                              <Percent className="h-2.5 w-2.5" />
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-rose-600 text-white shadow-xs uppercase tracking-wider border border-rose-400/40">
                               {promoBadge}
                             </span>
                           )}
 
-                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase shadow-xs ${formatInfo.badgeBg}`}>
+                          {/* Formato */}
+                          <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase shadow-xs ${formatInfo.badgeBg}`}>
                             {formatInfo.badgeLabel}
                           </span>
 
-                          {isGarimpoItem(item) && (
-                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-xs flex items-center gap-1 border border-orange-400/40 uppercase tracking-wider">
-                              <Flame className="h-2.5 w-2.5 fill-white" />
-                              Garimpo
+                          {/* Nativista / Música Gaúcha */}
+                          {isNativista && (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-emerald-800 text-white shadow-xs flex items-center gap-0.5 border border-emerald-600/40 uppercase tracking-wider">
+                              <span>🧉</span>
+                              <span>Nativista</span>
                             </span>
                           )}
 
-                          {/* Estrela / Exclusivo Loja Online Badge */}
+                          {/* Exclusivo Site */}
                           {isOnlineExclusiveItem(item) && (
-                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-md flex items-center gap-1 border border-yellow-300 uppercase tracking-wider">
-                              <Star className="h-2.5 w-2.5 fill-slate-950 text-slate-950" />
-                              ⭐ Exclusivo do Site
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-amber-400 text-slate-950 shadow-xs uppercase tracking-wider">
+                              ⭐ Exclusivo
                             </span>
                           )}
 
+                          {/* Condição simplificada: "VG+", "EX", "Novo", etc. SEM A PALAVRA 'Mídia:' */}
                           {conditionInfo.isNew ? (
-                            <span className="px-2 py-0.5 rounded-md text-[9.5px] font-black bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md flex items-center gap-1 border border-emerald-400/50 uppercase tracking-wide">
-                              <Sparkles className="h-2.5 w-2.5 text-emerald-200 fill-emerald-200" />
-                              Novo / Lacrado
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-emerald-600 text-white shadow-xs uppercase tracking-wide">
+                              Novo
                             </span>
                           ) : condition?.mediaCondition ? (
-                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-slate-950/75 text-slate-200 backdrop-blur-xs shadow-xs">
-                              Mídia: {condition.mediaCondition}
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-slate-950/80 text-slate-100 backdrop-blur-xs shadow-xs">
+                              {condition.mediaCondition}
                             </span>
                           ) : null}
                         </div>
-
-                        {/* Particularidades na Fotinho/Capa (Álbum Duplo, Box Set, Edição Especial, Gatefold, etc.) */}
-                        {particularities.length > 0 && (
-                          <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1 pointer-events-none z-10">
-                            {particularities.slice(0, 2).map((part) => (
-                              <span
-                                key={part.id}
-                                title={part.label}
-                                className={`px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md border backdrop-blur-xs ${part.badgeClass}`}
-                              >
-                                <span className="shrink-0">{part.icon}</span>
-                                <span className="truncate max-w-[120px]">{part.shortLabel}</span>
-                              </span>
-                            ))}
-                            {particularities.length > 2 && (
-                              <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-black/85 text-amber-300 border border-amber-400/40 shadow-xs">
-                                +{particularities.length - 2}
-                              </span>
-                            )}
-                          </div>
-                        )}
 
                         {/* Heart Wishlist Button */}
                         <button
@@ -1735,37 +1860,42 @@ export function PublicStorefront({
                             }
                             toggleWishlist(item.id);
                           }}
-                          className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-sm ${
+                          className={`absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer shadow-sm ${
                             isInWishlist(item.id)
                               ? 'bg-rose-500 text-white hover:bg-rose-600 scale-110'
                               : 'bg-black/50 text-white/80 hover:text-white hover:bg-black/70'
                           }`}
                           title={isInWishlist(item.id) ? 'Remover dos Favoritos' : 'Adicionar à Lista de Desejos'}
                         >
-                          <Heart className={`h-3.5 w-3.5 ${isInWishlist(item.id) ? 'fill-white' : ''}`} />
+                          <Heart className={`h-3 w-3 ${isInWishlist(item.id) ? 'fill-white' : ''}`} />
                         </button>
 
-                        {/* Sold overlay if applicable */}
-                        {item.status === 'sold' && (
-                          <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-[1.5px] flex flex-col items-center justify-center p-2 text-center">
-                            <span className="px-2.5 py-1 bg-rose-600/95 text-white font-black text-[11px] uppercase tracking-wider rounded-lg shadow-lg border border-rose-400/40 mb-1">
-                              Vendido / Esgotado
+                        {/* Sold / Out of stock overlay */}
+                        {isSoldOrUnavailable && (
+                          <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[1px] flex flex-col items-center justify-center p-2 text-center">
+                            <span className="px-2 py-0.5 bg-rose-600/90 text-white font-black text-[10px] uppercase tracking-wider rounded shadow-md border border-rose-400/40">
+                              Esgotado
                             </span>
-                            <span className="text-[9.5px] text-slate-300 font-medium">Acervo Histórico</span>
                           </div>
                         )}
                       </div>
 
                       {/* Card Details */}
-                      <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
+                      <div className={`flex-1 flex flex-col justify-between ${
+                        storeViewMode === 'compact' ? 'p-2.5 space-y-1.5' : 'p-3.5 space-y-2'
+                      }`}>
                         <div 
                           onClick={() => setSelectedProduct(item)}
-                          className="cursor-pointer space-y-1"
+                          className="cursor-pointer space-y-0.5"
                         >
-                          <h4 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug group-hover:text-amber-700 transition-colors">
+                          <h4 className={`font-bold text-slate-900 line-clamp-2 leading-snug group-hover:text-amber-700 transition-colors ${
+                            storeViewMode === 'compact' ? 'text-[11px]' : 'text-xs'
+                          }`}>
                             {release.title}
                           </h4>
-                          <p className="text-[11px] font-bold text-amber-800 truncate">
+                          <p className={`font-bold text-amber-800 truncate ${
+                            storeViewMode === 'compact' ? 'text-[10px]' : 'text-[11px]'
+                          }`}>
                             {release.artist}
                           </p>
                           <p className="text-[10px] text-slate-500 truncate">
@@ -1775,23 +1905,23 @@ export function PublicStorefront({
                           {/* Bonus text chip if exists */}
                           {bonusText && (
                             <div className="pt-0.5">
-                              <span className="text-[8.5px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded flex items-center gap-1">
+                              <span className="text-[8px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-1.5 py-0.2 rounded flex items-center gap-1">
                                 <Gift className="h-2.5 w-2.5 text-amber-600 shrink-0" />
-                                <span className="truncate max-w-[150px]">{bonusText}</span>
+                                <span className="truncate max-w-[120px]">{bonusText}</span>
                               </span>
                             </div>
                           )}
 
-                          {/* Particularidades chips in card info */}
+                          {/* Particularidades chips in card info below photo */}
                           {particularities.length > 0 && (
                             <div className="flex items-center gap-1 flex-wrap pt-0.5">
                               {particularities.slice(0, 2).map((part) => (
                                 <span
                                   key={part.id}
-                                  className="text-[9px] font-bold text-amber-950 bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 rounded flex items-center gap-1"
+                                  className="text-[8.5px] font-bold text-amber-950 bg-amber-50 border border-amber-200/80 px-1.5 py-0.2 rounded flex items-center gap-1"
                                 >
                                   <span>{part.icon}</span>
-                                  <span className="truncate max-w-[120px]">{part.shortLabel}</span>
+                                  <span className="truncate max-w-[100px]">{part.shortLabel}</span>
                                 </span>
                               ))}
                             </div>
@@ -1799,19 +1929,21 @@ export function PublicStorefront({
                         </div>
 
                         {/* Pricing & Action */}
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
                           <div>
-                            <span className="text-[9px] text-slate-400 font-semibold block uppercase">
-                              {isPromo ? 'Preço Promocional' : 'Preço'}
+                            <span className="text-[8px] text-slate-400 font-semibold block uppercase leading-none">
+                              {isPromo ? 'Promo' : 'Preço'}
                             </span>
-                            <div className="flex items-baseline gap-1.5 flex-wrap">
+                            <div className="flex items-baseline gap-1 flex-wrap">
                               {isPromo && origPrice > price && (
-                                <span className="text-[10px] line-through text-slate-400 font-bold font-mono">
+                                <span className="text-[9px] line-through text-slate-400 font-bold font-mono">
                                   R$ {origPrice.toFixed(2)}
                                 </span>
                               )}
-                              <span className={`text-sm font-black ${
-                                item.status === 'sold' 
+                              <span className={`font-black ${
+                                storeViewMode === 'compact' ? 'text-xs' : 'text-sm'
+                              } ${
+                                isSoldOrUnavailable 
                                   ? 'text-slate-500 line-through' 
                                   : isPromo 
                                   ? 'text-rose-600 font-mono' 
@@ -1822,24 +1954,26 @@ export function PublicStorefront({
                             </div>
                           </div>
 
-                          {item.status === 'sold' ? (
+                          {isSoldOrUnavailable ? (
                             <button
                               type="button"
                               onClick={() => setSelectedProduct(item)}
-                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[11px] rounded-xl transition-all cursor-pointer border border-slate-300 flex items-center gap-1 shrink-0"
-                              title="Ver detalhes do item vendido"
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg transition-all cursor-pointer border border-slate-300 flex items-center gap-1 shrink-0"
+                              title="Ver detalhes do item esgotado"
                             >
-                              <Eye className="h-3.5 w-3.5 text-slate-500" />
-                              <span>Detalhes</span>
+                              <Eye className="h-3 w-3 text-slate-500" />
+                              <span>Esgotado</span>
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={() => handleAddToCart(item)}
-                              className="p-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl transition-all cursor-pointer shadow-xs active:scale-90 shrink-0"
+                              className={`bg-amber-600 hover:bg-amber-500 text-white rounded-xl transition-all cursor-pointer shadow-xs active:scale-90 shrink-0 ${
+                                storeViewMode === 'compact' ? 'p-1.5 rounded-lg' : 'p-2 rounded-xl'
+                              }`}
                               title="Adicionar ao Carrinho"
                             >
-                              <ShoppingBag className="h-4 w-4" />
+                              <ShoppingBag className={storeViewMode === 'compact' ? "h-3.5 w-3.5" : "h-4 w-4"} />
                             </button>
                           )}
                         </div>
@@ -1911,12 +2045,12 @@ export function PublicStorefront({
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveMainTab('garimpo');
+                    setActiveMainTab('nativista');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="px-2 py-0.5 rounded bg-orange-950/80 hover:bg-orange-900 text-orange-300 text-[11px] font-bold border border-orange-800"
+                  className="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 text-[11px] font-bold border border-emerald-800 cursor-pointer"
                 >
-                  🔥 Garimpo
+                  🧉 Música Gaúcha
                 </button>
                 <button
                   type="button"

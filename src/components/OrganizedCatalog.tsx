@@ -9,13 +9,15 @@ import {
   FileAudio, Download, X, Check, Copy, TrendingUp, MapPin, 
   Sparkles, Calendar, Layers, Shield, Tag, DollarSign, Eye, Play,
   ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Bookmark, AlertTriangle,
-  Edit3, FileText, Phone, Plus, Heart, QrCode, Printer, Flame, Star, Package, Percent
+  Edit3, FileText, Phone, Plus, Heart, QrCode, Printer, Flame, Star, Package, Percent,
+  LayoutGrid, Grid3X3, Table
 } from 'lucide-react';
 import { SavedListing, Customer } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { SalesChannel } from '../types';
 import { getSalesChannelMeta } from '../utils/qrcode';
-import { isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist } from '../utils/formatHelper';
+import { isNativistaGauchoItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist } from '../utils/formatHelper';
+import { CatalogViewMode, getSavedCatalogViewMode, saveCatalogViewMode } from '../utils/cookieStorage';
 import { BatchQRCodeModal } from './BatchQRCodeModal';
 import { DiscQRCodeModal } from './DiscQRCodeModal';
 import { ThermalPrintModal } from './ThermalPrintModal';
@@ -50,9 +52,15 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
   const [selectedDrawer, setSelectedDrawer] = useState<string>('all');
   const [selectedGrading, setSelectedGrading] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [selectedChannel, setSelectedChannel] = useState<'all' | SalesChannel | 'online_exclusive' | 'garimpo' | 'lote' | 'promocoes'>('all');
+  const [selectedChannel, setSelectedChannel] = useState<'all' | SalesChannel | 'online_exclusive' | 'nativista' | 'lote' | 'promocoes'>('all');
   const [diagnosticFilter, setDiagnosticFilter] = useState<'all' | 'no-loc' | 'no-photos'>('all');
   const [sortBy, setSortBy] = useState<string>('date-desc');
+  const [catalogViewMode, setCatalogViewMode] = useState<CatalogViewMode>(() => getSavedCatalogViewMode());
+
+  const handleCatalogViewModeChange = (mode: CatalogViewMode) => {
+    setCatalogViewMode(mode);
+    saveCatalogViewMode(mode);
+  };
   const [selectedListing, setSelectedListing] = useState<SavedListing | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -384,11 +392,14 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
       matchesChannel = Boolean(item.promoActive || item.pricing?.promoActive || (item.discountPercent && item.discountPercent > 0));
     } else if (selectedChannel === 'online_exclusive') {
       matchesChannel = isOnlineExclusiveItem(item);
-    } else if (selectedChannel === 'garimpo') {
-      matchesChannel = isGarimpoItem(item);
+    } else if (selectedChannel === 'nativista') {
+      matchesChannel = isNativistaGauchoItem(item);
+    } else if (selectedChannel === 'none') {
+      const channels = item.salesChannels;
+      matchesChannel = !channels || channels.length === 0 || channels.includes('none');
     } else if (selectedChannel !== 'all') {
       const channels = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
-      matchesChannel = channels.includes(selectedChannel as SalesChannel);
+      matchesChannel = channels.includes(selectedChannel as SalesChannel) && !channels.includes('none');
     }
 
     // 7. Diagnostic Filter
@@ -986,22 +997,69 @@ Colecionar é preservar a história.`;
                 )}
               </div>
 
-              {/* Sort By Dropdown */}
-              <div className="w-full lg:w-[220px] flex items-center gap-2">
-                <label className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">Ordenar:</label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="date-desc">Mais Recentes Primeiro</option>
-                  <option value="date-asc">Mais Antigos Primeiro</option>
-                  <option value="title-asc">Título (A-Z)</option>
-                  <option value="title-desc">Título (Z-A)</option>
-                  <option value="artist-asc">Artista (A-Z)</option>
-                  <option value="price-desc">Preço: Maior ao Menor</option>
-                  <option value="price-asc">Preço: Menor ao Maior</option>
-                </select>
+              {/* Sort By Dropdown and Catalog View Mode */}
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                  <label className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">Ordenar:</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full sm:w-[170px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    <option value="date-desc">Mais Recentes Primeiro</option>
+                    <option value="date-asc">Mais Antigos Primeiro</option>
+                    <option value="title-asc">Título (A-Z)</option>
+                    <option value="title-desc">Título (Z-A)</option>
+                    <option value="artist-asc">Artista (A-Z)</option>
+                    <option value="price-desc">Preço: Maior ao Menor</option>
+                    <option value="price-asc">Preço: Menor ao Maior</option>
+                  </select>
+                </div>
+
+                {/* View Mode Switcher: Grade, Compacto, Tabela */}
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 shadow-inner shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleCatalogViewModeChange('grid')}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      catalogViewMode === 'grid'
+                        ? 'bg-white text-indigo-900 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Modo Grade com Capas"
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                    <span className="text-[11px] hidden md:inline">Grade</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCatalogViewModeChange('compact')}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      catalogViewMode === 'compact'
+                        ? 'bg-white text-indigo-900 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Modo Grade Compacta"
+                  >
+                    <Grid3X3 className="h-3.5 w-3.5" />
+                    <span className="text-[11px] hidden md:inline">Compacto</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCatalogViewModeChange('table')}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      catalogViewMode === 'table'
+                        ? 'bg-white text-indigo-900 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Modo Tabela de Estoque"
+                  >
+                    <Table className="h-3.5 w-3.5" />
+                    <span className="text-[11px] hidden md:inline">Tabela</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1071,12 +1129,13 @@ Colecionar é preservar a história.`;
                   <option value="all">Todos os Canais e Formatos</option>
                   <option value="lote">📦 Lotes de 4 Discos ({listings.filter(i => i.isLote).length})</option>
                   <option value="promocoes">🏷️ Promoções Ativas (% OFF) ({listings.filter(i => i.promoActive || i.pricing?.promoActive || (i.discountPercent && i.discountPercent > 0)).length})</option>
+                  <option value="nativista">🧉 Música Gaúcha & Nativista (RS) ({listings.filter(i => isNativistaGauchoItem(i)).length})</option>
                   <option value="online_exclusive">⭐ Exclusivos Loja Online (Raros)</option>
-                  <option value="garimpo">🔥 Sessão Garimpo & Oportunidades</option>
                   <option value="online_store">🌐 Loja Online (Ativos no Site)</option>
                   <option value="physical_store">🏬 Loja Física</option>
                   <option value="shopee">🛍️ Shopee</option>
                   <option value="mercadolivre">💛 Mercado Livre</option>
+                  <option value="none">🚫 Nenhum Canal (Sem Estoque / Indisponível) ({listings.filter(i => !i.salesChannels || i.salesChannels.length === 0 || i.salesChannels.includes('none')).length})</option>
                 </select>
               </div>
 
@@ -1129,7 +1188,7 @@ Colecionar é preservar a história.`;
             </div>
           </div>
 
-          {/* Main Grid of Items */}
+          {/* Main Grid or Table of Items */}
           {sortedListings.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-3">
               <Database className="h-12 w-12 text-slate-300 mx-auto stroke-[1.5]" />
@@ -1150,8 +1209,309 @@ Colecionar é preservar a história.`;
                 </button>
               )}
             </div>
+          ) : catalogViewMode === 'table' ? (
+            /* TABLE VIEW MODE (Estoque & Lista Rápida) */
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden" id="catalog-items-table">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-3 w-14 text-center">Capa</th>
+                      <th className="py-3 px-3">Disco & Artista</th>
+                      <th className="py-3 px-3">Gaveta</th>
+                      <th className="py-3 px-3">Formato / Mídia</th>
+                      <th className="py-3 px-3">Canais Ativos</th>
+                      <th className="py-3 px-3">Preço</th>
+                      <th className="py-3 px-3">Status</th>
+                      <th className="py-3 px-3 text-right">Ações Rápidas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {sortedListings.map((item) => {
+                      const formatName = item.release.formats?.[0]?.name || 'Disco';
+                      const itemStatus = item.status || 'available';
+                      const channels = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
+                      const hasOnline = channels.includes('online_store');
+                      const isExcl = Boolean(item.isOnlineExclusive);
+                      const isNone = !channels || channels.length === 0 || (channels.length === 1 && channels[0] === 'none');
+                      const price = itemStatus === 'sold' && item.saleDetails ? item.saleDetails.salePrice : getItemPrice(item);
+                      const cover = (item.customImages && item.customImages.length > 0 && item.customImages[0]) || item.release.coverImage;
+
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                          {/* Capa */}
+                          <td className="py-2.5 px-3 text-center">
+                            <div 
+                              onClick={() => setSelectedListing(item)} 
+                              className="w-10 h-10 rounded-lg overflow-hidden bg-slate-900 mx-auto cursor-pointer border border-slate-200 shrink-0"
+                            >
+                              {cover ? (
+                                <img src={cover} alt={item.release.title} className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                  <Disc className="h-4 w-4" />
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Disco & Artista */}
+                          <td className="py-2.5 px-3 max-w-[240px]">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span 
+                                  className="font-bold text-slate-800 hover:text-indigo-600 transition-colors cursor-pointer line-clamp-1" 
+                                  onClick={() => setSelectedListing(item)}
+                                >
+                                  {item.release.title}
+                                </span>
+                                {item.isLote && (
+                                  <span className="text-[8px] font-black uppercase bg-indigo-900 text-amber-300 px-1.5 py-0.2 rounded">
+                                    Lote 4
+                                  </span>
+                                )}
+                                {isNativistaGauchoItem(item) && (
+                                  <span className="text-[8px] font-black uppercase bg-emerald-800 text-white px-1.5 py-0.2 rounded">
+                                    🧉 Nativista
+                                  </span>
+                                )}
+                                {isExcl && (
+                                  <span className="text-[8px] font-black uppercase bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded">
+                                    ⭐ Exclusivo
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 line-clamp-1">{item.release.artist}</p>
+                              <span className="text-[10px] text-slate-400 font-mono">{item.release.year || 'Ano N/D'} • {item.release.label}</span>
+                            </div>
+                          </td>
+
+                          {/* Gaveta */}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            {item.drawer ? (
+                              <span className="text-[10px] font-bold bg-indigo-50 border border-indigo-200 text-indigo-800 px-2 py-0.5 rounded-lg">
+                                📁 {item.drawer}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-medium">Sem loc</span>
+                            )}
+                          </td>
+
+                          {/* Formato / Mídia */}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold border ${getFormatBadgeColor(formatName)}`}>
+                                {formatName}
+                              </span>
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-slate-900 text-white" title={`Mídia: ${item.condition.mediaCondition}`}>
+                                {item.condition.mediaCondition}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Canais de Venda */}
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-1 flex-wrap max-w-[260px]">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newChannels = channels.includes('physical_store')
+                                    ? channels.filter(c => c !== 'physical_store')
+                                    : [...channels, 'physical_store'];
+                                  onUpdate({ ...item, salesChannels: newChannels });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${channels.includes('physical_store') ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400 line-through'}`}
+                                title="Física"
+                              >
+                                Física
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newChannels = hasOnline
+                                    ? channels.filter(c => c !== 'online_store')
+                                    : [...channels, 'online_store'];
+                                  onUpdate({ ...item, salesChannels: newChannels, isOnlineExclusive: hasOnline ? false : item.isOnlineExclusive });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${hasOnline ? 'bg-indigo-100 text-indigo-800' : 'bg-rose-50 text-rose-500 line-through'}`}
+                                title="Online"
+                              >
+                                {hasOnline ? 'Online' : 'Fora'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newChannels = channels.includes('shopee')
+                                    ? channels.filter(c => c !== 'shopee')
+                                    : [...channels, 'shopee'];
+                                  onUpdate({ ...item, salesChannels: newChannels });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${channels.includes('shopee') ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-400 line-through'}`}
+                                title="Shopee"
+                              >
+                                Shopee
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newChannels = channels.includes('mercadolivre')
+                                    ? channels.filter(c => c !== 'mercadolivre')
+                                    : [...channels, 'mercadolivre'];
+                                  onUpdate({ ...item, salesChannels: newChannels });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${channels.includes('mercadolivre') ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-400 line-through'}`}
+                                title="Mercado Livre"
+                              >
+                                ML
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newChannels: SalesChannel[] = isNone ? ['physical_store', 'online_store'] : ['none'];
+                                  onUpdate({ ...item, salesChannels: newChannels });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${isNone ? 'bg-rose-600 text-white font-black' : 'bg-slate-100 text-slate-400'}`}
+                                title="Nenhum canal ativo (sem estoque)"
+                              >
+                                {isNone ? '🚫 Nenhum' : 'Nenhum?'}
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Preço */}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="font-mono font-black text-slate-900 text-xs">
+                                R$ {price.toFixed(2)}
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-mono">
+                                Custo: R$ {getItemCost(item).toFixed(0)}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            {itemStatus === 'sold' ? (
+                              <span className="text-[9px] font-bold uppercase bg-slate-900 text-slate-200 px-2 py-0.5 rounded">
+                                Vendido
+                              </span>
+                            ) : itemStatus === 'reserved' ? (
+                              <span className="text-[9px] font-bold uppercase bg-amber-500 text-white px-2 py-0.5 rounded">
+                                Reservado
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-bold uppercase bg-emerald-600 text-white px-2 py-0.5 rounded">
+                                Disponível
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Ações Rápidas */}
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              {itemStatus === 'available' && (
+                                <button
+                                  onClick={() => openSellModal(item)}
+                                  className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                  title="Vender"
+                                >
+                                  Vender
+                                </button>
+                              )}
+                              {itemStatus === 'reserved' && (
+                                <button
+                                  onClick={() => openSellModal(item)}
+                                  className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                  title="Confirmar Venda"
+                                >
+                                  Confirmar
+                                </button>
+                              )}
+                              {itemStatus === 'sold' && (
+                                <button
+                                  onClick={() => markAsAvailable(item)}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 border border-slate-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                  title="Estornar venda"
+                                >
+                                  Estornar
+                                </button>
+                              )}
+                              <button
+                                onClick={() => setSelectedListing(item)}
+                                className="p-1 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer"
+                                title="Ver Ficha Técnica"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleLoadToWorkspace(item)}
+                                className="p-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg transition-colors cursor-pointer"
+                                title="Editar Álbum"
+                              >
+                                <Sparkles className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setQrModalListing(item)}
+                                className="p-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-colors cursor-pointer"
+                                title="QR Code"
+                              >
+                                <QrCode className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setThermalPrintListing(item)}
+                                className="p-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/60 rounded-lg transition-colors cursor-pointer"
+                                title="Imprimir Cupom Térmico"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                              </button>
+                              {confirmDeleteId === item.id ? (
+                                <div className="flex items-center gap-0.5">
+                                  <button
+                                    onClick={() => {
+                                      onDelete(item.id);
+                                      setConfirmDeleteId(null);
+                                    }}
+                                    className="p-1 bg-red-600 text-white rounded-md hover:bg-red-700 cursor-pointer"
+                                    title="Confirmar exclusão"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteId(null)}
+                                    className="p-1 bg-slate-100 text-slate-400 rounded-md hover:bg-slate-200 cursor-pointer"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setConfirmDeleteId(item.id)}
+                                  className="p-1 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                                  title="Remover do banco"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="catalog-items-grid">
+            /* GRID & COMPACT VIEW MODES */
+            <div 
+              className={
+                catalogViewMode === 'compact'
+                  ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3.5"
+                  : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
+              } 
+              id="catalog-items-grid"
+            >
               {sortedListings.map((item) => {
                 const formatName = item.release.formats?.[0]?.name || 'Disco';
                 const formattedDate = new Date(item.createdAt).toLocaleDateString('pt-BR', {
@@ -1160,6 +1520,7 @@ Colecionar é preservar a história.`;
                   year: 'numeric'
                 });
                 const itemStatus = item.status || 'available';
+                const isCompact = catalogViewMode === 'compact';
 
                 return (
                   <motion.div
@@ -1174,7 +1535,7 @@ Colecionar é preservar a história.`;
                     }`}
                   >
                     {/* Visual Cover Header */}
-                    <div className="relative h-[150px] bg-slate-50 border-b border-slate-200 flex items-center justify-center overflow-hidden">
+                    <div className={`relative ${isCompact ? 'h-[115px]' : 'h-[155px]'} bg-slate-50 border-b border-slate-200 flex items-center justify-center overflow-hidden`}>
                       {item.customImages && item.customImages.length > 0 && item.customImages[0] && item.customImages[0].trim() !== '' ? (
                         <img
                           src={item.customImages[0]}
@@ -1191,15 +1552,15 @@ Colecionar é preservar a história.`;
                         />
                       ) : (
                         <div className="flex flex-col items-center gap-1.5 text-slate-300">
-                          {getFormatIcon(formatName, "h-10 w-10")}
+                          {getFormatIcon(formatName, isCompact ? "h-8 w-8" : "h-10 w-10")}
                           <span className="text-[10px] font-bold uppercase">{formatName}</span>
                         </div>
                       )}
 
-                      {/* Overlays */}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-3 flex items-end justify-between text-white">
+                      {/* Overlays - Bottom Bar */}
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent p-2.5 flex items-end justify-between text-white">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-black bg-emerald-500 text-white px-2.5 py-1 rounded-xl shadow font-mono">
+                          <span className="text-xs font-black bg-emerald-500 text-white px-2 py-0.5 rounded-lg shadow-xs font-mono">
                             R$ {(itemStatus === 'sold' && item.saleDetails ? item.saleDetails.salePrice : getItemPrice(item)).toFixed(0)}
                           </span>
                           {(item.promoActive || item.pricing?.promoActive) && item.pricing?.basePriceBrl && item.pricing.basePriceBrl > getItemPrice(item) && (
@@ -1209,94 +1570,82 @@ Colecionar é preservar a história.`;
                           )}
                         </div>
                         {item.drawer && (
-                          <span className="text-[10px] font-bold bg-indigo-950/90 border border-indigo-400/30 text-indigo-200 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
+                          <span className="text-[9px] font-bold bg-indigo-950/90 border border-indigo-400/30 text-indigo-200 px-1.5 py-0.2 rounded flex items-center gap-0.5 shadow-sm">
                             📁 {item.drawer}
                           </span>
                         )}
                       </div>
 
-                      {/* Status Badges */}
-                      <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start max-w-[85%]">
-                        {itemStatus === 'sold' ? (
-                          <span className="text-[9px] font-black uppercase bg-slate-900 text-slate-300 px-2 py-1 rounded-md backdrop-blur-sm tracking-wider flex items-center gap-1 border border-slate-700">
-                            <ShoppingBag className="h-2.5 w-2.5" />
-                            Vendido ({item.saleDetails?.platform === 'shopee' ? 'Shopee' : item.saleDetails?.platform === 'mercadolivre' ? 'M. Livre' : 'Direto'})
+                      {/* Status Badges - Top-Left Minimal */}
+                      <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[80%]">
+                        {itemStatus === 'sold' && (
+                          <span className="text-[8px] font-black uppercase bg-slate-900/90 text-slate-200 px-1.5 py-0.5 rounded backdrop-blur-xs flex items-center gap-0.5 border border-slate-700">
+                            <ShoppingBag className="h-2 w-2" />
+                            Vendido
                           </span>
-                        ) : itemStatus === 'reserved' ? (
-                          <span className="text-[9px] font-black uppercase bg-amber-500 text-white px-2 py-1 rounded-md backdrop-blur-sm tracking-wider flex items-center gap-1 shadow-sm">
-                            <Bookmark className="h-2.5 w-2.5" />
+                        )}
+                        {itemStatus === 'reserved' && (
+                          <span className="text-[8px] font-black uppercase bg-amber-500 text-white px-1.5 py-0.5 rounded backdrop-blur-xs flex items-center gap-0.5 shadow-xs">
+                            <Bookmark className="h-2 w-2" />
                             Reservado
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-black uppercase bg-emerald-500 text-white px-2 py-1 rounded-md backdrop-blur-sm tracking-wider flex items-center gap-1 shadow-sm">
-                            <CheckCircle className="h-2.5 w-2.5" />
-                            Disponível
                           </span>
                         )}
 
                         {/* Lote Marker */}
                         {item.isLote && (
-                          <span className="text-[9px] font-black uppercase bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 border border-orange-400/30">
-                            <Package className="h-2.5 w-2.5" />
-                            Lote 4 Discos
+                          <span className="text-[8px] font-black uppercase bg-indigo-950 text-amber-300 px-1.5 py-0.2 rounded border border-amber-500/30 flex items-center gap-0.5 shadow-xs">
+                            <Package className="h-2 w-2" />
+                            Lote 4
                           </span>
                         )}
 
                         {/* Promo / % OFF Marker */}
                         {(item.promoActive || item.pricing?.promoActive || (item.discountPercent && item.discountPercent > 0)) && (
-                          <span className="text-[9px] font-black uppercase bg-rose-600 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 border border-rose-400/30">
-                            <Percent className="h-2.5 w-2.5" />
+                          <span className="text-[8px] font-black uppercase bg-rose-600 text-white px-1.5 py-0.2 rounded shadow-xs flex items-center gap-0.5">
+                            <Percent className="h-2 w-2" />
                             {item.pricing?.promoBadge || `${item.discountPercent || 15}% OFF`}
                           </span>
                         )}
 
-                        {/* Garimpo Marker */}
-                        {isGarimpoItem(item) && (
-                          <span className="text-[9px] font-black uppercase bg-gradient-to-r from-orange-600 to-amber-600 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 border border-orange-400/30">
-                            <Flame className="h-2.5 w-2.5 fill-white" />
-                            Garimpo
+                        {/* Música Gaúcha & Nativista Marker */}
+                        {isNativistaGauchoItem(item) && (
+                          <span className="text-[8px] font-black uppercase bg-emerald-800 text-white px-1.5 py-0.2 rounded shadow-xs flex items-center gap-0.5 border border-emerald-600/40">
+                            <span>🧉</span>
+                            Nativista
                           </span>
                         )}
 
                         {/* Estrela / Exclusivo Loja Online Marker */}
                         {isOnlineExclusiveItem(item) && (
-                          <span className="text-[9px] font-black uppercase bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 border border-yellow-300">
-                            <Star className="h-2.5 w-2.5 fill-slate-950 text-slate-950" />
-                            Exclusivo Site
+                          <span className="text-[8px] font-black uppercase bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded shadow-xs flex items-center gap-0.5 border border-yellow-300">
+                            <Star className="h-2 w-2 fill-slate-950 text-slate-950" />
+                            Exclusivo
                           </span>
                         )}
-
-                        {/* Particularidades da Edição (Duplo, Box, Gatefold, Especial) */}
-                        {getAlbumParticularities(item).map((part) => (
-                          <span
-                            key={part.id}
-                            title={part.label}
-                            className={`text-[8.5px] font-black uppercase px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 border ${part.badgeClass}`}
-                          >
-                            <span>{part.icon}</span>
-                            <span>{part.shortLabel}</span>
-                          </span>
-                        ))}
                       </div>
 
-                      <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
-                        <span className="text-[9px] font-black uppercase bg-black/60 text-white px-2 py-0.5 rounded-md backdrop-blur-sm tracking-wider">
+                      {/* Media Condition - Top-Right Clean & Concise */}
+                      <div className="absolute top-2 right-2 flex items-center gap-1">
+                        <span 
+                          className="text-[8.5px] font-black uppercase bg-black/75 text-white px-1.5 py-0.5 rounded backdrop-blur-xs tracking-wider"
+                          title={`Condição da Mídia: ${item.condition.mediaCondition}`}
+                        >
                           {item.condition.mediaCondition}
                         </span>
                       </div>
                     </div>
 
                     {/* Content Details */}
-                    <div className="p-4 flex-1 flex flex-col space-y-3">
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-slate-400 font-mono tracking-wider block">{item.release.year || 'Ano N/D'} • {item.release.label}</span>
+                    <div className={`${isCompact ? 'p-3 space-y-2' : 'p-4 space-y-3'} flex-1 flex flex-col`}>
+                      <div className="space-y-0.5">
+                        <span className="text-[9.5px] text-slate-400 font-mono tracking-wider block">{item.release.year || 'Ano N/D'} • {item.release.label}</span>
                         <h4 className="text-xs font-black text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">
                           {item.release.title}
                         </h4>
                         <p className="text-[10px] font-bold text-slate-500 line-clamp-1">{item.release.artist}</p>
                         
                         {item.customerName && (
-                          <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black flex items-center gap-1 max-w-fit truncate border mt-1.5 ${
+                          <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black flex items-center gap-1 max-w-fit truncate border mt-1 ${
                             itemStatus === 'reserved'
                               ? 'bg-amber-50 text-amber-800 border-amber-200/50'
                               : 'bg-indigo-50 text-indigo-800 border-indigo-200/50'
@@ -1306,15 +1655,26 @@ Colecionar é preservar a história.`;
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`text-[9px] px-2 py-0.5 rounded-md border font-extrabold flex items-center gap-1 ${getFormatBadgeColor(formatName)}`}>
-                          {getFormatIcon(formatName, "h-3 w-3")}
+                      {/* Format, Cost & Edition Particularities */}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className={`text-[8.5px] px-1.5 py-0.2 rounded border font-extrabold flex items-center gap-0.5 ${getFormatBadgeColor(formatName)}`}>
+                          {getFormatIcon(formatName, "h-2.5 w-2.5")}
                           {formatName}
                         </span>
-                        <span className="text-[9px] bg-slate-50 text-slate-600 border border-slate-100 font-medium px-1.5 py-0.5 rounded-md font-mono">
+                        <span className="text-[8.5px] bg-slate-50 text-slate-600 border border-slate-100 font-medium px-1 py-0.2 rounded font-mono">
                           Custo: R$ {getItemCost(item).toFixed(0)}
                         </span>
-                        <span className="text-[9px] text-slate-400 font-mono ml-auto font-medium">{formattedDate}</span>
+                        {/* Particularidades da Edição (Duplo, Box, Gatefold) renderizados aqui de forma limpa */}
+                        {getAlbumParticularities(item).map((part) => (
+                          <span
+                            key={part.id}
+                            title={part.label}
+                            className={`text-[8px] font-bold uppercase px-1.5 py-0.2 rounded flex items-center gap-0.5 border ${part.badgeClass}`}
+                          >
+                            <span>{part.icon}</span>
+                            <span>{part.shortLabel}</span>
+                          </span>
+                        ))}
                       </div>
 
                       {/* Sales Channels Badges with Interactive Toggles */}
@@ -1323,6 +1683,7 @@ Colecionar é preservar a história.`;
                           const channels = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
                           const hasOnline = channels.includes('online_store');
                           const isExcl = Boolean(item.isOnlineExclusive);
+                          const isNone = !channels || channels.length === 0 || (channels.length === 1 && channels[0] === 'none');
                           return (
                             <>
                               <button
@@ -1353,9 +1714,9 @@ Colecionar é preservar a história.`;
                                   });
                                 }}
                                 className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${hasOnline ? 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 ring-1 ring-indigo-300' : 'bg-rose-50 text-rose-500 line-through border border-rose-200'}`}
-                                title={hasOnline ? "Ativo na Loja Online (Clique para desativar da loja)" : "Desativado da Loja Online (Clique para reativar)"}
+                                title={hasOnline ? "Ativo na Loja Online" : "Fora do Site"}
                               >
-                                {hasOnline ? '🌐 Online (Ativo)' : '❌ Fora do Site'}
+                                {hasOnline ? '🌐 Online' : '❌ Fora'}
                               </button>
                               <button
                                 type="button"
@@ -1399,29 +1760,47 @@ Colecionar é preservar a história.`;
                                 <Star className={`h-2.5 w-2.5 ${isExcl ? 'fill-slate-950' : ''}`} />
                                 {isExcl ? 'Raro Exclusivo' : 'Exclusivo?'}
                               </button>
+
+                              {/* Opção Nenhum Canal (Sem estoque / Fora de venda) */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newChannels: SalesChannel[] = isNone ? ['physical_store', 'online_store'] : ['none'];
+                                  onUpdate({ ...item, salesChannels: newChannels });
+                                }}
+                                className={`text-[8px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-all ${
+                                  isNone
+                                    ? 'bg-rose-600 text-white font-black ring-1 ring-rose-400 shadow-xs'
+                                    : 'bg-slate-100 text-slate-400 hover:text-rose-600'
+                                }`}
+                                title="Nenhum canal ativo (significa que você não tem mais o produto em estoque)"
+                              >
+                                {isNone ? '🚫 Nenhum (Esgotado)' : 'Nenhum?'}
+                              </button>
                             </>
                           );
                         })()}
                       </div>
 
                       {/* Store-specific quick operations bar */}
-                      <div className="bg-slate-50 p-2 rounded-xl flex items-center justify-between text-xs border border-slate-100">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Loja:</span>
+                      <div className="bg-slate-50 p-1.5 rounded-xl flex items-center justify-between text-xs border border-slate-100">
+                        <span className="text-[9.5px] font-bold text-slate-400 uppercase">Loja:</span>
                         <div className="flex items-center gap-1">
                           {itemStatus === 'available' && (
                             <>
                               <button
                                 onClick={() => openSellModal(item)}
-                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
+                                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 rounded-lg text-[9.5px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
                               >
-                                <ShoppingBag className="h-3 w-3" />
+                                <ShoppingBag className="h-2.5 w-2.5" />
                                 Vender
                               </button>
                               <button
                                 onClick={() => openReserveModal(item)}
-                                className="px-2 py-1 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-200 hover:border-amber-500 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
+                                className="px-2 py-0.5 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-200 hover:border-amber-500 rounded-lg text-[9.5px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
                               >
-                                <Bookmark className="h-3 w-3" />
+                                <Bookmark className="h-2.5 w-2.5" />
                                 Reservar
                               </button>
                             </>
@@ -1430,17 +1809,17 @@ Colecionar é preservar a história.`;
                             <>
                               <button
                                 onClick={() => openSellModal(item)}
-                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
+                                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 rounded-lg text-[9.5px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
                               >
-                                <ShoppingBag className="h-3 w-3" />
-                                Confirmar Venda
+                                <ShoppingBag className="h-2.5 w-2.5" />
+                                Confirmar
                               </button>
                               <button
                                 onClick={() => markAsAvailable(item)}
-                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
+                                className="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[9.5px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
                                 title="Voltar para Disponível"
                               >
-                                <RefreshCw className="h-3 w-3" />
+                                <RefreshCw className="h-2.5 w-2.5" />
                                 Liberar
                               </button>
                             </>
@@ -1448,10 +1827,10 @@ Colecionar é preservar a história.`;
                           {itemStatus === 'sold' && (
                             <button
                               onClick={() => markAsAvailable(item)}
-                              className="px-2 py-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 border border-transparent hover:border-rose-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
+                              className="px-2 py-0.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 border border-transparent hover:border-rose-200 rounded-lg text-[9.5px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
                               title="Estornar venda (colocar de volta no estoque)"
                             >
-                              <RefreshCw className="h-3 w-3" />
+                              <RefreshCw className="h-2.5 w-2.5" />
                               Estornar
                             </button>
                           )}
@@ -1459,10 +1838,10 @@ Colecionar é preservar a história.`;
                       </div>
 
                       {/* Actions Area */}
-                      <div className="pt-2.5 border-t border-slate-100/80 grid grid-cols-2 gap-1.5 mt-auto">
+                      <div className="pt-2 border-t border-slate-100/80 grid grid-cols-2 gap-1.5 mt-auto">
                         <button
                           onClick={() => setSelectedListing(item)}
-                          className="px-2 py-1.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-[10px] font-black text-slate-700 hover:text-indigo-600 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
+                          className="px-2 py-1 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-[9.5px] font-black text-slate-700 hover:text-indigo-600 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
                           title="Visualizar ficha técnica e detalhes"
                         >
                           <Eye className="h-3 w-3 text-slate-500" />
@@ -1470,7 +1849,7 @@ Colecionar é preservar a história.`;
                         </button>
                         <button
                           onClick={() => handleLoadToWorkspace(item)}
-                          className="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-600 border border-indigo-100 text-[10px] font-black text-indigo-700 hover:text-white rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
+                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 border border-indigo-100 text-[9.5px] font-black text-indigo-700 hover:text-white rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
                           title="Carregar no painel para re-anunciar ou editar"
                         >
                           <Sparkles className="h-3 w-3" />
@@ -1478,7 +1857,7 @@ Colecionar é preservar a história.`;
                         </button>
                         <button
                           onClick={() => setQrModalListing(item)}
-                          className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
+                          className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9.5px] font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
                           title="Gerar e imprimir etiqueta com QR Code deste produto"
                         >
                           <QrCode className="h-3 w-3 text-indigo-300" />
@@ -1487,7 +1866,7 @@ Colecionar é preservar a história.`;
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setThermalPrintListing(item)}
-                            className="flex-1 px-1.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200/70 text-amber-900 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                            className="flex-1 px-1 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200/70 text-amber-900 rounded-lg text-[9.5px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
                             title="Imprimir Cupom / Etiqueta Térmica (58mm / 80mm)"
                           >
                             <Printer className="h-3 w-3 text-amber-700" />

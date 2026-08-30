@@ -185,7 +185,7 @@ export interface PersonalFile {
   uploadedAt: string;
 }
 
-export type SalesChannel = 'physical_store' | 'online_store' | 'shopee' | 'mercadolivre';
+export type SalesChannel = 'physical_store' | 'online_store' | 'shopee' | 'mercadolivre' | 'none';
 
 export interface SavedListing {
   id: string; // unique listing timestamp
@@ -199,13 +199,14 @@ export interface SavedListing {
     shopee?: MarketplacePublication;
     mercadolivre?: MarketplacePublication;
   };
-  salesChannels?: SalesChannel[]; // Channels where the product is available: 'physical_store' | 'online_store' | 'shopee' | 'mercadolivre'
+  salesChannels?: SalesChannel[]; // Channels where the product is available: 'physical_store' | 'online_store' | 'shopee' | 'mercadolivre' | 'none'
   createdAt: string;
   drawer?: string; // storage location designated by Valdir
   customImages?: string[]; // user-uploaded real photos of the product (base64 or URL)
   personalFiles?: PersonalFile[]; // Valdir's personal files/documents (e.g., invoices, memos, receipts)
   quantity?: number; // Stock quantity (default 1)
-  isGarimpo?: boolean; // Item belongs to the Garimpo section (low value, damaged/bargain, clearance)
+  isNativista?: boolean; // Música Gaúcha e Nativista / Tradicionalismo do Rio Grande do Sul (identificado como Folk pelo Discogs)
+  isGarimpo?: boolean; // Deprecated - replaced by special sessions
   garimpoDetails?: string; // Details/notes about why it is in garimpo (e.g. risco superficial, capa desgastada, etc.)
   isOnlineExclusive?: boolean; // Item raro vendido exclusivamente pelo site / loja online
   onlineExclusiveDetails?: string; // Detalhes sobre a raridade e exclusividade do disco no site

@@ -30,7 +30,7 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
   onBatchThermalPrint
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [channelFilter, setChannelFilter] = useState<'all' | SalesChannel | 'exclusive_online' | 'exclusive_physical' | 'exclusive_shopee' | 'multi_channel'>('all');
+  const [channelFilter, setChannelFilter] = useState<'all' | SalesChannel | 'exclusive_online' | 'exclusive_physical' | 'exclusive_shopee' | 'multi_channel' | 'none'>('all');
   const [selectedDrawer, setSelectedDrawer] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'matrix' | 'storefront'>('matrix');
   const [copiedLink, setCopiedLink] = useState(false);
@@ -157,6 +157,10 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
       if (channelFilter === 'online_store' && !channels.includes('online_store')) return false;
       if (channelFilter === 'shopee' && !channels.includes('shopee')) return false;
       if (channelFilter === 'mercadolivre' && !channels.includes('mercadolivre')) return false;
+      if (channelFilter === 'none') {
+        const isNone = !channels || channels.length === 0 || channels.includes('none');
+        if (!isNone) return false;
+      }
       if (channelFilter === 'exclusive_online') {
         const isExcl = Boolean(item.isOnlineExclusive) || (channels.length === 1 && channels.includes('online_store'));
         if (!isExcl) return false;
@@ -170,11 +174,15 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
   }, [listings, searchTerm, selectedDrawer, channelFilter]);
 
   // Fast toggle channel on item
-  const handleToggleChannel = (item: SavedListing, channel: SalesChannel) => {
-    const current = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
+  const handleToggleChannel = (item: SavedListing, channel: Exclude<SalesChannel, 'none'>) => {
+    const raw = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
+    const current = raw.filter((c): c is Exclude<SalesChannel, 'none'> => c !== 'none');
     let updated: SalesChannel[];
     if (current.includes(channel)) {
       updated = current.filter(c => c !== channel);
+      if (updated.length === 0) {
+        updated = ['none'];
+      }
     } else {
       updated = [...current, channel];
     }
@@ -182,6 +190,18 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
     const isExcl = channel === 'online_store' && !updated.includes('online_store') ? false : item.isOnlineExclusive;
     const updatedItem = { ...item, salesChannels: updated, isOnlineExclusive: isExcl };
     onUpdateListing(updatedItem);
+  };
+
+  // Fast toggle "Nenhum" (sem estoque / indisponível)
+  const handleToggleNone = (item: SavedListing) => {
+    const current = item.salesChannels || [];
+    const isCurrentlyNone = !current || current.length === 0 || (current.length === 1 && current[0] === 'none');
+    const updated: SalesChannel[] = isCurrentlyNone ? ['physical_store', 'online_store'] : ['none'];
+    onUpdateListing({
+      ...item,
+      salesChannels: updated,
+      isOnlineExclusive: false
+    });
   };
 
   // Fast toggle online exclusive rarity
@@ -422,7 +442,8 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
             { id: 'shopee', label: `Shopee (${metrics.channels.shopee.count})`, color: 'text-orange-700' },
             { id: 'mercadolivre', label: `Mercado Livre (${metrics.channels.mercadolivre.count})`, color: 'text-amber-800' },
             { id: 'exclusive_physical', label: 'Apenas Loja Física' },
-            { id: 'multi_channel', label: 'Presente em Múltiplos Canais' }
+            { id: 'multi_channel', label: 'Presente em Múltiplos Canais' },
+            { id: 'none', label: `🚫 Nenhum Canal (Sem Estoque) (${listings.filter(i => !i.salesChannels || i.salesChannels.length === 0 || i.salesChannels.includes('none')).length})`, color: 'text-rose-700' }
           ].map(f => (
             <button
               key={f.id}
@@ -481,6 +502,17 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
             >
               + ML
             </button>
+            <button
+              onClick={() => {
+                filteredListings.forEach(item => {
+                  onUpdateListing({ ...item, salesChannels: ['none'], isOnlineExclusive: false });
+                });
+              }}
+              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-lg text-[10px] font-bold cursor-pointer"
+              title="Marcar todos os itens filtrados sem canais ativos (sem estoque)"
+            >
+              🚫 Zerar Canais
+            </button>
           </div>
         </div>
 
@@ -498,13 +530,14 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
                 <th className="py-3 px-3 text-center">🛍️ Shopee</th>
                 <th className="py-3 px-3 text-center">💛 Mercado Livre</th>
                 <th className="py-3 px-3 text-center">⭐ Exclusivo Site</th>
+                <th className="py-3 px-3 text-center">🚫 Nenhum</th>
                 <th className="py-3 px-4 text-right">Etiqueta</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
               {filteredListings.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
+                  <td colSpan={11} className="py-12 text-center text-slate-400">
                     Nenhum disco encontrado para os filtros selecionados.
                   </td>
                 </tr>
@@ -641,6 +674,27 @@ export const StoreOmnichannelManager: React.FC<StoreOmnichannelManagerProps> = (
                         >
                           <Star className={`h-4 w-4 ${item.isOnlineExclusive ? 'fill-slate-950 text-slate-950' : ''}`} />
                         </button>
+                      </td>
+
+                      {/* 6. Nenhum Canal (Sem Estoque / Fora de Venda) */}
+                      <td className="py-3 px-3 text-center">
+                        {(() => {
+                          const isNone = !channels || channels.length === 0 || (channels.length === 1 && channels[0] === 'none');
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleNone(item)}
+                              className={`w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all cursor-pointer ${
+                                isNone
+                                  ? 'bg-rose-600 text-white font-black shadow-sm ring-1 ring-rose-400'
+                                  : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+                              }`}
+                              title={isNone ? "Sem canais ativos (Esgotado / Sem Estoque). Clique para reativar canais padrão." : "Marcar como Nenhum (Não tenho mais o produto em estoque)"}
+                            >
+                              <span className="text-xs font-black">🚫</span>
+                            </button>
+                          );
+                        })()}
                       </td>
 
                       {/* Thermal Print Action */}

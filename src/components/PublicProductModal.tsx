@@ -27,7 +27,7 @@ import {
 import { SavedListing } from '../types';
 import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE, OFFICIAL_MARKETPLACE_LINKS } from '../constants';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
-import { getListingFormatInfo, getItemConditionInfo, isGarimpoItem, getGarimpoReason, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, formatTrackWithArtist, isVariousArtistsAlbum } from '../utils/formatHelper';
+import { getListingFormatInfo, getItemConditionInfo, isNativistaGauchoItem, getNativistaInfo, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, formatTrackWithArtist, isVariousArtistsAlbum } from '../utils/formatHelper';
 import { Store } from 'lucide-react';
 
 interface PublicProductModalProps {
@@ -73,6 +73,8 @@ export function PublicProductModal({
   const sleeveCondObj = GOLDMINE_VINYL_SLEEVE.find(c => c.code === condition?.sleeveCondition);
 
   // Price & Promotion calculations
+  const isOutOfStockOrNone = !listing.salesChannels || listing.salesChannels.length === 0 || (listing.salesChannels.length === 1 && listing.salesChannels[0] === 'none');
+  const isSold = listing.status === 'sold' || isOutOfStockOrNone;
   const salePrice = pricing?.directPrice || pricing?.basePriceBrl || 0;
   const isPromo = !!(listing.promoActive || pricing?.promoActive);
   const discountPercent = listing.discountPercent || pricing?.discountPercent || 15;
@@ -82,7 +84,6 @@ export function PublicProductModal({
 
   // Format Whatsapp direct enquiry
   const handleWhatsappEnquiry = () => {
-    const isSold = listing.status === 'sold';
     const isLote = listing.isLote;
     const promoHeader = isPromo ? `🔥 *PROMOÇÃO ATIVA: ${promoBadge}*\n` : '';
     const loteHeader = isLote ? `📦 *LOTE / COMBO PROMOCIONAL (${listing.loteItemCount || 4} DISCOS)*\n` : '';
@@ -90,7 +91,7 @@ export function PublicProductModal({
 
     const text = isSold 
       ? encodeURIComponent(
-          `Olá Valdir! Vi no site o item que consta como *VENDIDO*:\n\n` +
+          `Olá Valdir! Vi no site o item que consta como *ESGOTADO/VENDIDO*:\n\n` +
           `${loteHeader}` +
           `🎵 *${release.artist} - ${release.title}*\n` +
           `📀 Formato: ${formatInfo.fullLabel}\n` +
@@ -158,8 +159,16 @@ export function PublicProductModal({
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'bg-slate-200 text-slate-800 border border-slate-300'
               }`}>
-                {conditionInfo.isNew ? '✨ Novo / Lacrado' : '📻 Usado / Garimpo'}
+                {conditionInfo.isNew ? '✨ Novo / Lacrado' : condition?.mediaCondition ? `Usado (${condition.mediaCondition})` : 'Usado'}
               </span>
+
+              {/* Nativista / Música Gaúcha Badge */}
+              {isNativistaGauchoItem(listing) && (
+                <span className="px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider bg-emerald-800 text-white shadow-xs flex items-center gap-1 border border-emerald-600/40">
+                  <span>🧉</span>
+                  Música Gaúcha (Nativista)
+                </span>
+              )}
 
               {/* Exclusivo Loja Online Badge */}
               {isOnlineExclusiveItem(listing) && (
@@ -331,19 +340,19 @@ export function PublicProductModal({
                   </div>
                 )}
 
-                {/* Garimpo Alert Banner if applicable */}
-                {isGarimpoItem(listing) && (
-                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-4 flex items-start gap-3">
-                    <div className="p-2 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl font-black text-xs shrink-0 uppercase tracking-wider flex items-center gap-1 shadow-xs">
-                      <Flame className="h-3.5 w-3.5 fill-white" />
-                      <span>Garimpo</span>
+                {/* Música Gaúcha & Nativista Alert Banner if applicable */}
+                {isNativistaGauchoItem(listing) && (
+                  <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 border border-emerald-300/80 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+                    <div className="p-2 bg-gradient-to-r from-emerald-700 to-teal-800 text-white rounded-xl font-black text-xs shrink-0 uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                      <span>🧉</span>
+                      <span>Nativista</span>
                     </div>
                     <div className="space-y-1 text-xs">
-                      <h4 className="font-bold text-orange-950 text-sm flex items-center gap-1.5">
-                        <span>Item da Sessão Garimpo & Oportunidades</span>
+                      <h4 className="font-bold text-emerald-950 text-sm flex items-center gap-1.5">
+                        <span>Música Gaúcha & Nativismo (Rio Grande do Sul)</span>
                       </h4>
-                      <p className="text-orange-900/85 leading-relaxed">
-                        {getGarimpoReason(listing)} — Excelente custo-benefício para sua coleção! Item disponibilizado por menor valor de mercado ou com marcas de época descritas.
+                      <p className="text-emerald-900/85 leading-relaxed">
+                        Álbum clássico do regionalismo e tradicionalismo gaúcho (milongas, chamamés, vanerões e poesia pampeana).
                       </p>
                     </div>
                   </div>
@@ -675,7 +684,7 @@ export function PublicProductModal({
 
                 {/* Action Buttons */}
                 <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                  {listing.status === 'sold' ? (
+                  {isSold ? (
                     <button
                       type="button"
                       disabled
@@ -705,13 +714,13 @@ export function PublicProductModal({
                     type="button"
                     onClick={handleWhatsappEnquiry}
                     className={`py-3.5 px-5 font-black text-sm rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95 ${
-                      listing.status === 'sold'
+                      isSold
                         ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/20'
                         : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
                     }`}
                   >
-                    <MessageCircle className={`h-4 w-4 ${listing.status === 'sold' ? 'text-emerald-400' : 'text-slate-950'}`} />
-                    <span>{listing.status === 'sold' ? 'Pedir Similar no WhatsApp' : 'Comprar no WhatsApp'}</span>
+                    <MessageCircle className={`h-4 w-4 ${isSold ? 'text-emerald-400' : 'text-slate-950'}`} />
+                    <span>{isSold ? 'Pedir Similar no WhatsApp' : 'Comprar no WhatsApp'}</span>
                   </button>
                 </div>
               </div>

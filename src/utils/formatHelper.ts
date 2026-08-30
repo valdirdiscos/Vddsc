@@ -244,66 +244,117 @@ export interface GarimpoInfo {
 }
 
 /**
- * Checks if a listing belongs to the "Sessão Garimpo"
- * (Discos de menor valor de mercado, itens com detalhes/danificados ou marcados como garimpo).
+ * Eliminado a pedido do usuário (estava confuso e gerava marcações incorretas).
+ * Retorna sempre false para desativar qualquer exibição de garimpo.
  */
-export function isGarimpoItem(listing?: SavedListing | null): boolean {
-  if (!listing) return false;
+export function isGarimpoItem(_listing?: SavedListing | null): boolean {
+  return false;
+}
 
-  // 1. Explicit flag
-  if (listing.isGarimpo === true) return true;
+export function getGarimpoReason(_listing?: SavedListing | null): string {
+  return '';
+}
 
-  // 2. Storage location / Drawer indication
-  const drawer = (listing.drawer || '').toLowerCase();
-  if (drawer.includes('garimpo') || drawer.includes('caixa 10') || drawer.includes('caixa 20') || drawer.includes('promocao') || drawer.includes('promo')) {
+/**
+ * Lista de artistas consagrados da Música Gaúcha, Nativista e Tradicionalista do RS.
+ */
+const GAUCHO_NATIVISTA_ARTISTS = [
+  'teixeirinha', 'gaucho da fronteira', 'gaúcho da fronteira', 'os serranos', 
+  'porca véia', 'porca veia', 'luiz marenco', 'noel guarany', 'cenair maicá', 
+  'cenair maica', 'pedro ortaça', 'pedro ortaca', 'telmo de lima freitas', 
+  'honeyde bertussi', 'os mirins', 'berenice azambuja', 'leopoldo rassier', 
+  'neto fagundes', 'ernesto fagundes', 'joca martins', 'baitaca', 'grupo rodeio', 
+  'os monarcas', 'chiquito & bordoneio', 'chiquito e bordoneio', 'cesar passarinho', 
+  'césar passarinho', 'dante ramon ledesma', 'wilson paim', 'kleiton & kledir', 
+  'kleiton e kledir', 'elton saldanha', 'os fagundes', 'joão de almeida neto', 
+  'joao de almeida neto', 'josé mendes', 'jose mendes', 'mary terezinha', 
+  'adelar bertussi', 'irmãos bertussi', 'irmaos bertussi', 'gildo de freitas', 
+  'barbosa lessa', 'paixão côrtes', 'paixao cortes', 'tchê garotos', 'tche garotos', 
+  'tchê barbaridade', 'tche barbaridade', 'os 3 xirus', 'os três xirús', 'os tres xirus', 
+  'os nativos', 'valter moraes', 'antônio gringo', 'antonio gringo', 'mário barbará', 
+  'mario barbara', 'shana müller', 'shana muller', 'grupo fandanguerio', 'os bertussi', 
+  'mano lima', 'luiz carlos borges', 'garotos de ouro', 'grupo charrua', 'trio nativista', 
+  'conjunto farroupilha', 'os 4 gauchos', 'os quatro gaúchos', 'os tauras', 'os campeiros', 
+  'renato borghetti', 'borghettinho', 'tupanciretã', 'alma missioneira', 'grupo quarteador'
+];
+
+const GAUCHO_KEYWORDS = [
+  'gaúcho', 'gaucho', 'gaúcha', 'gaucha', 'nativista', 'nativismo', 'rio grande do sul', 
+  'tradicionalismo', 'tradicionalista', 'ctg', 'pampa', 'pampeano', 'milonga', 'chamamé', 
+  'chamame', 'vaneira', 'vanera', 'vanerão', 'vanerao', 'bugio', 'chula', 'chimarrão', 
+  'chimarrao', 'fandango', 'payada', 'trova', 'trovador', 'galpão', 'galpao', 'fronteira', 
+  'charqueada', 'farroupilha', 'missões', 'missoes', 'serrano', 'campeiro', 'querência', 
+  'querencia', 'acordeom', 'gaita ponto', 'gaita de botão', 'gauchesco', 'gauchão', 
+  'gauchao', 'regional gaúcho', 'regional gaucho', 'porto alegre', 'sulista', 'bagé', 
+  'uruguaiana', 'pelotas', 'passo fundo', 'vacaria'
+];
+
+/**
+ * Identifica se o disco pertence à Sessão Música Gaúcha / Nativista.
+ * Identifica artistas do RS e classifica discos marcados como 'Folk' ou 'Folk, World, & Country'
+ * pelo Discogs que sejam da cultura gaúcha / tradicionalista do Rio Grande do Sul.
+ */
+export function isNativistaGauchoItem(listingOrRelease?: SavedListing | DiscogsRelease | null): boolean {
+  if (!listingOrRelease) return false;
+
+  const listing: SavedListing | null = 'release' in listingOrRelease ? (listingOrRelease as SavedListing) : null;
+  const release: DiscogsRelease = listing ? listing.release : (listingOrRelease as DiscogsRelease);
+
+  // 1. Flag explícita do item
+  if (listing?.isNativista === true) return true;
+
+  const artist = (release.artist || '').toLowerCase();
+  const title = (release.title || '').toLowerCase();
+  const notes = (release.notes || '').toLowerCase();
+  const genres = (release.genres || []).map(g => (g || '').toLowerCase());
+  const styles = (release.styles || []).map(s => (s || '').toLowerCase());
+  const tracklistTitles = (release.tracklist || []).map(t => (t.title || '').toLowerCase()).join(' ');
+  const drawer = (listing?.drawer || '').toLowerCase();
+
+  const fullText = `${artist} ${title} ${notes} ${styles.join(' ')} ${genres.join(' ')} ${tracklistTitles} ${drawer}`;
+
+  // 2. Gaveta / Localização
+  if (drawer.includes('gaucho') || drawer.includes('gaúcho') || drawer.includes('nativista') || drawer.includes('sul')) {
     return true;
   }
 
-  // 3. Price under market threshold (<= R$ 40)
-  const price = listing.pricing?.directPrice || listing.pricing?.basePriceBrl || 0;
-  if (price > 0 && price <= 40) {
+  // 3. Artista consagrado da música gaúcha/nativista
+  if (GAUCHO_NATIVISTA_ARTISTS.some(gArtist => artist.includes(gArtist))) {
     return true;
   }
 
-  // 4. Goldmine Condition: G, G+, Fair, Poor
-  const mediaCond = (listing.condition?.mediaCondition || '').trim().toUpperCase();
-  const sleeveCond = (listing.condition?.sleeveCondition || '').trim().toUpperCase();
-  if (['G', 'G+', 'F', 'P', 'POOR', 'FAIR'].includes(mediaCond) || ['G', 'G+', 'F', 'P', 'POOR', 'FAIR'].includes(sleeveCond)) {
+  // 4. Classificação Discogs: Folk / Folk, World, & Country + termos do RS / Gaúcho
+  const isDiscogsFolk = 
+    genres.some(g => g.includes('folk')) || 
+    styles.some(s => s.includes('folk')) ||
+    genres.some(g => g.includes('world') || g.includes('country')) ||
+    styles.some(s => s.includes('country') || s.includes('regional'));
+
+  // Se o Discogs classificou como Folk/World/Regional e contém palavras-chave do Rio Grande do Sul
+  if (isDiscogsFolk && GAUCHO_KEYWORDS.some(kw => fullText.includes(kw))) {
     return true;
   }
 
-  // 5. Notes / Details indicating damage or low-cost opportunity
-  const combinedNotes = `${listing.condition?.mediaDetails || ''} ${listing.condition?.sleeveDetails || ''} ${listing.garimpoDetails || ''} ${listing.release?.notes || ''}`.toLowerCase();
-  if (
-    combinedNotes.includes('garimpo') ||
-    combinedNotes.includes('danificado') ||
-    combinedNotes.includes('com detalhes') ||
-    combinedNotes.includes('capa avariada') ||
-    combinedNotes.includes('marcas de uso acentuadas') ||
-    combinedNotes.includes('riscos visíveis') ||
-    combinedNotes.includes('pequeno detalhe') ||
-    combinedNotes.includes('preço promocional')
-  ) {
+  // 5. Palavras-chave gaúchas/nativistas fortes no artista, título ou estilos
+  const strongKeywords = ['nativista', 'nativismo', 'gaúcho', 'gaucho', 'gaúcha', 'gaucha', 'tradicionalismo', 'milonga', 'chamamé', 'chamame', 'vaneira', 'vanerão', 'vanerao', 'bugio', 'chimarrão'];
+  if (strongKeywords.some(skw => artist.includes(skw) || title.includes(skw) || styles.some(s => s.includes(skw)))) {
     return true;
   }
 
   return false;
 }
 
-export function getGarimpoReason(listing?: SavedListing | null): string {
-  if (!listing) return 'Oportunidade Garimpo';
-  if (listing.garimpoDetails) return listing.garimpoDetails;
-  
-  const price = listing.pricing?.directPrice || listing.pricing?.basePriceBrl || 0;
-  const mediaCond = (listing.condition?.mediaCondition || '').trim().toUpperCase();
-  
-  if (['G', 'G+', 'F', 'P'].includes(mediaCond)) {
-    return `Conservação ${mediaCond} (com marcas de uso/detalhes)`;
-  }
-  if (price > 0 && price <= 40) {
-    return `Preço super acessível (R$ ${price.toFixed(2)})`;
-  }
-  return 'Achado de menor valor de mercado';
+export function getNativistaInfo(listingOrRelease?: SavedListing | DiscogsRelease | null): {
+  isNativista: boolean;
+  label: string;
+  tag: string;
+} {
+  const isNat = isNativistaGauchoItem(listingOrRelease);
+  return {
+    isNativista: isNat,
+    label: '🧉 Música Gaúcha & Nativista',
+    tag: 'Gaúcha / Nativista'
+  };
 }
 
 /**

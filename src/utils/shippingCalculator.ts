@@ -1,15 +1,19 @@
 // Shipping rates and calculations for Valdir Discos
 // Origin: Santa Maria - RS (CEP 97010-000)
+import { 
+  CorreiosCalculationResult, 
+  CorreiosPackageSpecs, 
+  CorreiosShippingOption, 
+  calculateCorreiosRates, 
+  estimatePackageSpecs,
+  VALDIR_ORIGIN_CEP,
+  VALDIR_ORIGIN_CITY,
+  VALDIR_ORIGIN_STATE
+} from './correiosMatrix';
 
-export interface ShippingOption {
-  id: 'pickup' | 'local_express' | 'correios_mini' | 'correios_pac' | 'correios_sedex';
-  name: string;
-  carrier: string;
-  description: string;
-  price: number;
-  estimatedDays: string;
-  badge?: string;
-}
+export type { CorreiosPackageSpecs, CorreiosCalculationResult };
+
+export interface ShippingOption extends CorreiosShippingOption {}
 
 export interface CepAddress {
   cep: string;
@@ -22,157 +26,150 @@ export interface CepAddress {
 
 // Santa Maria, RS Origin CEP
 export const STORE_ORIGIN = {
-  city: 'Santa Maria',
-  state: 'RS',
-  cep: '97010-000',
+  city: VALDIR_ORIGIN_CITY,
+  state: VALDIR_ORIGIN_STATE,
+  cep: VALDIR_ORIGIN_CEP,
   address: 'Santa Maria - Rio Grande do Sul (RS)'
 };
 
 /**
- * Fetch address details from ViaCEP
+ * Fetch address details from ViaCEP with BrasilAPI fallback
  */
 export async function fetchAddressByCep(cep: string): Promise<CepAddress | null> {
   const cleanCep = cep.replace(/\D/g, '');
   if (cleanCep.length !== 8) return null;
 
+  // 1. Try ViaCEP
   try {
-    const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.erro) return null;
-    return data;
+    const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, { signal: AbortSignal.timeout(4000) });
+    if (res.ok) {
+      const data = await res.json();
+      if (!data.erro && data.uf) {
+        return {
+          cep: data.cep || cleanCep,
+          logradouro: data.logradouro || '',
+          bairro: data.bairro || '',
+          localidade: data.localidade || '',
+          uf: data.uf || ''
+        };
+      }
+    }
   } catch (err) {
-    console.warn('Erro ao consultar CEP:', err);
-    return null;
+    console.warn('ViaCEP falhou ou demorou, tentando BrasilAPI...', err);
   }
+
+  // 2. Fallback to BrasilAPI
+  try {
+    const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`, { signal: AbortSignal.timeout(4000) });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.state) {
+        return {
+          cep: data.cep || cleanCep,
+          logradouro: data.street || '',
+          bairro: data.neighborhood || '',
+          localidade: data.city || '',
+          uf: data.state || ''
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('BrasilAPI também indisponível:', err);
+  }
+
+  return null;
+}
+
+export interface CalculateShippingParams {
+  cep: string;
+  itemsCount?: number;
+  format?: 'vinyl' | 'cd' | 'cassette' | 'tshirt' | 'mixed';
+  declaredValue?: number;
 }
 
 /**
- * Calculate shipping options based on destination State (UF) and city
+ * Integração completa com o frete dos Correios:
+ * Tenta a API backend /api/shipping/calculate e caso offline calcula localmente pela Matriz Correios
+ */
+export async function calculateCorreiosShipping(
+  params: CalculateShippingParams
+): Promise<CorreiosCalculationResult | null> {
+  const cleanCep = params.cep.replace(/\D/g, '');
+  if (cleanCep.length !== 8) return null;
+
+  const itemsCount = params.itemsCount || 1;
+  const format = params.format || 'vinyl';
+  const declaredValue = params.declaredValue || 0;
+
+  // 1. Tenta a API do servidor
+  try {
+    const response = await fetch('/api/shipping/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cepDestino: cleanCep,
+        itemsCount,
+        format,
+        declaredValue
+      }),
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (response.ok) {
+      const data: CorreiosCalculationResult = await response.json();
+      if (data && data.options && data.options.length > 0) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.info('Endpoint /api/shipping/calculate indisponível, usando motor local Correios...', err);
+  }
+
+  // 2. Fallback local: resolve endereço e calcula com a matriz oficial dos Correios
+  const address = await fetchAddressByCep(cleanCep);
+  const destinationUf = address?.uf || 'RS';
+  const destinationCity = address?.localidade || 'Santa Maria';
+  const packageSpecs = estimatePackageSpecs(itemsCount, format);
+
+  const localResult = calculateCorreiosRates(
+    destinationUf,
+    destinationCity,
+    cleanCep,
+    packageSpecs,
+    declaredValue
+  );
+
+  if (address) {
+    localResult.destination = {
+      cep: cleanCep,
+      city: address.localidade,
+      state: address.uf,
+      neighborhood: address.bairro,
+      street: address.logradouro,
+      formatted: `${address.localidade} - ${address.uf}${address.bairro ? ` (${address.bairro})` : ''}`
+    };
+  }
+
+  return localResult;
+}
+
+/**
+ * Backward-compatible synchronous calculation
  */
 export function calculateShippingOptions(
   uf: string = 'RS', 
   city: string = '', 
   cartWeightOrItems: number = 1
 ): ShippingOption[] {
-  const cleanUf = (uf || 'RS').trim().toUpperCase();
-  const isSantaMaria = (city || '').toLowerCase().includes('santa maria') || cleanUf === 'RS' && (city || '').toLowerCase().includes('maria');
-  const isRS = cleanUf === 'RS';
-  const isSul = ['RS', 'SC', 'PR'].includes(cleanUf);
-  const isSudeste = ['SP', 'RJ', 'MG', 'ES'].includes(cleanUf);
-  const isCentroOeste = ['DF', 'GO', 'MT', 'MS'].includes(cleanUf);
-  const isNordeste = ['BA', 'PE', 'CE', 'RN', 'PB', 'AL', 'SE', 'PI', 'MA'].includes(cleanUf);
-  const isNorte = ['AM', 'PA', 'AC', 'RR', 'RO', 'AP', 'TO'].includes(cleanUf);
+  const packageSpecs = estimatePackageSpecs(cartWeightOrItems, 'vinyl');
+  const result = calculateCorreiosRates(uf, city, '97010000', packageSpecs, 0);
+  return result.options;
+}
 
-  const options: ShippingOption[] = [];
-
-  // 1. Retirada no Balcão em Santa Maria - RS (Sempre disponível e Grátis)
-  options.push({
-    id: 'pickup',
-    name: 'Retirada Grátis no Balcão',
-    carrier: 'Valdir Discos',
-    description: 'Retire diretamente na nossa loja física em Santa Maria - RS',
-    price: 0,
-    estimatedDays: 'Disponível no mesmo dia',
-    badge: 'Grátis em Santa Maria / RS'
-  });
-
-  // 2. Entrega Local Santa Maria
-  if (isSantaMaria || isRS) {
-    options.push({
-      id: 'local_express',
-      name: 'Entrega Expressa Local (Motoboy)',
-      carrier: 'Valdir Express Santa Maria',
-      description: 'Entrega rápida em qualquer bairro de Santa Maria - RS',
-      price: 12.00,
-      estimatedDays: '1 a 2 horas (mesmo dia)',
-      badge: 'Local Santa Maria'
-    });
-  }
-
-  // 3. Mini Envios / Registro Módico (Compactos 7", CDs e Fitas)
-  let miniPrice = 18.00;
-  if (isSul) miniPrice = 16.00;
-  else if (isSudeste) miniPrice = 19.00;
-  else if (isNordeste || isNorte) miniPrice = 24.00;
-
-  options.push({
-    id: 'correios_mini',
-    name: 'Registro Módico / Mini Envios',
-    carrier: 'Correios Brasil',
-    description: 'Opção econômica com rastreio direto de Santa Maria/RS para todo Brasil',
-    price: miniPrice,
-    estimatedDays: isSul ? '3 a 6 dias úteis' : '5 a 10 dias úteis',
-    badge: 'Econômico'
-  });
-
-  // 4. PAC Correios (Embalagem reforçada para discos de vinil 12" LP)
-  let pacPrice = 28.00;
-  let pacDays = '4 a 8 dias úteis';
-
-  if (isRS) {
-    pacPrice = 22.00;
-    pacDays = '2 a 4 dias úteis';
-  } else if (isSul) {
-    pacPrice = 26.00;
-    pacDays = '3 a 6 dias úteis';
-  } else if (isSudeste) {
-    pacPrice = 32.00;
-    pacDays = '5 a 8 dias úteis';
-  } else if (isCentroOeste) {
-    pacPrice = 36.00;
-    pacDays = '6 a 9 dias úteis';
-  } else if (isNordeste) {
-    pacPrice = 42.00;
-    pacDays = '8 a 12 dias úteis';
-  } else if (isNorte) {
-    pacPrice = 49.00;
-    pacDays = '9 a 15 dias úteis';
-  }
-
-  options.push({
-    id: 'correios_pac',
-    name: 'Correios PAC Seguro Vinil',
-    carrier: 'Correios Brasil',
-    description: 'Caixa de papelão reforçada + plástico bolha + seguro contra avarias',
-    price: pacPrice,
-    estimatedDays: pacDays,
-    badge: 'Mais Popular'
-  });
-
-  // 5. SEDEX Express Correios
-  let sedexPrice = 48.00;
-  let sedexDays = '1 a 3 dias úteis';
-
-  if (isRS) {
-    sedexPrice = 29.00;
-    sedexDays = '1 a 2 dias úteis';
-  } else if (isSul) {
-    sedexPrice = 38.00;
-    sedexDays = '1 a 3 dias úteis';
-  } else if (isSudeste) {
-    sedexPrice = 54.00;
-    sedexDays = '2 a 4 dias úteis';
-  } else if (isCentroOeste) {
-    sedexPrice = 62.00;
-    sedexDays = '2 a 4 dias úteis';
-  } else if (isNordeste) {
-    sedexPrice = 76.00;
-    sedexDays = '3 a 5 dias úteis';
-  } else if (isNorte) {
-    sedexPrice = 88.00;
-    sedexDays = '3 a 6 dias úteis';
-  }
-
-  options.push({
-    id: 'correios_sedex',
-    name: 'Correios SEDEX Prioritário',
-    carrier: 'Correios Brasil',
-    description: 'Despacho prioritário com máxima agilidade e rastreamento em tempo real',
-    price: sedexPrice,
-    estimatedDays: sedexDays,
-    badge: 'Super Rápido'
-  });
-
-  return options;
+/**
+ * Gera URL oficial de rastreamento dos Correios
+ */
+export function getCorreiosTrackingUrl(trackingCode: string): string {
+  const clean = trackingCode.trim().toUpperCase();
+  return `https://rastreamento.correios.com.br/app/index.php?codigo=${encodeURIComponent(clean)}`;
 }

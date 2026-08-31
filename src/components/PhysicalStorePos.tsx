@@ -1335,7 +1335,7 @@ export const PhysicalStorePos: React.FC<PhysicalStorePosProps> = ({
                             {item.release.artist} - {item.release.title}
                           </p>
                           <span className="text-[10px] text-slate-500 font-mono">
-                            {item.barcode || item.id.slice(-6)} • Loc: <strong>{item.drawer || 'Geral'}</strong>
+                            {item.barcode || item.id.slice(-6)} • Estoque: <strong>{item.drawer || 'Geral'}</strong>
                           </span>
                         </div>
                       </div>

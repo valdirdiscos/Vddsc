@@ -174,7 +174,7 @@ export const BatchQRCodeModal: React.FC<BatchQRCodeModalProps> = ({
               >
                 <option value="all">Todas as Gavetas ({listings.length})</option>
                 {drawers.map(d => (
-                  <option key={d} value={d}>Gaveta / Loc: {d}</option>
+                  <option key={d} value={d}>Localização: [{d}]</option>
                 ))}
               </select>
             </div>

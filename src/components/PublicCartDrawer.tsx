@@ -149,6 +149,7 @@ export function PublicCartDrawer({
 
   const finalTotal = subtotal + shippingCost;
   const totalItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const physicalItemsCount = cart.reduce((acc, item) => item.digital ? acc : acc + item.quantity, 0);
 
   const handleCopyPix = () => {
     navigator.clipboard.writeText(pixKey);
@@ -556,6 +557,9 @@ export function PublicCartDrawer({
                       {/* Integrated Shipping Calculator */}
                       <ShippingCalculatorWidget 
                         selectedOptionId={selectedShipping?.id || (deliveryType === 'pickup' ? 'pickup' : undefined)}
+                        itemsCount={Math.max(1, physicalItemsCount)}
+                        declaredValue={subtotal}
+                        initialCep={customerCep}
                         onSelectOption={(opt) => {
                           setSelectedShipping(opt);
                           if (opt.id === 'pickup') {

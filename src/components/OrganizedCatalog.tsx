@@ -10,13 +10,13 @@ import {
   Sparkles, Calendar, Layers, Shield, Tag, DollarSign, Eye, Play,
   ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Bookmark, AlertTriangle,
   Edit3, FileText, Phone, Plus, Heart, QrCode, Printer, Flame, Star, Package, Percent,
-  LayoutGrid, Grid3X3, Table
+  LayoutGrid, Grid3X3, Table, Smartphone, Camera, Zap, ExternalLink
 } from 'lucide-react';
 import { SavedListing, Customer } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { SalesChannel } from '../types';
 import { getSalesChannelMeta } from '../utils/qrcode';
-import { isNativistaGauchoItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist } from '../utils/formatHelper';
+import { isNativistaGauchoItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist, getListingFormatInfo, detectReleaseParticularities } from '../utils/formatHelper';
 import { CatalogViewMode, getSavedCatalogViewMode, saveCatalogViewMode } from '../utils/cookieStorage';
 import { BatchQRCodeModal } from './BatchQRCodeModal';
 import { DiscQRCodeModal } from './DiscQRCodeModal';
@@ -64,6 +64,52 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
   const [selectedListing, setSelectedListing] = useState<SavedListing | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [copyPlatformTab, setCopyPlatformTab] = useState<'shopee' | 'mercadolivre'>('mercadolivre');
+  const [showFichaTecnicaInDrawer, setShowFichaTecnicaInDrawer] = useState(true);
+  const [isPublishingCatalogId, setIsPublishingCatalogId] = useState<string | null>(null);
+  const [publishCatalogResult, setPublishCatalogResult] = useState<{ id: string; message: string; url?: string } | null>(null);
+
+  const handlePublishFromCatalog = async (listing: SavedListing, platform: 'mercadolivre' | 'shopee') => {
+    setIsPublishingCatalogId(listing.id);
+    setPublishCatalogResult(null);
+    try {
+      const res = await fetch('/api/marketplaces/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listing,
+          targetPlatforms: [platform]
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const pub = data.publications?.[platform];
+        setPublishCatalogResult({
+          id: listing.id,
+          message: `✓ Cadastrado com sucesso no ${platform === 'mercadolivre' ? 'Mercado Livre' : 'Shopee'}!`,
+          url: pub?.permalink
+        });
+        if (data.publications) {
+          const updatedListing: SavedListing = {
+            ...listing,
+            marketplacePublications: {
+              ...(listing.marketplacePublications || {}),
+              ...data.publications
+            }
+          };
+          onUpdate(updatedListing);
+          setSelectedListing(updatedListing);
+        }
+      } else {
+        alert(`Aviso ao cadastrar: ${data.error || 'Não foi possível cadastrar via API'}`);
+      }
+    } catch (err: any) {
+      console.error('Erro ao cadastrar:', err);
+      alert('Erro ao comunicar com a API do marketplace.');
+    } finally {
+      setIsPublishingCatalogId(null);
+    }
+  };
 
   // Modal States
   const [sellingListing, setSellingListing] = useState<SavedListing | null>(null);
@@ -1141,7 +1187,7 @@ Colecionar é preservar a história.`;
 
               {/* Location / Drawer Selection */}
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-400 uppercase tracking-wide text-[10px]">Loc:</span>
+                <span className="font-bold text-slate-400 uppercase tracking-wide text-[10px]">Estoque:</span>
                 <select
                   value={selectedDrawer}
                   onChange={(e) => setSelectedDrawer(e.target.value)}
@@ -2430,7 +2476,7 @@ Colecionar é preservar a história.`;
                       </span>
                       {selectedListing.drawer && (
                         <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-100 font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1">
-                          📁 Loc: {selectedListing.drawer}
+                          📍 [{selectedListing.drawer.replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim()}]
                         </span>
                       )}
 
@@ -2774,64 +2820,393 @@ Colecionar é preservar a história.`;
                   </div>
                 </div>
 
-                {/* Copyable Content Blocks */}
+                {/* Copyable Content Blocks with Platform Switcher */}
                 <div className="space-y-4 pt-4 border-t border-slate-100">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Copiar Dados para o Anúncio</h4>
-                    <span className="text-[10px] font-extrabold bg-orange-100 text-orange-700 px-2 py-0.5 rounded border border-orange-200 uppercase">Shopee</span>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Copiar Dados para o Anúncio</h4>
+                    
+                    {/* Platform Selector Tabs */}
+                    <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setCopyPlatformTab('shopee')}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          copyPlatformTab === 'shopee'
+                            ? 'bg-orange-500 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Shopee (120c)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCopyPlatformTab('mercadolivre')}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                          copyPlatformTab === 'mercadolivre'
+                            ? 'bg-amber-400 text-slate-950 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Smartphone className="h-3 w-3" />
+                        <span>Mercado Livre (60c)</span>
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Copy Shopee Title */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 font-bold">Título do Anúncio:</span>
+                  {/* Card de Cadastro Automático via API (1 Clique) */}
+                  <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs ${
+                    copyPlatformTab === 'mercadolivre'
+                      ? 'bg-amber-500/10 border-amber-300/80 text-amber-950'
+                      : 'bg-orange-500/10 border-orange-300/80 text-orange-950'
+                  }`}>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                          copyPlatformTab === 'mercadolivre' ? 'bg-amber-400 text-slate-950' : 'bg-orange-500 text-white'
+                        }`}>
+                          {copyPlatformTab === 'mercadolivre' ? '⚡ Mercado Livre API' : '⚡ Shopee Open API'}
+                        </span>
+                        <span className="text-xs font-black text-slate-900">
+                          {copyPlatformTab === 'mercadolivre' ? 'Cadastrar Direto no Mercado Livre' : 'Cadastrar Direto na Shopee'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        {copyPlatformTab === 'mercadolivre'
+                          ? 'Envia fotos, ficha técnica de vinil, preço e localização limpa direto para sua conta do Mercado Livre!'
+                          : 'Publica o anúncio completo instantaneamente na sua loja da Shopee via API.'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => triggerCopy(selectedListing.shopee.title, 'shopee-title')}
-                        className="text-[10px] text-indigo-600 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                        type="button"
+                        onClick={() => handlePublishFromCatalog(selectedListing, copyPlatformTab)}
+                        disabled={isPublishingCatalogId === selectedListing.id}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer ${
+                          copyPlatformTab === 'mercadolivre'
+                            ? 'bg-amber-400 hover:bg-amber-500 text-slate-950 disabled:opacity-50'
+                            : 'bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50'
+                        }`}
                       >
-                        {copiedField === 'shopee-title' ? (
+                        {isPublishingCatalogId === selectedListing.id ? (
                           <>
-                            <Check className="h-3 w-3 text-emerald-600" />
-                            <span className="text-emerald-600 font-black">Copiado!</span>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            <span>Cadastrando...</span>
                           </>
                         ) : (
                           <>
-                            <Copy className="h-3 w-3" />
-                            <span>Copiar Título</span>
+                            <Zap className="h-3.5 w-3.5" />
+                            <span>Cadastrar Agora (1 Clique)</span>
                           </>
                         )}
                       </button>
                     </div>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono text-slate-800 break-all select-all">
-                      {selectedListing.shopee.title}
-                    </div>
                   </div>
 
-                  {/* Copy Shopee Description */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 font-bold">Descrição Completa:</span>
-                      <button
-                        onClick={() => triggerCopy(selectedListing.shopee.description, 'shopee-desc')}
-                        className="text-[10px] text-indigo-600 hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                      >
-                        {copiedField === 'shopee-desc' ? (
-                          <>
-                            <Check className="h-3 w-3 text-emerald-600" />
-                            <span className="text-emerald-600 font-black">Copiado!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3 w-3" />
-                            <span>Copiar Descrição</span>
-                          </>
-                        )}
-                      </button>
+                  {publishCatalogResult && publishCatalogResult.id === selectedListing.id && (
+                    <div className="p-2.5 bg-emerald-100 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle className="h-4 w-4 text-emerald-700 shrink-0" />
+                        <span>{publishCatalogResult.message}</span>
+                      </div>
+                      {publishCatalogResult.url && (
+                        <a
+                          href={publishCatalogResult.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-1 bg-emerald-200 hover:bg-emerald-300 text-emerald-950 rounded text-[11px] font-black flex items-center gap-1"
+                        >
+                          <span>Ver</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
                     </div>
-                    <pre className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-700 whitespace-pre-wrap font-sans max-h-[220px] overflow-y-auto break-words leading-relaxed select-all">
-                      {selectedListing.shopee.description}
-                    </pre>
-                  </div>
+                  )}
+
+                  {copyPlatformTab === 'shopee' ? (
+                    <div className="space-y-3">
+                      {/* Copy Shopee Title */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500 font-bold">Título Shopee (Máx 120c):</span>
+                          <button
+                            onClick={() => triggerCopy(selectedListing.shopee.title, 'shopee-title')}
+                            className="text-[10px] text-indigo-600 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            {copiedField === 'shopee-title' ? (
+                              <>
+                                <Check className="h-3 w-3 text-emerald-600" />
+                                <span className="text-emerald-600 font-black">Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3 w-3" />
+                                <span>Copiar Título</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono text-slate-800 break-all select-all">
+                          {selectedListing.shopee.title}
+                        </div>
+                      </div>
+
+                      {/* Copy Shopee Description */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500 font-bold">Descrição Completa Shopee:</span>
+                          <button
+                            onClick={() => triggerCopy(selectedListing.shopee.description, 'shopee-desc')}
+                            className="text-[10px] text-indigo-600 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            {copiedField === 'shopee-desc' ? (
+                              <>
+                                <Check className="h-3 w-3 text-emerald-600" />
+                                <span className="text-emerald-600 font-black">Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3 w-3" />
+                                <span>Copiar Descrição</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <pre className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-700 whitespace-pre-wrap font-sans max-h-[220px] overflow-y-auto break-words leading-relaxed select-all">
+                          {selectedListing.shopee.description}
+                        </pre>
+                      </div>
+                    </div>
+                  ) : (
+                    /* MERCADO LIVRE (60c + Ficha Celular) */
+                    (() => {
+                      const rawDrawerLoc = selectedListing.drawer?.trim() || '';
+                      const drawerLoc = rawDrawerLoc.replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim();
+                      const drawerLocTag = drawerLoc ? ` [${drawerLoc}]` : '';
+
+                      // Calculate robust ML title with location always preserved without Loc: redundancy
+                      let drawerMlTitle = selectedListing.mercadolivre?.title;
+                      if (!drawerMlTitle) {
+                        const prefix = 'Vinil LP ';
+                        let base = `${selectedListing.release.artist} - ${selectedListing.release.title}`;
+                        const maxLen = 60;
+                        const avail = maxLen - prefix.length - drawerLocTag.length;
+                        if (base.length > avail) {
+                          base = base.slice(0, Math.max(10, avail - 3)).trim() + '...';
+                        }
+                        drawerMlTitle = `${prefix}${base}${drawerLocTag}`.slice(0, 60);
+                      } else if (drawerLoc && !drawerMlTitle.toLowerCase().includes(`[${drawerLoc.toLowerCase()}]`)) {
+                        let base = drawerMlTitle.replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
+                        const maxLen = 60;
+                        const avail = maxLen - drawerLocTag.length;
+                        if (base.length > avail) {
+                          base = base.slice(0, Math.max(10, avail - 3)).trim() + '...';
+                        }
+                        drawerMlTitle = `${base}${drawerLocTag}`.slice(0, 60);
+                      }
+
+                      const drawerFormatInfo = getListingFormatInfo(selectedListing.release);
+                      const drawerPart = detectReleaseParticularities(selectedListing.release);
+                      const mlCategory = drawerFormatInfo.type === 'cd'
+                        ? 'Música, Filmes e Seriados > Música > CDs e DVDs de Música'
+                        : drawerFormatInfo.type === 'dvd'
+                        ? 'Música, Filmes e Seriados > Música > DVDs de Música'
+                        : 'Música, Filmes e Seriados > Música > Vinil';
+
+                      const mlCondition = selectedListing.condition.mediaCondition === 'M' ? 'Novo' : 'Usado';
+                      const mlFormatAlbum = drawerFormatInfo.type === 'cd' ? 'CD' : drawerFormatInfo.type === 'dvd' ? 'DVD' : 'Vinil';
+                      const mlPhysical = drawerPart.isDoubleAlbum
+                        ? 'Álbum Duplo (2 LPs 12")'
+                        : drawerFormatInfo.type === 'vinyl_single'
+                        ? 'Compacto / Single (7 polegadas, 33/45 RPM)'
+                        : drawerFormatInfo.type === 'cd'
+                        ? 'CD Áudio Padrão'
+                        : 'LP (12 polegadas, 33 ⅓ RPM)';
+                      
+                      const mlYear = selectedListing.release.year ? String(selectedListing.release.year) : 'Não informado';
+                      const mlTracks = `${selectedListing.release.tracklist?.length || 0} faixas`;
+                      const mlGenre = selectedListing.release.genres?.length ? selectedListing.release.genres.join(', ') : 'Rock / MPB';
+                      const mlLabel = selectedListing.release.label || 'Independente';
+                      const mlCountry = selectedListing.release.country || 'Brasil';
+                      const mlDiscs = drawerPart.isDoubleAlbum ? '2' : (drawerPart.isBoxSet ? '3' : '1');
+                      const mlPackage = drawerPart.isGatefold
+                        ? 'Capa dupla (Gatefold)'
+                        : drawerPart.isBoxSet
+                        ? 'Caixa rígida (Box Set)'
+                        : 'Capa simples de papelão com plásticos novos';
+                      const mlPriceVal = (selectedListing.mercadolivre?.suggestedPrice || selectedListing.pricing?.directPrice || selectedListing.pricing?.basePriceBrl || 0).toFixed(2);
+                      const shippingDims = drawerFormatInfo.type === 'vinyl_single'
+                        ? '20 cm x 20 cm x 2 cm | 150 g'
+                        : drawerFormatInfo.type === 'cd'
+                        ? '15 cm x 15 cm x 2 cm | 120 g'
+                        : '33 cm x 33 cm x 3 cm | 450 g';
+
+                      let mlDesc = selectedListing.mercadolivre?.description || selectedListing.shopee?.description || '';
+                      if (drawerLoc && !mlDesc.includes(`[${drawerLoc}]`)) {
+                        mlDesc = `📍 **Localização no Estoque:** [${drawerLoc}]\n\n${mlDesc}`;
+                      }
+
+                      const fullFichaText = [
+                        `=== FICHA MERCADO LIVRE (${mlFormatAlbum}) ===`,
+                        `Título: ${drawerMlTitle}`,
+                        `Categoria: ${mlCategory}`,
+                        `Condição: ${mlCondition}`,
+                        `Artista: ${selectedListing.release.artist}`,
+                        `Álbum: ${selectedListing.release.title}`,
+                        `Formato do Álbum: ${mlFormatAlbum}`,
+                        `Formato Físico: ${mlPhysical}`,
+                        `Ano: ${mlYear}`,
+                        `Faixas: ${mlTracks}`,
+                        `Gênero: ${mlGenre}`,
+                        `Gravadora: ${mlLabel}`,
+                        `Origem: ${mlCountry}`,
+                        `Discos no Pacote: ${mlDiscs}`,
+                        `Embalagem: ${mlPackage}`,
+                        `EAN: Não tem / Não se aplica`,
+                        `É kit?: Não`,
+                        `Faixas adicionais?: Não`,
+                        `Preço: R$ ${mlPriceVal}`,
+                        `Garantia: 30 dias vendedor`,
+                        `Envio: ${shippingDims}`,
+                        `Localização: [${drawerLoc || 'Não informada'}]`
+                      ].join('\n');
+
+                      return (
+                        <div className="space-y-3.5">
+                          {/* Mercado Livre Title (Max 60c) */}
+                          <div className="space-y-1.5 bg-amber-50/50 p-3 rounded-xl border border-amber-200/70">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-800 font-black flex items-center gap-1.5">
+                                <span>Título Mercado Livre:</span>
+                                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold ${
+                                  drawerMlTitle.length <= 60 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {drawerMlTitle.length}/60c
+                                </span>
+                                {drawerLoc && (
+                                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
+                                    ✓ [{drawerLoc}]
+                                  </span>
+                                )}
+                              </span>
+                              <button
+                                onClick={() => triggerCopy(drawerMlTitle, 'ml-title')}
+                                className="text-[10px] text-slate-800 font-bold bg-amber-200 hover:bg-amber-300 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                {copiedField === 'ml-title' ? (
+                                  <>
+                                    <Check className="h-3 w-3 text-emerald-700" />
+                                    <span className="text-emerald-800 font-black">Copiado!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-3 w-3" />
+                                    <span>Copiar Título</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            <div className="p-2.5 bg-white border border-amber-200 rounded-lg text-xs font-mono font-bold text-slate-900 break-all select-all shadow-2xs">
+                              {drawerMlTitle}
+                            </div>
+                          </div>
+
+                          {/* Quick Ficha Tecnica Mobile Card */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2.5 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                              <div className="flex items-center gap-1.5">
+                                <Smartphone className="h-4 w-4 text-amber-600" />
+                                <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                  Ficha Técnica para Celular
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => triggerCopy(fullFichaText, 'ml-full-ficha')}
+                                className="text-[10px] font-black bg-slate-900 hover:bg-slate-800 text-white px-2.5 py-1 rounded-md flex items-center gap-1 transition-all cursor-pointer"
+                              >
+                                {copiedField === 'ml-full-ficha' ? (
+                                  <>
+                                    <Check className="h-3 w-3 text-emerald-400" />
+                                    <span>Copiado!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-3 w-3 text-amber-400" />
+                                    <span>Copiar Tudo</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            {/* 1-Click Copy Fields */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                              {[
+                                { k: 'art', label: 'Artista', val: selectedListing.release.artist },
+                                { k: 'alb', label: 'Álbum', val: selectedListing.release.title },
+                                { k: 'fmt', label: 'Formato', val: mlFormatAlbum },
+                                { k: 'phy', label: 'Tipo Físico', val: mlPhysical },
+                                { k: 'ano', label: 'Ano', val: mlYear },
+                                { k: 'fai', label: 'Canções', val: mlTracks },
+                                { k: 'gen', label: 'Gênero', val: mlGenre },
+                                { k: 'sel', label: 'Gravadora', val: mlLabel },
+                                { k: 'pai', label: 'Origem', val: mlCountry },
+                                { k: 'qtd', label: 'Qtd Discos', val: mlDiscs },
+                                { k: 'emb', label: 'Embalagem', val: mlPackage },
+                                { k: 'prc', label: 'Preço Sugerido', val: `R$ ${mlPriceVal}` },
+                                { k: 'dim', label: 'Envio (Dims/Peso)', val: shippingDims }
+                              ].map((field) => (
+                                <div key={field.k} className="p-1.5 bg-slate-50 rounded border border-slate-150 flex items-center justify-between gap-1.5">
+                                  <div className="min-w-0">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase block truncate">{field.label}</span>
+                                    <span className="font-bold text-slate-800 truncate block">{field.val}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => triggerCopy(field.val, `ml-f-${field.k}`)}
+                                    className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-all cursor-pointer shrink-0"
+                                    title={`Copiar ${field.label}`}
+                                  >
+                                    {copiedField === `ml-f-${field.k}` ? (
+                                      <Check className="h-3 w-3 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="h-3 w-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Mercado Livre Description */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-500 font-bold">Descrição Completa:</span>
+                              <button
+                                onClick={() => triggerCopy(mlDesc, 'ml-desc')}
+                                className="text-[10px] text-indigo-600 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                              >
+                                {copiedField === 'ml-desc' ? (
+                                  <>
+                                    <Check className="h-3 w-3 text-emerald-600" />
+                                    <span className="text-emerald-600 font-black">Copiado!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-3 w-3" />
+                                    <span>Copiar Descrição</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            <pre className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 whitespace-pre-wrap font-sans max-h-[180px] overflow-y-auto break-words leading-relaxed select-all">
+                              {mlDesc}
+                            </pre>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
                 </div>
 
               </div>

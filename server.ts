@@ -9,6 +9,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import dns from "dns";
+import { calculateCorreiosRates, estimatePackageSpecs, VALDIR_ORIGIN_CEP, VALDIR_ORIGIN_CITY, VALDIR_ORIGIN_STATE } from "./src/utils/correiosMatrix";
 
 // Force IPv4 first to prevent IPv6 DNS resolution connection hangs in container environments
 dns.setDefaultResultOrder("ipv4first");
@@ -1249,11 +1250,12 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
 
       if (drawerClean) {
         const escDrawer = drawerClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-        const drawerRegex = new RegExp(`\\[\\s*${escDrawer}\\s*\\]|\\b${escDrawer}\\b`, 'gi');
+        const drawerRegex = new RegExp(`\\[\\s*(Loc:)?\\s*${escDrawer}\\s*\\]|\\b${escDrawer}\\b`, 'gi');
         titleMl = titleMl.replace(drawerRegex, "").replace(/\s+/g, " ").trim();
       }
 
-      const mlDrawerSuffix = drawerClean ? ` [${drawerClean}]` : "";
+      const locDisplay = /^loc[:\s]/i.test(drawerClean) ? drawerClean : `Loc: ${drawerClean}`;
+      const mlDrawerSuffix = drawerClean ? ` [${locDisplay}]` : "";
       const fullMlSuffix = mlConditionSuffix + mlDrawerSuffix;
       const maxMlLen = 60;
       const availableLenForMlTitle = maxMlLen - prefix.length - fullMlSuffix.length;
@@ -1791,12 +1793,12 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
       const condMedia = listing.condition?.mediaCondition || 'VG+';
       const condSleeve = listing.condition?.sleeveCondition || 'VG+';
       const price = listing.pricing?.directPrice || listing.pricing?.basePriceBrl || 120.00;
-      const drawer = listing.drawer ? ` [Gaveta: ${listing.drawer}]` : '';
+      const cleanDrawer = listing.drawer ? String(listing.drawer).trim().replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim() : '';
+      const drawerTag = cleanDrawer ? ` [${cleanDrawer}]` : '';
 
       // 4A. Mercado Livre Publish Logic
       if (platforms.includes('mercadolivre')) {
         const mlCfg = marketplaceStore.config.mercadolivre;
-        const drawerTag = listing.drawer ? ` [${listing.drawer}]` : '';
         let mlTitle = listing.mercadolivre?.title;
         if (!mlTitle) {
           const prefix = 'Vinil LP ';
@@ -1807,13 +1809,14 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
             base = base.substring(0, Math.max(10, avail - 3)) + '...';
           }
           mlTitle = `${prefix}${base}${drawerTag}`.trim();
-        } else if (drawerTag && !mlTitle.includes(listing.drawer)) {
+        } else if (drawerTag && !mlTitle.toLowerCase().includes(`[${cleanDrawer.toLowerCase()}]`)) {
+          let base = mlTitle.replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
           const maxMlLen = 60;
           const avail = maxMlLen - drawerTag.length;
-          if (mlTitle.length > avail) {
-            mlTitle = mlTitle.substring(0, Math.max(10, avail - 3)).trim() + '...';
+          if (base.length > avail) {
+            base = base.substring(0, Math.max(10, avail - 3)).trim() + '...';
           }
-          mlTitle = `${mlTitle}${drawerTag}`;
+          mlTitle = `${base}${drawerTag}`;
         }
         const mlPrice = listing.mercadolivre?.suggestedPrice || price;
         let mlExternalId = `MLB${Math.floor(1000000000 + Math.random() * 9000000000)}`;
@@ -2513,6 +2516,235 @@ Gere apenas o texto final da resposta, sem introduções ou aspas extras.`;
       res.send(Buffer.from(arrayBuffer));
     } catch (err: any) {
       res.status(500).send("Falha no proxy de imagem: " + (err?.message || ""));
+    }
+  });
+
+  // ==========================================
+  // INTEGRAÇÃO DE FRETE E SERVIÇOS DOS CORREIOS
+  // ==========================================
+
+  // 1. Cálculo de Preço e Prazo Oficial dos Correios (PAC, SEDEX, Mini Envios, Registro Módico)
+  app.post("/api/shipping/calculate", async (req, res) => {
+    try {
+      const { cepDestino, itemsCount = 1, format = "vinyl", declaredValue = 0 } = req.body || {};
+      const cleanCep = String(cepDestino || "").replace(/\D/g, "");
+      
+      if (cleanCep.length !== 8) {
+        return res.status(400).json({ error: "CEP de destino inválido. Deve conter 8 dígitos numéricos." });
+      }
+
+      // Consulta de endereço em tempo real para precisão de entrega
+      let addressData = {
+        uf: "RS",
+        city: "Santa Maria",
+        neighborhood: "",
+        street: ""
+      };
+
+      try {
+        const viacepRes = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, { 
+          signal: AbortSignal.timeout(3500) 
+        });
+        if (viacepRes.ok) {
+          const d: any = await viacepRes.json();
+          if (!d.erro && d.uf) {
+            addressData = {
+              uf: d.uf,
+              city: d.localidade,
+              neighborhood: d.bairro || "",
+              street: d.logradouro || ""
+            };
+          }
+        }
+      } catch {
+        try {
+          const bRes = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`, { 
+            signal: AbortSignal.timeout(3500) 
+          });
+          if (bRes.ok) {
+            const d: any = await bRes.json();
+            if (d && d.state) {
+              addressData = {
+                uf: d.state,
+                city: d.city,
+                neighborhood: d.neighborhood || "",
+                street: d.street || ""
+              };
+            }
+          }
+        } catch {}
+      }
+
+      const packageSpecs = estimatePackageSpecs(Number(itemsCount) || 1, format as any);
+      const result = calculateCorreiosRates(
+        addressData.uf,
+        addressData.city,
+        cleanCep,
+        packageSpecs,
+        Number(declaredValue) || 0
+      );
+
+      result.destination = {
+        cep: cleanCep,
+        city: addressData.city,
+        state: addressData.uf,
+        neighborhood: addressData.neighborhood,
+        street: addressData.street,
+        formatted: `${addressData.city} - ${addressData.uf}${addressData.neighborhood ? ` (${addressData.neighborhood})` : ""}`
+      };
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Erro no cálculo do frete dos Correios:", err);
+      res.status(500).json({ error: "Falha ao calcular frete dos Correios." });
+    }
+  });
+
+  // 2. Consulta e Validação de Rastreamento Oficial dos Correios
+  app.get("/api/shipping/correios/track/:code", (req, res) => {
+    const code = (req.params.code || "").trim().toUpperCase();
+    const isValidFormat = /^[A-Z]{2}[0-9]{9}[A-Z]{2}$/.test(code);
+    
+    res.json({
+      code,
+      isValidFormat,
+      trackingUrl: `https://rastreamento.correios.com.br/app/index.php?codigo=${encodeURIComponent(code)}`,
+      carrier: "Correios Brasil",
+      status: isValidFormat ? "Código válido Correios" : "Código em formato personalizado",
+      origin: "Santa Maria - RS",
+      lastCheck: new Date().toISOString()
+    });
+  });
+
+  // 3. Gerador de Declaração de Conteúdo dos Correios (Formulário Oficial para postagem)
+  app.post("/api/shipping/correios/declaracao", (req, res) => {
+    try {
+      const { 
+        destinatario = {}, 
+        itens = [], 
+        orderNumber = "", 
+        observacoes = "" 
+      } = req.body || {};
+
+      const totalVal = itens.reduce((acc: number, curr: any) => acc + (Number(curr.price) || 0) * (Number(curr.quantity) || 1), 0);
+      const totalQtd = itens.reduce((acc: number, curr: any) => acc + (Number(curr.quantity) || 1), 0);
+
+      const html = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Declaração de Conteúdo dos Correios - Pedido ${orderNumber}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #000; }
+    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
+    .header h1 { font-size: 14px; margin: 0; text-transform: uppercase; font-weight: bold; }
+    .header p { font-size: 10px; margin: 2px 0 0 0; }
+    .box { border: 1px solid #000; padding: 6px; margin-bottom: 8px; }
+    .title { font-weight: bold; text-transform: uppercase; background: #f0f0f0; padding: 2px 4px; margin: -6px -6px 6px -6px; border-bottom: 1px solid #000; font-size: 10px; }
+    .grid-2 { display: flex; gap: 10px; }
+    .grid-2 > div { flex: 1; }
+    table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+    table, th, td { border: 1px solid #000; font-size: 10px; padding: 4px; }
+    th { background-color: #f0f0f0; text-align: left; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .declaration { font-size: 9px; margin-top: 10px; text-align: justify; line-height: 1.3; }
+    .signatures { display: flex; justify-content: space-between; margin-top: 25px; padding: 0 20px; }
+    .sig-line { width: 42%; border-top: 1px solid #000; text-align: center; padding-top: 4px; font-size: 10px; }
+    @media print {
+      body { margin: 10mm; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 15px; background: #fffbe6; border: 1px solid #ffe58f; padding: 10px; border-radius: 6px;">
+    <button onclick="window.print()" style="background: #003882; color: #fff; border: none; padding: 8px 16px; font-weight: bold; border-radius: 4px; cursor: pointer;">
+      🖨️ Imprimir Declaração de Conteúdo dos Correios
+    </button>
+    <span style="margin-left: 10px; font-size: 12px; color: #555;">Anexe 2 vias dobradas com o plástico porta-etiqueta no exterior da caixa.</span>
+  </div>
+
+  <div class="header">
+    <h1>DECLARAÇÃO DE CONTEÚDO</h1>
+    <p>Conforme Portaria nº 2.610/2018 do Ministério das Comunicações / Empresa Brasileira de Correios e Telégrafos</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="box">
+      <div class="title">REMETENTE</div>
+      <strong>Nome / Razão Social:</strong> VALDIR DISCOS<br>
+      <strong>Endereço:</strong> Rua Venâncio Aires, Centro<br>
+      <strong>Cidade / UF:</strong> Santa Maria - RS | <strong>CEP:</strong> 97010-000<br>
+      <strong>WhatsApp / Tel:</strong> (55) 98116-4666
+    </div>
+    <div class="box">
+      <div class="title">DESTINATÁRIO</div>
+      <strong>Nome:</strong> ${destinatario.nome || 'Cliente Valdir Discos'}<br>
+      <strong>Endereço:</strong> ${destinatario.endereco || 'Endereço informado no pedido'}<br>
+      <strong>Cidade / UF:</strong> ${destinatario.cidade || ''} - ${destinatario.uf || ''} | <strong>CEP:</strong> ${destinatario.cep || ''}<br>
+      <strong>Telefone:</strong> ${destinatario.telefone || 'Não informado'}
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="title">IDENTIFICAÇÃO DOS BENS (MÍDIAS / DISCOS / ITENS)</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 30px;" class="text-center">ITEM</th>
+          <th>CONTEÚDO / DESCRIÇÃO</th>
+          <th style="width: 45px;" class="text-center">QTD</th>
+          <th style="width: 80px;" class="text-right">VALOR (R$)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itens.map((item: any, idx: number) => `
+          <tr>
+            <td class="text-center">${idx + 1}</td>
+            <td>${item.title || 'Disco de Vinil LP Colecionador'} - ${item.artist || 'Música'}</td>
+            <td class="text-center">${item.quantity || 1}</td>
+            <td class="text-right">${((Number(item.price) || 0) * (Number(item.quantity) || 1)).toFixed(2).replace('.', ',')}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="2" class="text-right">TOTAIS:</th>
+          <th class="text-center">${totalQtd}</th>
+          <th class="text-right">R$ ${totalVal.toFixed(2).replace('.', ',')}</th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <div class="declaration">
+    <strong>DECLARAÇÃO:</strong> Declaro que não me enquadro no conceito de contribuinte previsto no art. 4º da Lei Complementar nº 87/1996, 
+    uma vez que não realizo, com habitualidade ou em volume que caracterize intuito comercial, operações de circulação de mercadorias, 
+    a não ser as de venda de bens do meu acervo/coleção, e que o conteúdo da encomenda corresponde exatamente ao descrito nesta declaração.
+    Estou ciente de que a falsidade de declaração configura crime previsto no art. 299 do Código Penal.
+  </div>
+
+  <div class="signatures">
+    <div class="sig-line">
+      Assinatura do Remetente (Valdir Discos)<br>
+      Santa Maria - RS, ${new Date().toLocaleDateString('pt-BR')}
+    </div>
+    <div class="sig-line">
+      Assinatura do Destinatário<br>
+      Recebido em: ____/____/________
+    </div>
+  </div>
+</body>
+</html>
+      `;
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+    } catch (err: any) {
+      console.error("Erro ao gerar declaração Correios:", err);
+      res.status(500).send("Falha ao gerar declaração de conteúdo dos Correios.");
     }
   });
 

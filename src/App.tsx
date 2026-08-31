@@ -1206,21 +1206,22 @@ export default function App() {
     }
   };
 
-  // Real-time synchronization of location (Loc/drawer) with ad titles and descriptions
+  // Real-time synchronization of location (drawer) with ad titles and descriptions without redundant 'Loc:'
   const handleDrawerChange = (newVal: string) => {
     setDrawer(newVal);
-    const trimmed = newVal.trim();
+    const trimmed = newVal.trim().replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim();
+    const mlDrawerSuffix = trimmed ? ` [${trimmed}]` : '';
+    const shopeeDrawerSuffix = trimmed ? ` [${trimmed}]` : '';
 
     // 1. Sync Mercado Livre title in real-time
     setMercadoLivreListing(prevMl => {
       if (!prevMl) return prevMl;
       let baseTitle = prevMl.title || '';
       // Strip any existing trailing bracket tags like [4], [Loc: 4], [Loc:4]
-      baseTitle = baseTitle.replace(/\s*\[\s*(Loc:)?\s*[^\]]+\]\s*$/gi, '').trim();
+      baseTitle = baseTitle.replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
       if (!baseTitle && release) {
         baseTitle = `Vinil LP ${release.artist} - ${release.title}`.trim();
       }
-      const mlDrawerSuffix = trimmed ? ` [${trimmed}]` : '';
       const maxMlLen = 60;
       const avail = maxMlLen - mlDrawerSuffix.length;
       if (baseTitle.length > avail) {
@@ -1236,19 +1237,18 @@ export default function App() {
     setShopeeListing(prevSh => {
       if (!prevSh) return prevSh;
       let baseTitle = prevSh.title || '';
-      baseTitle = baseTitle.replace(/\s*\[\s*(Loc:)?\s*[^\]]+\]\s*$/gi, '').trim();
+      baseTitle = baseTitle.replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
       if (!baseTitle && release) {
         baseTitle = `Disco De Vinil LP ${release.artist} - ${release.title}`.trim();
       }
-      const locTag = trimmed ? ` [Loc: ${trimmed}]` : '';
       const maxShopeeLen = 120;
-      const avail = maxShopeeLen - locTag.length;
+      const avail = maxShopeeLen - shopeeDrawerSuffix.length;
       if (baseTitle.length > avail) {
         baseTitle = baseTitle.slice(0, Math.max(10, avail - 3)).trim() + '...';
       }
       return {
         ...prevSh,
-        title: `${baseTitle}${locTag}`.slice(0, 120)
+        title: `${baseTitle}${shopeeDrawerSuffix}`.slice(0, 120)
       };
     });
   };
@@ -1494,7 +1494,8 @@ export default function App() {
       mode: pricing.mode || 'direct'
     };
 
-    const locTag = drawer ? ` - [Loc: ${drawer}]` : '';
+    const cleanDrawer = drawer ? drawer.trim().replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim() : '';
+    const locTag = cleanDrawer ? ` [${cleanDrawer}]` : '';
 
     // Ensure we have valid Shopee and Mercado Livre listings strictly using the user's store price
     let finalShopee = shopeeListing ? {
@@ -1509,7 +1510,7 @@ export default function App() {
 
     if (!finalShopee) {
       const fallbackDesc = [
-        drawer ? `📍 **Loc:** ${drawer}\n` : '',
+        cleanDrawer ? `📍 **Localização no Acervo:** [${cleanDrawer}]\n` : '',
         `📷 **Observação importante:** fotos originais do produto\n`,
         `🎵 **Álbum:** ${release.title}`,
         `🎤 **Artista:** ${release.artist}`,
@@ -1532,7 +1533,7 @@ export default function App() {
     }
 
     if (!finalMl) {
-      const mlDrawerSuffix = drawer ? ` [${drawer}]` : '';
+      const mlDrawerSuffix = cleanDrawer ? ` [${cleanDrawer}]` : '';
       const prefix = 'Vinil LP ';
       const maxMlLen = 60;
       let baseMl = `${release.artist} - ${release.title}`;
@@ -2433,9 +2434,10 @@ export default function App() {
                   setCoverSource('real');
                 }
                 const calcPrice = newPrice.directPrice || newPrice.basePriceBrl;
-                const locStr = newDraw ? ` - [Loc: ${newDraw}]` : '';
+                const cleanNewDraw = newDraw ? newDraw.trim().replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim() : '';
+                const locStr = cleanNewDraw ? ` [${cleanNewDraw}]` : '';
                 const initialDesc = [
-                  newDraw ? `📍 **Loc:** ${newDraw}\n` : '',
+                  cleanNewDraw ? `📍 **Localização no Estoque:** [${cleanNewDraw}]\n` : '',
                   `📷 **Observação importante:** fotos originais do produto\n`,
                   `🎵 **Álbum:** ${newRel.title}`,
                   `🎤 **Artista:** ${newRel.artist}`,
@@ -2456,7 +2458,7 @@ export default function App() {
                   hashtags: ['#vinil', '#discodevinil', '#lp', '#valdir_discos', ...(newGarimpo ? ['#garimpo', '#promocao'] : [])]
                 });
 
-                const mlDrawerSuffix = newDraw ? ` [${newDraw}]` : '';
+                const mlDrawerSuffix = cleanNewDraw ? ` [${cleanNewDraw}]` : '';
                 const maxMlLen = 60;
                 const prefix = 'Vinil LP ';
                 let baseMl = `${newRel.artist} - ${newRel.title}`;
@@ -2558,11 +2560,11 @@ export default function App() {
                   type="text"
                   placeholder="Ex: 4, Prateleira B-3, Caixa 10... (Opcional)"
                   value={drawer}
-                  onChange={(e) => setDrawer(e.target.value)}
+                  onChange={(e) => handleDrawerChange(e.target.value)}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none rounded-xl text-sm text-slate-700 transition-all placeholder-slate-400 font-medium"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
-                  A localização indicada (Loc) será adicionada automaticamente no fim do título gerado e na primeira linha da descrição do anúncio na Shopee.
+                <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                  A localização (Loc) será adicionada automaticamente no fim do título do Mercado Livre (máx 60c) e Shopee (120c), além do topo da descrição.
                 </p>
               </div>
             </form>
@@ -3726,6 +3728,7 @@ export default function App() {
                       condition={condition}
                       pricing={pricing}
                       drawer={drawer}
+                      onDrawerChange={handleDrawerChange}
                       shopeeListing={shopeeListing}
                       mercadoLivreListing={mercadoLivreListing}
                       activePlatform={activePlatform}
@@ -3752,6 +3755,9 @@ export default function App() {
                       }}
                       onRegenerateAi={handleGenerateAd}
                       isGeneratingAi={generatingAd}
+                      onPublishMarketplace={handlePublishCurrentListingToMarketplaces}
+                      isPublishingMarketplace={isPublishingMarketplaces}
+                      publishSuccessMessage={publishMarketplaceSuccess}
                     />
 
                     {/* Bottom Guide Info */}

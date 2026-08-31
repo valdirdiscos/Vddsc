@@ -72,6 +72,43 @@ export function OnlineOrdersIntranetTab({ onPrintThermal }: OnlineOrdersIntranet
     });
   };
 
+  const handlePrintCorreiosDeclaration = async (order: CustomerOnlineOrder) => {
+    try {
+      const res = await fetch('/api/shipping/correios/declaracao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destinatario: {
+            nome: order.customerName,
+            endereco: order.shippingAddress ? `${order.shippingAddress.street}` : '',
+            cidade: order.shippingAddress?.city || '',
+            uf: order.shippingAddress?.state || '',
+            cep: order.shippingAddress?.cep || '',
+            telefone: order.customerPhone || ''
+          },
+          itens: order.items.map(it => ({
+            title: it.title,
+            artist: it.artist,
+            quantity: 1,
+            price: it.price
+          })),
+          orderNumber: order.orderNumber,
+          observacoes: order.notes || ''
+        })
+      });
+      if (res.ok) {
+        const html = await res.text();
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(html);
+          printWindow.document.close();
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao abrir declaração Correios:', err);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner & Stats */}
@@ -302,6 +339,18 @@ export function OnlineOrdersIntranetTab({ onPrintThermal }: OnlineOrdersIntranet
                             Concluir / Entregue
                           </button>
                         </div>
+
+                        {order.deliveryType === 'shipping' && (
+                          <button
+                            type="button"
+                            onClick={() => handlePrintCorreiosDeclaration(order)}
+                            className="px-3 py-1.5 bg-[#003882] hover:bg-[#002860] text-white rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow-xs"
+                            title="Imprimir Declaração de Conteúdo Oficial dos Correios"
+                          >
+                            <Printer className="h-3.5 w-3.5 text-[#FED100]" />
+                            <span>Declaração Correios</span>
+                          </button>
+                        )}
                       </div>
                     </motion.div>
                   )}

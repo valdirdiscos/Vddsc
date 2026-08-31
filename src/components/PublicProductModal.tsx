@@ -22,13 +22,15 @@ import {
   Package,
   Percent,
   Gift,
-  Sparkles
+  Sparkles,
+  Truck,
+  Store
 } from 'lucide-react';
 import { SavedListing } from '../types';
 import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE, OFFICIAL_MARKETPLACE_LINKS } from '../constants';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { getListingFormatInfo, getItemConditionInfo, isNativistaGauchoItem, getNativistaInfo, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, formatTrackWithArtist, isVariousArtistsAlbum } from '../utils/formatHelper';
-import { Store } from 'lucide-react';
+import { ShippingCalculatorWidget } from './ShippingCalculatorWidget';
 
 interface PublicProductModalProps {
   listing: SavedListing | null;
@@ -636,6 +638,20 @@ export function PublicProductModal({
                     </div>
                   );
                 })()}
+
+                {/* Correios Shipping Calculator Widget */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Truck className="h-4 w-4 text-[#003882]" />
+                    Simulador de Frete Correios (Origem: Santa Maria - RS)
+                  </span>
+                  <ShippingCalculatorWidget 
+                    compact
+                    itemsCount={listing.isLote && listing.loteItems?.length ? listing.loteItems.length : 1}
+                    format={formatInfo.type === 'cd' ? 'cd' : formatInfo.type === 'cassette' ? 'cassette' : 'vinyl'}
+                    declaredValue={pricing?.directPrice || pricing?.basePriceBrl || 0}
+                  />
+                </div>
 
                 {/* Guarantee & Shipping Note */}
                 <div className="bg-slate-100/70 border border-slate-200 rounded-xl p-3 flex items-start gap-2.5 text-xs text-slate-600">

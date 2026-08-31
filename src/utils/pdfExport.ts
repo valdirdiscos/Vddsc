@@ -346,7 +346,7 @@ export async function exportSaleReceiptToPdf(
 
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(6);
-      const sub = `Cód: ${item.barcode} | Loc: ${item.drawer || 'Balcão'} ${item.discount > 0 ? `| Desc: R$ ${item.discount.toFixed(2)}` : ''}`;
+      const sub = `Cód: ${item.barcode} | Estoque: [${item.drawer || 'Balcão'}] ${item.discount > 0 ? `| Desc: R$ ${item.discount.toFixed(2)}` : ''}`;
       pdf.text(sub, 5, currentY);
       currentY += 4.5;
     });

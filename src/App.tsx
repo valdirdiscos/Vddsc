@@ -1111,13 +1111,15 @@ export default function App() {
         setSpecialEditionDetails(detectedPart.suggestedDetails);
       }
 
-      setSuccessMsg('Metadados extraídos com sucesso! Gerando anúncio...');
+      setSuccessMsg('Disco carregado com sucesso! Gerando os textos dos anúncios...');
+      setLoading(false);
       
-      // Auto-trigger Dual Ad Generation for an absolute magic experience
-      await autoGenerateAllAds(data.release, condition, pricing, drawer);
+      // Auto-trigger Dual Ad Generation concurrently so the user sees the disc immediately
+      autoGenerateAllAds(data.release, condition, pricing, drawer).catch((err: any) => {
+        console.warn('Auto-generation of ads failed:', err);
+      });
     } catch (err: any) {
       setError(err.message || 'Ocorreu um erro ao conectar com o servidor.');
-    } finally {
       setLoading(false);
     }
   };

@@ -37,117 +37,61 @@ function getGeminiClient(): GoogleGenAI {
 }
 
 async function generateContentWithFallback(ai: GoogleGenAI, params: any): Promise<any> {
-  let requestedModel = params.model || "gemini-3.5-flash";
-  if (requestedModel === "gemini-flash-latest") {
-    requestedModel = "gemini-2.5-flash";
+  // Always prefer the ultra-fast gemini-3.1-flash-lite or gemini-3.8-flash
+  let requestedModel = params.model || "gemini-3.1-flash-lite";
+  if (
+    requestedModel === "gemini-flash-latest" || 
+    requestedModel === "gemini-3.5-flash" || 
+    requestedModel === "gemini-2.5-flash" ||
+    requestedModel.includes("1.5") ||
+    requestedModel.includes("2.0")
+  ) {
+    requestedModel = "gemini-3.1-flash-lite";
   }
   
-  // Cleanly list potential models to try as fallbacks (including ultra-fast lite models)
+  // Cleanly list supported modern Gemini models in order of speed and stability
   const modelsToTry = [
     requestedModel,
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-3.5-flash",
-    "gemini-3.1-flash-lite"
+    "gemini-3.1-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-flash-latest"
   ].filter((model, idx, self) => self.indexOf(model) === idx);
   
-  // Map models to their underlying families to avoid duplicate slow failures on equivalent models
-  const MODEL_FAMILIES: { [key: string]: string } = {
-    "gemini-2.5-flash": "gemini-2.5-flash",
-    "gemini-2.0-flash": "gemini-2.0-flash",
-    "gemini-2.0-flash-lite": "gemini-2.0-flash-lite",
-    "gemini-1.5-flash": "gemini-1.5-flash",
-    "gemini-3.5-flash": "gemini-3.5-flash",
-    "gemini-flash-latest": "gemini-2.5-flash",
-    "gemini-3.1-flash-lite": "gemini-3.1-flash-lite"
-  };
-  
-  const failedFamilies = new Set<string>();
   let lastError: any = null;
   
   for (const model of modelsToTry) {
-    const family = MODEL_FAMILIES[model] || model;
-    if (failedFamilies.has(family)) {
-      console.log(`Skipping model ${model} because its family ${family} has already failed.`);
-      continue;
-    }
-    
-    let retries = 2; // Try up to 2 times for each model
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        console.log(`Calling Gemini API using model ${model} (attempt ${attempt}/${retries})...`);
-        const response = await ai.models.generateContent({
-          ...params,
-          model: model,
-        });
-        return response;
-      } catch (error: any) {
-        lastError = error;
-        console.log(`Gemini call failed with model ${model} on attempt ${attempt}:`, error);
+    try {
+      console.log(`Calling Gemini API using model ${model}...`);
+      const response = await ai.models.generateContent({
+        ...params,
+        model: model,
+      });
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`Gemini call failed with model ${model}:`, error?.message || error);
+      
+      const errMsg = (error?.message || "").toLowerCase();
+      const errStatus = error?.status || error?.statusCode || error?.code || (error?.error && (error?.error?.code || error?.error?.status));
+      
+      // Stop immediately on absolute terminal errors (authentication or safety blocks)
+      const isTerminalError = 
+        errStatus === 401 || 
+        errStatus === "401" ||
+        errStatus === 403 || 
+        errStatus === "403" ||
+        errMsg.includes("api key") || 
+        errMsg.includes("safety") || 
+        errMsg.includes("blocked") ||
+        errMsg.includes("unauthorized") ||
+        errMsg.includes("invalid key");
         
-        // Extract status/code/message for robust check
-        const errMsg = (error.message || "").toLowerCase();
-        const errStatus = error.status || error.statusCode || error.code || (error.error && (error.error.code || error.error.status));
-        
-        // Only throw immediately on absolute terminal errors (authentication, key, or safety blocks)
-        const isTerminalError = 
-          errStatus === 401 || 
-          errStatus === "401" ||
-          errStatus === 403 || 
-          errStatus === "403" ||
-          errMsg.includes("api key") || 
-          errMsg.includes("safety") || 
-          errMsg.includes("blocked") ||
-          errMsg.includes("unauthorized") ||
-          errMsg.includes("invalid key");
-          
-        if (isTerminalError) {
-          throw error;
-        }
-        
-        // Check if the error is due to high demand, overload, rate limits, unavailability, or unsupported/deprecated models
-        const isUnavailableOrUnsupported = 
-          errStatus === 503 || 
-          errStatus === "503" ||
-          errStatus === 429 ||
-          errStatus === "429" ||
-          errStatus === 404 ||
-          errStatus === "404" ||
-          errStatus === 400 ||
-          errStatus === "400" ||
-          errStatus === "UNAVAILABLE" ||
-          errStatus === "RESOURCE_EXHAUSTED" ||
-          errMsg.includes("503") || 
-          errMsg.includes("429") || 
-          errMsg.includes("404") || 
-          errMsg.includes("400") || 
-          errMsg.includes("unavailable") || 
-          errMsg.includes("high demand") || 
-          errMsg.includes("overload") || 
-          errMsg.includes("exhausted") ||
-          errMsg.includes("resource has been exhausted") ||
-          errMsg.includes("not found") ||
-          errMsg.includes("does not exist") ||
-          errMsg.includes("unsupported") ||
-          errMsg.includes("deprecated") ||
-          errMsg.includes("invalid model") ||
-          errMsg.includes("unknown model") ||
-          errMsg.includes("spikes in demand");
-          
-        if (isUnavailableOrUnsupported) {
-          console.log(`Model ${model} is unavailable, overloaded, or unsupported. Marking family ${family} as failed and falling back immediately.`);
-          failedFamilies.add(family);
-          // Break out of the retry loop for this model to fall back immediately
-          break;
-        }
-        
-        if (attempt < retries) {
-          const delay = attempt * 1000;
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
+      if (isTerminalError) {
+        throw error;
       }
+      
+      // Otherwise immediately fall through to the next model in modelsToTry without waiting
+      continue;
     }
   }
   
@@ -252,7 +196,7 @@ DIRETRIZES DE RECOMENDAÇÃO:
       });
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-3.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents,
         config: {
           systemInstruction,
@@ -690,14 +634,23 @@ function getImportTag(country?: string): string {
         } else if (masterMatch) {
           const masterId = masterMatch[1];
           // Fetch master to get main release
-          const masterRes = await fetch(`https://api.discogs.com/masters/${masterId}`, {
-            headers: { 'User-Agent': 'ValdirDiscosShopeeExtractor/1.0 (+https://valdirdiscos.com)' }
-          });
-          if (masterRes.ok) {
-            const masterData: any = await masterRes.json();
-            if (masterData.main_release) {
-              releaseId = String(masterData.main_release);
+          try {
+            const masterRes = await fetch(`https://api.discogs.com/masters/${masterId}`, {
+              headers: { 
+                'User-Agent': 'ValdirDiscosShopeeExtractor/2.0 (+https://valdirdiscos.com; contact@valdirdiscos.com)',
+                'Accept': 'application/json',
+                ...(process.env.DISCOGS_TOKEN ? { 'Authorization': `Discogs token=${process.env.DISCOGS_TOKEN}` } : {})
+              },
+              signal: AbortSignal.timeout(5000)
+            });
+            if (masterRes.ok) {
+              const masterData: any = await masterRes.json();
+              if (masterData.main_release) {
+                releaseId = String(masterData.main_release);
+              }
             }
+          } catch (mErr: any) {
+            console.warn("Could not fetch Discogs master in time, falling back:", mErr?.message);
           }
         } else if (directIdMatch) {
           releaseId = directIdMatch[1];
@@ -707,21 +660,30 @@ function getImportTag(country?: string): string {
           throw new Error("Não conseguimos identificar um ID de lançamento válido na URL. Certifique-se de que é um link de Release do Discogs (ex: discogs.com/release/XXXXX).");
         }
 
-        // Fetch release from Discogs API
+        // Fetch release from Discogs API with 6-second timeout
         const releaseUrl = `https://api.discogs.com/releases/${releaseId}`;
-        const discogsResponse = await fetch(releaseUrl, {
-          headers: {
-            'User-Agent': 'ValdirDiscosShopeeExtractor/1.0 (+https://valdirdiscos.com)'
-          }
-        });
+        let discogsResponse: Response | null = null;
+        try {
+          discogsResponse = await fetch(releaseUrl, {
+            headers: {
+              'User-Agent': 'ValdirDiscosShopeeExtractor/2.0 (+https://valdirdiscos.com; contact@valdirdiscos.com)',
+              'Accept': 'application/json',
+              ...(process.env.DISCOGS_TOKEN ? { 'Authorization': `Discogs token=${process.env.DISCOGS_TOKEN}` } : {})
+            },
+            signal: AbortSignal.timeout(5000)
+          });
+        } catch (fetchErr: any) {
+          console.warn(`Discogs API fetch timed out or network error (${fetchErr?.message}). Proceeding directly to AI reconstruction.`);
+        }
 
         let data: any;
-        if (!discogsResponse.ok) {
-          console.warn(`Discogs API returned status ${discogsResponse.status}. Attempting AI-driven reconstruction fallback...`);
+        if (!discogsResponse || !discogsResponse.ok) {
+          const statusDesc = discogsResponse ? `${discogsResponse.status}` : 'Timeout / Indisponível';
+          console.warn(`Discogs API returned status ${statusDesc}. Attempting AI-driven reconstruction fallback...`);
           try {
             const ai = getGeminiClient();
             const aiPrompt = `O usuário forneceu o link do Discogs: "${url}" (ID do Lançamento: ${releaseId}).
-Como a API oficial do Discogs está indisponível para o nosso servidor (${discogsResponse.status}), atue como o banco de dados oficial do Discogs e pesquise/reconstrua os detalhes técnicos REAIS deste lançamento específico com precisão máxima.
+Como a API oficial do Discogs está indisponível para o nosso servidor (${statusDesc}), atue como o banco de dados oficial do Discogs e pesquise/reconstrua os detalhes técnicos REAIS deste lançamento específico com precisão máxima.
 Retorne os dados formatados perfeitamente como JSON de acordo com a estrutura do Discogs para podermos listá-lo.
 
 ATENÇÃO COM A ACENTUAÇÃO EM PORTUGUÊS: É obrigatório utilizar a acentuação gramatical correta e completa da língua portuguesa em todos os textos (incluindo cedilhas 'ç', tils '~', acentos agudos e circunflexos, como 'coleção', 'reprodução', 'álbum', 'música', 'canção', 'não'). Nunca remova acentos nem reduza o texto para formato sem acentos (ASCII puro).
@@ -730,7 +692,7 @@ Importante: Identifique o artista, título, gravadora, catalog no, ano e faixas 
 Se for uma coletânea (Various Artists / Vários Artistas), você DEVE obrigatoriamente preencher o campo "artist" de cada faixa da tracklist com o nome do artista correspondente da música.`;
 
             const aiResponse = await generateContentWithFallback(ai, {
-              model: "gemini-3.5-flash",
+              model: "gemini-3.1-flash-lite",
               contents: aiPrompt,
               config: {
                 responseMimeType: "application/json",
@@ -859,7 +821,7 @@ Para cada uma das faixas acima, identifique com precisão o ARTISTA OU BANDA ori
 Retorne um array JSON com a lista completa das faixas contendo os campos: position, title, artist.`;
 
             const aiRes = await generateContentWithFallback(ai, {
-              model: "gemini-2.5-flash",
+              model: "gemini-3.1-flash-lite",
               contents: aiPrompt,
               config: {
                 responseMimeType: "application/json",
@@ -938,7 +900,7 @@ Se for uma coletânea (Various Artists / Vários Artistas), você DEVE obrigator
 Gravadora original e número de catálogo devem ser os reais deste álbum clássico ou os mais comuns.`;
 
           const response = await generateContentWithFallback(ai, {
-            model: "gemini-3.5-flash",
+            model: "gemini-3.1-flash-lite",
             contents: prompt,
             config: {
               responseMimeType: "application/json",
@@ -1151,7 +1113,7 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
    - O preço sugerido (número).`;
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -1382,7 +1344,7 @@ Retorne um JSON contendo a lista completa de faixas enriquecida com os seguintes
 - duration: duração estimada ou original (MM:SS)`;
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -1502,7 +1464,7 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
       };
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-3.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents: { parts: [imagePart, promptText] },
         config: {
           responseMimeType: "application/json",
@@ -2241,7 +2203,7 @@ DIRETRIZES DE RESPOSTA:
 Gere apenas o texto final da resposta, sem introduções ou aspas extras.`;
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-3.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents: prompt
       });
 

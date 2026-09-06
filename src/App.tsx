@@ -2004,6 +2004,7 @@ export default function App() {
                 className="w-full h-full object-contain rounded-xl"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
+                  e.currentTarget.onerror = null;
                   e.currentTarget.src = "/valdir-logo-color.jpg";
                 }}
               />

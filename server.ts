@@ -37,27 +37,33 @@ function getGeminiClient(): GoogleGenAI {
 }
 
 async function generateContentWithFallback(ai: GoogleGenAI, params: any): Promise<any> {
-  // Always prefer the ultra-fast gemini-3.1-flash-lite or gemini-3.8-flash
-  let requestedModel = params.model || "gemini-3.1-flash-lite";
+  // Ultra-fast responsive models (gemini-2.5-flash and gemini-3.1-flash-lite)
+  let requestedModel = params.model || "gemini-2.5-flash";
   if (
     requestedModel === "gemini-flash-latest" || 
     requestedModel === "gemini-3.5-flash" || 
-    requestedModel === "gemini-2.5-flash" ||
+    requestedModel === "gemini-3.8-flash" ||
     requestedModel.includes("1.5") ||
     requestedModel.includes("2.0")
   ) {
-    requestedModel = "gemini-3.1-flash-lite";
+    requestedModel = "gemini-2.5-flash";
   }
   
-  // Cleanly list supported modern Gemini models in order of speed and stability
+  // Cleanly list active, supported modern Gemini models in order of speed and stability
   const modelsToTry = [
     requestedModel,
+    "gemini-2.5-flash",
     "gemini-3.1-flash-lite",
-    "gemini-3.8-flash",
     "gemini-flash-latest"
   ].filter((model, idx, self) => self.indexOf(model) === idx);
   
   let lastError: any = null;
+  
+  // Inject thinkingConfig: { thinkingBudget: 0 } to prevent 15-20s thinking lag on flash models
+  const optimizedConfig = {
+    ...(params.config || {}),
+    thinkingConfig: params.config?.thinkingConfig || { thinkingBudget: 0 }
+  };
   
   for (const model of modelsToTry) {
     try {
@@ -65,6 +71,7 @@ async function generateContentWithFallback(ai: GoogleGenAI, params: any): Promis
       const response = await ai.models.generateContent({
         ...params,
         model: model,
+        config: optimizedConfig
       });
       return response;
     } catch (error: any) {
@@ -691,54 +698,19 @@ ATENÇÃO COM A ACENTUAÇÃO EM PORTUGUÊS: É obrigatório utilizar a acentuaç
 Importante: Identifique o artista, título, gravadora, catalog no, ano e faixas reais desse lançamento ${releaseId}. A tracklist deve conter as faixas REAIS do disco em ordem correta. Se for LP, divida em Lado A (A1, A2...) e Lado B (B1, B2...), se for CD posicione sequencialmente (1, 2, 3...). Inclua estimativas de duração válidas (MM:SS).
 Se for uma coletânea (Various Artists / Vários Artistas), você DEVE obrigatoriamente preencher o campo "artist" de cada faixa da tracklist com o nome do artista correspondente da música.`;
 
-            const aiResponse = await generateContentWithFallback(ai, {
-              model: "gemini-3.1-flash-lite",
-              contents: aiPrompt,
-              config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING, description: "Nome exato do álbum" },
-                    artist: { type: Type.STRING, description: "Nome correto do artista ou banda" },
-                    label: { type: Type.STRING, description: "Gravadora original" },
-                    catno: { type: Type.STRING, description: "Número de catálogo original do lançamento" },
-                    year: { type: Type.STRING, description: "Ano original de lançamento do álbum" },
-                    genres: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Gêneros (ex: Rock, Electronic, Latin)" },
-                    styles: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Estilos específicos (ex: Bossanova, Heavy Metal, Synth-pop)" },
-                    tracklist: {
-                      type: Type.ARRAY,
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          position: { type: Type.STRING, description: "Ex: A1, A2 ou 1, 2" },
-                          title: { type: Type.STRING, description: "Título da faixa" },
-                          duration: { type: Type.STRING, description: "MM:SS" },
-                          artist: { type: Type.STRING, description: "Nome do artista específico desta música (obrigatório se for coletânea/vários artistas)" }
-                        },
-                        required: ["position", "title"]
-                      }
-                    },
-                    formats: {
-                      type: Type.ARRAY,
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          name: { type: Type.STRING, description: "Ex: Vinyl, CD, DVD" },
-                          qty: { type: Type.STRING, description: "Quantidade, ex: 1" },
-                          descriptions: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Ex: LP, Album, Gatefold" }
-                        },
-                        required: ["name"]
-                      }
-                    },
-                    notes: { type: Type.STRING, description: "Curiosidade histórica sobre o álbum ou detalhes da prensagem" },
-                    country: { type: Type.STRING, description: "País de origem/lançamento/prensagem (ex: Brasil, Japão, EUA, Alemanha)" },
-                    lowestPriceUsd: { type: Type.NUMBER, description: "Preço médio de mercado internacional no Discogs em dólares (ex: 25)" }
-                  },
-                  required: ["title", "artist", "label", "tracklist", "formats"]
+            const aiResponse = await Promise.race([
+              generateContentWithFallback(ai, {
+                model: "gemini-2.5-flash",
+                contents: aiPrompt,
+                config: {
+                  responseMimeType: "application/json",
+                  thinkingConfig: { thinkingBudget: 0 }
                 }
-              }
-            });
+              }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("Timeout IA")), 6000)
+              )
+            ]);
 
             const cleanJson = aiResponse.text.trim();
             const albumData = JSON.parse(cleanJson);
@@ -765,7 +737,8 @@ Se for uma coletânea (Various Artists / Vários Artistas), você DEVE obrigator
             };
           } catch (aiErr) {
             console.error("AI reconstruction failed:", aiErr);
-            throw new Error(`O Discogs retornou um erro (${discogsResponse.status}) e a reconstrução automática por IA também falhou. Verifique o link ou tente digitar na Pesquisa Manual.`);
+            const statusLabel = discogsResponse?.status ? `${discogsResponse.status}` : 'Indisponível/Timeout';
+            throw new Error(`O Discogs retornou um erro (${statusLabel}) e a reconstrução automática por IA também falhou. Verifique o link ou tente digitar na Pesquisa Manual.`);
           }
         } else {
           data = await discogsResponse.json();
@@ -899,54 +872,19 @@ Importante: O ano de lançamento deve ser o ano original do álbum. A tracklist 
 Se for uma coletânea (Various Artists / Vários Artistas), você DEVE obrigatoriamente preencher o campo "artist" de cada faixa da tracklist com o nome do artista correspondente da música.
 Gravadora original e número de catálogo devem ser os reais deste álbum clássico ou os mais comuns.`;
 
-          const response = await generateContentWithFallback(ai, {
-            model: "gemini-3.1-flash-lite",
-            contents: prompt,
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING, description: "Nome exato do álbum" },
-                  artist: { type: Type.STRING, description: "Nome correto do artista ou banda" },
-                  label: { type: Type.STRING, description: "Gravadora original" },
-                  catno: { type: Type.STRING, description: "Número de catálogo original do lançamento" },
-                  year: { type: Type.STRING, description: "Ano original de lançamento do álbum" },
-                  genres: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Gêneros (ex: Rock, Electronic, Latin)" },
-                  styles: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Estilos específicos (ex: Bossanova, Heavy Metal, Synth-pop)" },
-                  tracklist: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        position: { type: Type.STRING, description: "Ex: A1, A2 ou 1, 2" },
-                        title: { type: Type.STRING, description: "Título da faixa" },
-                        duration: { type: Type.STRING, description: "MM:SS" },
-                        artist: { type: Type.STRING, description: "Nome do artista específico desta música (obrigatório se for coletânea/vários artistas)" }
-                      },
-                      required: ["position", "title"]
-                    }
-                  },
-                  formats: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING, description: "Ex: Vinyl, CD, DVD" },
-                        qty: { type: Type.STRING, description: "Quantidade, ex: 1" },
-                        descriptions: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Ex: LP, Album, Gatefold" }
-                      },
-                      required: ["name"]
-                    }
-                  },
-                  notes: { type: Type.STRING, description: "Curiosidade histórica sobre o álbum ou detalhes da prensagem" },
-                  country: { type: Type.STRING, description: "País de origem/lançamento/prensagem (ex: Brasil, Japão, EUA, Alemanha)" },
-                  lowestPriceUsd: { type: Type.NUMBER, description: "Preço médio de mercado internacional no Discogs em dólares (ex: 25)" }
-                },
-                required: ["title", "artist", "label", "tracklist", "formats"]
+          const response = await Promise.race([
+            generateContentWithFallback(ai, {
+              model: "gemini-2.5-flash",
+              contents: prompt,
+              config: {
+                responseMimeType: "application/json",
+                thinkingConfig: { thinkingBudget: 0 }
               }
-            }
-          });
+            }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("Timeout IA")), 6000)
+            )
+          ]);
 
           const cleanJson = response.text.trim();
           const albumData = JSON.parse(cleanJson);
@@ -1112,24 +1050,19 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
 5. **suggestedPrice**:
    - O preço sugerido (número).`;
 
-      const response = await generateContentWithFallback(ai, {
-        model: "gemini-3.1-flash-lite",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              titleShopee: { type: Type.STRING },
-              titleMl: { type: Type.STRING },
-              description: { type: Type.STRING },
-              suggestedPrice: { type: Type.NUMBER },
-              hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
-            },
-            required: ["titleShopee", "titleMl", "description", "suggestedPrice", "hashtags"]
+      const response = await Promise.race([
+        generateContentWithFallback(ai, {
+          model: "gemini-2.5-flash",
+          contents: prompt + "\n\nRetorne estritamente o JSON com as chaves: titleShopee, titleMl, description, suggestedPrice, hashtags.",
+          config: {
+            responseMimeType: "application/json",
+            thinkingConfig: { thinkingBudget: 0 }
           }
-        }
-      });
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout IA")), 6000)
+        )
+      ]);
 
       const cleanJson = response.text.trim();
       const rawListing = JSON.parse(cleanJson);

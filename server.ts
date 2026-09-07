@@ -911,10 +911,35 @@ Gravadora original e número de catálogo devem ser os reais deste álbum cláss
     const drawerClean = drawer ? String(drawer).trim() : "";
     const formatString = release.formats?.map((f: any) => `${f.qty}x ${f.name} (${f.descriptions?.join(", ") || ""})`).join(", ") || "Disco";
     const mediaFormatLower = (release.formats?.[0]?.name || "").toLowerCase();
+    const allFormatsText = (release.formats || []).flatMap((f: any) => [f.name, ...(f.descriptions || [])]).join(" ").toLowerCase();
+    const releaseFullText = `${allFormatsText} ${(release.title || '')} ${(release.notes || '')}`.toLowerCase();
+
     let formatLabel = "LP";
-    if (mediaFormatLower.includes("cd")) formatLabel = "CD";
-    else if (mediaFormatLower.includes("dvd")) formatLabel = "DVD";
-    else if (mediaFormatLower.includes("vinyl") || mediaFormatLower.includes("vinil")) formatLabel = "LP";
+    if (mediaFormatLower.includes("cd") || allFormatsText.includes("compact disc")) {
+      formatLabel = "CD";
+    } else if (mediaFormatLower.includes("dvd")) {
+      formatLabel = "DVD";
+    } else if (allFormatsText.includes("cassette") || allFormatsText.includes("k7")) {
+      formatLabel = "K7";
+    } else {
+      // Classificação precisa de Vinil (LP 12", Single/EP 12", Compacto 7", Vinil 10")
+      const has12Inch = allFormatsText.includes('12"') || allFormatsText.includes('12 inch') || allFormatsText.includes('12-inch') || allFormatsText.includes('maxi');
+      const has7Inch = allFormatsText.includes('7"') || allFormatsText.includes('7 inch') || allFormatsText.includes('7-inch') || allFormatsText.includes('compacto simples');
+      const has10Inch = allFormatsText.includes('10"') || allFormatsText.includes('10 inch') || allFormatsText.includes('10-inch');
+      const hasMaxi = allFormatsText.includes('maxi-single') || allFormatsText.includes('maxi');
+      const hasSingle = allFormatsText.includes('single') || /\bsingle\b/i.test(releaseFullText);
+      const hasEp = allFormatsText.includes('ep') || /\bep\b/i.test(allFormatsText);
+
+      if (has12Inch && (hasMaxi || hasSingle || hasEp)) {
+        formatLabel = hasMaxi ? 'Maxi-Single 12"' : hasEp ? 'EP 12"' : 'Single 12"';
+      } else if (has7Inch || allFormatsText.includes('compacto') || ((hasSingle || hasEp) && !has12Inch && !has10Inch)) {
+        formatLabel = 'Compacto 7"';
+      } else if (has10Inch) {
+        formatLabel = 'Vinil 10"';
+      } else {
+        formatLabel = 'LP';
+      }
+    }
 
     const isCdDvd = formatLabel === "CD" || formatLabel === "DVD";
     const isMint = condition.mediaCondition === 'M';

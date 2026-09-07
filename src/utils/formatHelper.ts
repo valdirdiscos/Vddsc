@@ -1,17 +1,19 @@
 import { SavedListing, DiscogsRelease, Track, Format, ConditionSelection } from '../types';
 
 export interface ListingFormatInfo {
-  type: 'vinyl_lp' | 'vinyl_single' | 'vinyl_10' | 'cd' | 'dvd' | 'cassette' | 'other';
+  type: 'vinyl_lp' | 'vinyl_12_single' | 'vinyl_single' | 'vinyl_10' | 'cd' | 'dvd' | 'cassette' | 'other';
   badgeLabel: string;
   fullLabel: string;
   badgeBg: string;
   badgeText: string;
   iconEmoji: string;
+  sizeInches?: number;
+  defaultSpeed?: string;
 }
 
 /**
  * Accurately analyzes release data, formats, descriptions, notes, and title
- * to determine if the item is a CD, DVD, Cassette, 7" Single, 10" Vinyl, or 12" LP.
+ * to determine if the item is a CD, DVD, Cassette, 7" Single, 10" Vinyl, 12" Single/EP, or 12" LP.
  */
 export function getListingFormatInfo(listingOrRelease?: SavedListing | DiscogsRelease | null): ListingFormatInfo {
   if (!listingOrRelease) {
@@ -21,8 +23,92 @@ export function getListingFormatInfo(listingOrRelease?: SavedListing | DiscogsRe
       fullLabel: 'Vinil LP 12" (33 ⅓ RPM)',
       badgeBg: 'bg-slate-950/85 text-white backdrop-blur-xs',
       badgeText: 'LP 12"',
-      iconEmoji: '⚫'
+      iconEmoji: '⚫',
+      sizeInches: 12,
+      defaultSpeed: '33,3 rpm'
     };
+  }
+
+  // 0. Manual format override check if set on SavedListing
+  if ('formatOverride' in listingOrRelease && listingOrRelease.formatOverride) {
+    const override = listingOrRelease.formatOverride;
+    if (override === 'vinyl_12_single') {
+      return {
+        type: 'vinyl_12_single',
+        badgeLabel: 'Single 12"',
+        fullLabel: 'Vinil Single / Maxi-Single / EP 12" (12 Polegadas)',
+        badgeBg: 'bg-violet-700 text-white font-black',
+        badgeText: 'Single 12"',
+        iconEmoji: '⚫',
+        sizeInches: 12,
+        defaultSpeed: '33,3 rpm'
+      };
+    } else if (override === 'vinyl_single') {
+      return {
+        type: 'vinyl_single',
+        badgeLabel: 'Compacto 7"',
+        fullLabel: 'Vinil Compacto 7" (Single / EP / 45 RPM)',
+        badgeBg: 'bg-indigo-600 text-white font-black',
+        badgeText: 'Compacto 7"',
+        iconEmoji: '⚫',
+        sizeInches: 7,
+        defaultSpeed: '45 rpm'
+      };
+    } else if (override === 'vinyl_10') {
+      return {
+        type: 'vinyl_10',
+        badgeLabel: 'Vinil 10"',
+        fullLabel: 'Vinil 10" Polegadas',
+        badgeBg: 'bg-sky-700 text-white font-black',
+        badgeText: 'Vinil 10"',
+        iconEmoji: '⚫',
+        sizeInches: 10,
+        defaultSpeed: '33,3 rpm'
+      };
+    } else if (override === 'cd') {
+      return {
+        type: 'cd',
+        badgeLabel: 'CD',
+        fullLabel: 'CD (Compact Disc)',
+        badgeBg: 'bg-emerald-700 text-white font-black',
+        badgeText: 'CD',
+        iconEmoji: '💿',
+        sizeInches: 5,
+        defaultSpeed: 'Não se aplica'
+      };
+    } else if (override === 'dvd') {
+      return {
+        type: 'dvd',
+        badgeLabel: 'DVD',
+        fullLabel: 'DVD Vídeo / Show',
+        badgeBg: 'bg-purple-700 text-white font-black',
+        badgeText: 'DVD',
+        iconEmoji: '🎬',
+        sizeInches: 5,
+        defaultSpeed: 'Não se aplica'
+      };
+    } else if (override === 'cassette') {
+      return {
+        type: 'cassette',
+        badgeLabel: 'K7 / Fita',
+        fullLabel: 'Fita Cassete (K7)',
+        badgeBg: 'bg-amber-800 text-white font-black',
+        badgeText: 'K7',
+        iconEmoji: '📼',
+        defaultSpeed: 'Não se aplica'
+      };
+    } else if (override === 'vinyl_lp') {
+      return {
+        type: 'vinyl_lp',
+        badgeLabel: 'LP 12"',
+        fullLabel: 'Vinil LP 12" (33 ⅓ RPM)',
+        badgeBg: 'bg-slate-950/85 text-white backdrop-blur-xs font-black',
+        badgeText: 'LP 12"',
+        iconEmoji: '⚫',
+        sizeInches: 12,
+        defaultSpeed: '33,3 rpm'
+      };
+    }
   }
 
   const release: DiscogsRelease = 'release' in listingOrRelease ? listingOrRelease.release : listingOrRelease;
@@ -71,7 +157,9 @@ export function getListingFormatInfo(listingOrRelease?: SavedListing | DiscogsRe
       fullLabel: isDouble ? 'CD Duplo (Compact Disc)' : 'CD (Compact Disc)',
       badgeBg: 'bg-emerald-700 text-white font-black',
       badgeText: label,
-      iconEmoji: '💿'
+      iconEmoji: '💿',
+      sizeInches: 5,
+      defaultSpeed: 'Não se aplica'
     };
   }
 
@@ -84,7 +172,9 @@ export function getListingFormatInfo(listingOrRelease?: SavedListing | DiscogsRe
       fullLabel: isDouble ? 'DVD Duplo Vídeo / Show' : 'DVD Vídeo / Show',
       badgeBg: 'bg-purple-700 text-white font-black',
       badgeText: label,
-      iconEmoji: '🎬'
+      iconEmoji: '🎬',
+      sizeInches: 5,
+      defaultSpeed: 'Não se aplica'
     };
   }
 
@@ -95,49 +185,102 @@ export function getListingFormatInfo(listingOrRelease?: SavedListing | DiscogsRe
       fullLabel: 'Fita Cassete (K7)',
       badgeBg: 'bg-amber-800 text-white font-black',
       badgeText: 'K7',
-      iconEmoji: '📼'
+      iconEmoji: '📼',
+      defaultSpeed: 'Não se aplica'
     };
   }
 
-  // 4. Vinyl Single 7" check
-  const isSingle7 = 
-    allFmtText.includes('7"') || 
-    allFmtText.includes('single') || 
-    allFmtText.includes('45 rpm') || 
-    allFmtText.includes('compacto simples') ||
-    allFmtText.includes('compacto') ||
-    /\bcompacto\b|\b7"\b/i.test(fullText);
+  // --- RECONHECIMENTO PRECISO DE VINIL (12", 10", 7", COMPACTOS E SINGLES) ---
+  const is45Rpm = allFmtText.includes('45 rpm') || allFmtText.includes('45rpm') || /\b45\s*rpm\b/i.test(fullText);
+  const is78Rpm = allFmtText.includes('78 rpm') || allFmtText.includes('78rpm') || /\b78\s*rpm\b/i.test(fullText);
+  const defaultVinylSpeed = is45Rpm ? '45 rpm' : is78Rpm ? '78 rpm' : '33,3 rpm';
 
-  if (isSingle7) {
+  const has12Inch = 
+    allFmtText.includes('12"') || 
+    allFmtText.includes('12 inch') || 
+    allFmtText.includes('12-inch') || 
+    allFmtText.includes('12 polegadas') ||
+    allFmtText.includes('maxi-single') ||
+    allFmtText.includes('maxi single') ||
+    /\b12"\b|\b12\s*inch\b|\b12-inch\b|\bmaxi-single\b|\bmaxi\s+single\b/i.test(fullText);
+
+  const has7Inch = 
+    allFmtText.includes('7"') || 
+    allFmtText.includes('7 inch') || 
+    allFmtText.includes('7-inch') || 
+    allFmtText.includes('compacto simples') ||
+    /\b7"\b|\b7\s*inch\b|\b7-inch\b|\bcompacto\s+simples\b/i.test(fullText);
+
+  const has10Inch = 
+    allFmtText.includes('10"') || 
+    allFmtText.includes('10 inch') || 
+    allFmtText.includes('10-inch') || 
+    /\b10"\b|\b10\s*inch\b|\b10-inch\b/i.test(fullText);
+
+  const hasMaxi = allFmtText.includes('maxi-single') || allFmtText.includes('maxi single') || allFmtText.includes('maxi') || /\bmaxi\b/i.test(fullText);
+  const hasSingle = allFmtText.includes('single') || /\bsingle\b/i.test(fullText);
+  const hasEp = allFmtText.includes('ep') || allFmtText.includes('mini-album') || /\bep\b|\bmini-album\b/i.test(allFmtText);
+  const isShortTracklist = (release.tracklist?.length || 0) > 0 && (release.tracklist?.length || 0) <= 4;
+
+  // 4. VINIL 12" SINGLE / MAXI-SINGLE / EP (12 POLEGADAS)
+  // Se possui 12" e é Single, Maxi-Single, EP ou Mini-Album, É UM SINGLE DE 12 POLEGADAS (tamanho de LP), NUNCA UM COMPACTO 7"!
+  const is12InchSingleOrEp = 
+    has12Inch && (hasMaxi || hasSingle || hasEp || (isShortTracklist && !allFmtText.includes('album') && !allFmtText.includes('lp')));
+
+  if (is12InchSingleOrEp || (hasMaxi && !has7Inch)) {
+    let label = 'Single 12"';
+    if (hasMaxi) label = 'Maxi-Single 12"';
+    else if (hasEp) label = 'EP 12"';
+
+    return {
+      type: 'vinyl_12_single',
+      badgeLabel: label,
+      fullLabel: `Vinil ${label} (${is45Rpm ? '45 RPM' : '33 ⅓ RPM'} - 12 Polegadas)`,
+      badgeBg: 'bg-violet-700 text-white font-black',
+      badgeText: label,
+      iconEmoji: '⚫',
+      sizeInches: 12,
+      defaultSpeed: defaultVinylSpeed
+    };
+  }
+
+  // 5. VINIL 7" COMPACTO (SINGLE / EP 7 POLEGADAS)
+  const isSingle7 = 
+    has7Inch || 
+    allFmtText.includes('compacto') ||
+    /\bcompacto\b/i.test(fullText) ||
+    ((hasSingle || hasEp || is45Rpm) && !has12Inch && !has10Inch);
+
+  if (isSingle7 && !has12Inch) {
+    const isDoubleCompacto = allFmtText.includes('compacto duplo') || (hasEp && !hasSingle);
+    const label = isDoubleCompacto ? 'Compacto 7" (EP)' : 'Compacto 7"';
     return {
       type: 'vinyl_single',
-      badgeLabel: 'Compacto 7"',
-      fullLabel: 'Vinil Compacto 7" (Single / 45 RPM)',
+      badgeLabel: label,
+      fullLabel: isDoubleCompacto ? 'Vinil Compacto Duplo 7" (EP / 7 Polegadas)' : 'Vinil Compacto 7" (Single / 45 RPM)',
       badgeBg: 'bg-indigo-600 text-white font-black',
-      badgeText: 'Compacto 7"',
-      iconEmoji: '⚫'
+      badgeText: label,
+      iconEmoji: '⚫',
+      sizeInches: 7,
+      defaultSpeed: is45Rpm ? '45 rpm' : '33,3 rpm'
     };
   }
 
-  // 5. Vinyl 10" check
-  const isVinyl10 = 
-    allFmtText.includes('10"') || 
-    allFmtText.includes('compacto duplo') || 
-    allFmtText.includes('10 inch') ||
-    /\b10"\b/i.test(fullText);
-
-  if (isVinyl10) {
+  // 6. VINIL 10" POLEGADAS
+  if (has10Inch) {
     return {
       type: 'vinyl_10',
       badgeLabel: 'Vinil 10"',
       fullLabel: 'Vinil 10" Polegadas',
       badgeBg: 'bg-sky-700 text-white font-black',
       badgeText: 'Vinil 10"',
-      iconEmoji: '⚫'
+      iconEmoji: '⚫',
+      sizeInches: 10,
+      defaultSpeed: defaultVinylSpeed
     };
   }
 
-  // 6. Default Vinyl LP 12"
+  // 7. PADRÃO: VINIL LP 12" (LONG PLAY COMPLETO)
   const isDoubleLp = allFmtText.includes('2xlp') || allFmtText.includes('gatefold') || allFmtText.includes('duplo') || (formats[0]?.qty === '2');
   const label = isDoubleLp ? 'LP Duplo' : 'LP 12"';
   return {
@@ -146,7 +289,9 @@ export function getListingFormatInfo(listingOrRelease?: SavedListing | DiscogsRe
     fullLabel: isDoubleLp ? 'Vinil LP Duplo 12"' : 'Vinil LP 12" (33 ⅓ RPM)',
     badgeBg: 'bg-slate-950/85 text-white backdrop-blur-xs font-black',
     badgeText: label,
-    iconEmoji: '⚫'
+    iconEmoji: '⚫',
+    sizeInches: 12,
+    defaultSpeed: defaultVinylSpeed
   };
 }
 
@@ -925,8 +1070,12 @@ export function buildMercadoLivreOrderTxt(params: MlRoteiroParams): string {
 
   const mlPhysicalFormat = particularities.isDoubleAlbum
     ? 'Álbum Duplo (2 LPs 12")'
+    : formatInfo.type === 'vinyl_12_single'
+    ? 'Single / Maxi-Single / EP 12" (33/45 RPM)'
     : formatInfo.type === 'vinyl_single'
     ? 'Compacto / Single (7 polegadas, 33/45 RPM)'
+    : formatInfo.type === 'vinyl_10'
+    ? 'Vinil 10" Polegadas'
     : formatInfo.type === 'cd'
     ? 'CD Áudio Padrão'
     : formatInfo.type === 'dvd'
@@ -966,14 +1115,18 @@ export function buildMercadoLivreOrderTxt(params: MlRoteiroParams): string {
   }
   const mlDurationFormatted = totalDurationMinutes > 0 ? `${Math.round(totalDurationMinutes)} m` : 'Não se aplica (marcar opção)';
 
-  const mlDiskFormatShort = formatInfo.type === 'vinyl_single' ? 'compacto' : formatInfo.type === 'cd' ? 'cd' : 'lp';
+  const mlDiskFormatShort = formatInfo.type === 'vinyl_single' ? 'compacto' : formatInfo.type === 'vinyl_12_single' ? 'single' : formatInfo.type === 'cd' ? 'cd' : 'lp';
   const mlDiskSize = formatInfo.type === 'vinyl_single' ? '7' : formatInfo.type === 'vinyl_10' ? '10' : formatInfo.type === 'cd' ? '5' : '12';
-  const mlDiskSpeed = formatInfo.type === 'vinyl_single' ? '45 rpm' : formatInfo.type === 'cd' ? 'Não se aplica' : '33,3 rpm';
+  const mlDiskSpeed = formatInfo.type === 'vinyl_single' ? '45 rpm' : formatInfo.type === 'cd' ? 'Não se aplica' : (formatInfo.defaultSpeed || '33,3 rpm');
 
   const shippingDims = formatInfo.type === 'vinyl_single'
     ? '20 cm x 20 cm x 2 cm | Peso: 150 g'
-    : formatInfo.type === 'cd'
+    : formatInfo.type === 'vinyl_10'
+    ? '28 cm x 28 cm x 2 cm | Peso: 300 g'
+    : formatInfo.type === 'cd' || formatInfo.type === 'dvd'
     ? '15 cm x 15 cm x 2 cm | Peso: 120 g'
+    : formatInfo.type === 'cassette'
+    ? '14 cm x 10 cm x 3 cm | Peso: 100 g'
     : '34 cm x 34 cm x 4 cm | Peso: 500 g';
 
   return [

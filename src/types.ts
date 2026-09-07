@@ -190,6 +190,7 @@ export type SalesChannel = 'physical_store' | 'online_store' | 'shopee' | 'merca
 export interface SavedListing {
   id: string; // unique listing timestamp
   barcode?: string; // e.g., VD-249504 or custom barcode/sku
+  formatOverride?: 'vinyl_lp' | 'vinyl_12_single' | 'vinyl_single' | 'vinyl_10' | 'cd' | 'dvd' | 'cassette'; // Permite forçar o formato físico específico (ex: Single/EP 12" em vez de Compacto 7")
   release: DiscogsRelease;
   condition: ConditionSelection;
   pricing: PricingConfig;

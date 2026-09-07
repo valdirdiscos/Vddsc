@@ -336,8 +336,12 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
   
   const mlPhysicalFormat = particularities.isDoubleAlbum 
     ? 'Álbum Duplo (2 LPs 12")'
+    : formatInfo.type === 'vinyl_12_single'
+    ? 'Single / Maxi-Single / EP 12" (33/45 RPM)'
     : formatInfo.type === 'vinyl_single'
     ? 'Compacto / Single (7 polegadas, 33/45 RPM)'
+    : formatInfo.type === 'vinyl_10'
+    ? 'Vinil 10" Polegadas'
     : formatInfo.type === 'cd'
     ? 'CD Áudio Padrão'
     : formatInfo.type === 'dvd'
@@ -374,9 +378,9 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
     }
   }
   const mlDurationFormatted = totalDurationMinutes > 0 ? `${Math.round(totalDurationMinutes)} m` : 'Não se aplica';
-  const mlDiskFormatShort = formatInfo.type === 'vinyl_single' ? 'compacto' : formatInfo.type === 'cd' ? 'cd' : 'lp';
+  const mlDiskFormatShort = formatInfo.type === 'vinyl_single' ? 'compacto' : formatInfo.type === 'vinyl_12_single' ? 'single' : formatInfo.type === 'cd' ? 'cd' : 'lp';
   const mlDiskSize = formatInfo.type === 'vinyl_single' ? '7' : formatInfo.type === 'vinyl_10' ? '10' : formatInfo.type === 'cd' ? '5' : '12';
-  const mlDiskSpeed = formatInfo.type === 'vinyl_single' ? '45 rpm' : formatInfo.type === 'cd' ? 'Não se aplica' : '33,3 rpm';
+  const mlDiskSpeed = formatInfo.type === 'vinyl_single' ? '45 rpm' : formatInfo.type === 'cd' ? 'Não se aplica' : (formatInfo.defaultSpeed || '33,3 rpm');
 
   const mlPriceValue = (mercadoLivreListing?.suggestedPrice || pricing.directPrice || pricing.basePriceBrl || 0).toFixed(2);
   const mlPriceNumber = parseFloat(mlPriceValue);
@@ -388,8 +392,12 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
   // Dimensions for Mercado Envios
   const shippingDims = formatInfo.type === 'vinyl_single'
     ? '20 cm x 20 cm x 2 cm | Peso: 150 g'
-    : formatInfo.type === 'cd'
+    : formatInfo.type === 'vinyl_10'
+    ? '28 cm x 28 cm x 2 cm | Peso: 300 g'
+    : formatInfo.type === 'cd' || formatInfo.type === 'dvd'
     ? '15 cm x 15 cm x 2 cm | Peso: 120 g'
+    : formatInfo.type === 'cassette'
+    ? '14 cm x 10 cm x 3 cm | Peso: 100 g'
     : '33 cm x 33 cm x 3 cm | Peso: 450 g';
 
   const copyAllFichaTecnica = () => {

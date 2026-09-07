@@ -325,6 +325,10 @@ export function PublicStorefront({
         } else if (selectedFormat === 'lp') {
           if (formatInfo.type !== 'vinyl_lp') return false;
         } else if (selectedFormat === 'single') {
+          if (formatInfo.type !== 'vinyl_single' && formatInfo.type !== 'vinyl_12_single') return false;
+        } else if (selectedFormat === 'single_12') {
+          if (formatInfo.type !== 'vinyl_12_single') return false;
+        } else if (selectedFormat === 'compacto_7') {
           if (formatInfo.type !== 'vinyl_single') return false;
         } else if (selectedFormat === 'vinyl_10') {
           if (formatInfo.type !== 'vinyl_10') return false;

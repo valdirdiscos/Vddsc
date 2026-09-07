@@ -408,12 +408,12 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
 
   const countByFormat = listings.reduce(
     (acc, item) => {
-      const format = (item.release.formats?.[0]?.name || 'Other').toLowerCase();
-      if (format.includes('vinyl') || format.includes('vinil') || format.includes('lp')) {
+      const fmt = getListingFormatInfo(item);
+      if (fmt.type.startsWith('vinyl')) {
         acc.vinyl += 1;
-      } else if (format.includes('cd')) {
+      } else if (fmt.type === 'cd') {
         acc.cd += 1;
-      } else if (format.includes('dvd')) {
+      } else if (fmt.type === 'dvd') {
         acc.dvd += 1;
       } else {
         acc.other += 1;
@@ -437,16 +437,16 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
       (item.drawer && item.drawer.toLowerCase().includes(query));
 
     // 2. Format Filter
-    const formatName = (item.release.formats?.[0]?.name || '').toLowerCase();
+    const fmt = getListingFormatInfo(item);
     let matchesFormat = true;
     if (selectedFormat === 'vinyl') {
-      matchesFormat = formatName.includes('vinyl') || formatName.includes('vinil') || formatName.includes('lp');
+      matchesFormat = fmt.type.startsWith('vinyl');
     } else if (selectedFormat === 'cd') {
-      matchesFormat = formatName.includes('cd');
+      matchesFormat = fmt.type === 'cd';
     } else if (selectedFormat === 'dvd') {
-      matchesFormat = formatName.includes('dvd');
+      matchesFormat = fmt.type === 'dvd';
     } else if (selectedFormat === 'other') {
-      matchesFormat = !formatName.includes('vinyl') && !formatName.includes('vinil') && !formatName.includes('lp') && !formatName.includes('cd') && !formatName.includes('dvd');
+      matchesFormat = !fmt.type.startsWith('vinyl') && fmt.type !== 'cd' && fmt.type !== 'dvd';
     }
 
     // 3. Drawer Filter
@@ -1308,7 +1308,8 @@ Colecionar é preservar a história.`;
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {sortedListings.map((item) => {
-                      const formatName = item.release.formats?.[0]?.name || 'Disco';
+                      const itemFmtInfo = getListingFormatInfo(item);
+                      const formatName = itemFmtInfo.badgeLabel;
                       const itemStatus = item.status || 'available';
                       const channels = item.salesChannels || ['physical_store', 'online_store', 'shopee', 'mercadolivre'];
                       const hasOnline = channels.includes('online_store');
@@ -1380,8 +1381,8 @@ Colecionar é preservar a história.`;
                           {/* Formato / Mídia */}
                           <td className="py-2.5 px-3 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold border ${getFormatBadgeColor(formatName)}`}>
-                                {formatName}
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold border ${itemFmtInfo.badgeBg}`}>
+                                {itemFmtInfo.badgeLabel}
                               </span>
                               <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-slate-900 text-white" title={`Mídia: ${item.condition.mediaCondition}`}>
                                 {item.condition.mediaCondition}
@@ -1593,7 +1594,8 @@ Colecionar é preservar a história.`;
               id="catalog-items-grid"
             >
               {sortedListings.map((item) => {
-                const formatName = item.release.formats?.[0]?.name || 'Disco';
+                const itemFmtInfo = getListingFormatInfo(item);
+                const formatName = itemFmtInfo.badgeLabel;
                 const formattedDate = new Date(item.createdAt).toLocaleDateString('pt-BR', {
                   day: '2-digit',
                   month: '2-digit',
@@ -1737,9 +1739,9 @@ Colecionar é preservar a história.`;
 
                       {/* Format, Cost & Edition Particularities */}
                       <div className="flex items-center gap-1 flex-wrap">
-                        <span className={`text-[8.5px] px-1.5 py-0.2 rounded border font-extrabold flex items-center gap-0.5 ${getFormatBadgeColor(formatName)}`}>
-                          {getFormatIcon(formatName, "h-2.5 w-2.5")}
-                          {formatName}
+                        <span className={`text-[8.5px] px-1.5 py-0.2 rounded border font-extrabold flex items-center gap-0.5 ${itemFmtInfo.badgeBg}`}>
+                          <span>{itemFmtInfo.iconEmoji}</span>
+                          {itemFmtInfo.badgeLabel}
                         </span>
                         <span className="text-[8.5px] bg-slate-50 text-slate-600 border border-slate-100 font-medium px-1 py-0.2 rounded font-mono">
                           Custo: R$ {getItemCost(item).toFixed(0)}
@@ -2504,10 +2506,15 @@ Colecionar é preservar a história.`;
                   {/* Meta data list */}
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] px-2 py-0.5 rounded border font-extrabold flex items-center gap-1 ${getFormatBadgeColor(selectedListing.release.formats?.[0]?.name || 'Disco')}`}>
-                        {getFormatIcon(selectedListing.release.formats?.[0]?.name || 'Disco', "h-3.5 w-3.5")}
-                        {selectedListing.release.formats?.[0]?.name || 'Disco'}
-                      </span>
+                      {(() => {
+                        const dfInfo = getListingFormatInfo(selectedListing);
+                        return (
+                          <span className={`text-[10px] px-2 py-0.5 rounded border font-extrabold flex items-center gap-1 ${dfInfo.badgeBg}`}>
+                            <span>{dfInfo.iconEmoji}</span>
+                            {dfInfo.badgeLabel}
+                          </span>
+                        );
+                      })()}
                       {selectedListing.drawer && (
                         <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-100 font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1">
                           📍 [{selectedListing.drawer.replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim()}]
@@ -2981,10 +2988,16 @@ Colecionar é preservar a história.`;
                       const mlFormatAlbum = drawerFormatInfo.type === 'cd' ? 'CD' : drawerFormatInfo.type === 'dvd' ? 'DVD' : 'Vinil';
                       const mlPhysical = drawerPart.isDoubleAlbum
                         ? 'Álbum Duplo (2 LPs 12")'
+                        : drawerFormatInfo.type === 'vinyl_12_single'
+                        ? 'Single / Maxi-Single / EP 12" (33/45 RPM)'
                         : drawerFormatInfo.type === 'vinyl_single'
                         ? 'Compacto / Single (7 polegadas, 33/45 RPM)'
+                        : drawerFormatInfo.type === 'vinyl_10'
+                        ? 'Vinil 10" Polegadas'
                         : drawerFormatInfo.type === 'cd'
                         ? 'CD Áudio Padrão'
+                        : drawerFormatInfo.type === 'dvd'
+                        ? 'DVD Vídeo/Áudio'
                         : 'LP (12 polegadas, 33 ⅓ RPM)';
                       
                       const mlYear = selectedListing.release.year ? String(selectedListing.release.year) : 'Não informado';
@@ -3014,15 +3027,19 @@ Colecionar é preservar a história.`;
                         }
                       }
                       const mlDurationFormatted = totalDurationMinutes > 0 ? `${Math.round(totalDurationMinutes)} m` : 'Não se aplica';
-                      const mlDiskFormatShort = drawerFormatInfo.type === 'vinyl_single' ? 'compacto' : drawerFormatInfo.type === 'cd' ? 'cd' : 'lp';
+                      const mlDiskFormatShort = drawerFormatInfo.type === 'vinyl_single' ? 'compacto' : drawerFormatInfo.type === 'vinyl_12_single' ? 'single' : drawerFormatInfo.type === 'cd' ? 'cd' : 'lp';
                       const mlDiskSize = drawerFormatInfo.type === 'vinyl_single' ? '7' : drawerFormatInfo.type === 'vinyl_10' ? '10' : drawerFormatInfo.type === 'cd' ? '5' : '12';
-                      const mlDiskSpeed = drawerFormatInfo.type === 'vinyl_single' ? '45 rpm' : drawerFormatInfo.type === 'cd' ? 'Não se aplica' : '33,3 rpm';
+                      const mlDiskSpeed = drawerFormatInfo.type === 'vinyl_single' ? '45 rpm' : drawerFormatInfo.type === 'cd' ? 'Não se aplica' : (drawerFormatInfo.defaultSpeed || '33,3 rpm');
 
                       const mlPriceVal = (selectedListing.mercadolivre?.suggestedPrice || selectedListing.pricing?.directPrice || selectedListing.pricing?.basePriceBrl || 0).toFixed(2);
                       const shippingDims = drawerFormatInfo.type === 'vinyl_single'
                         ? '20 cm x 20 cm x 2 cm | 150 g'
-                        : drawerFormatInfo.type === 'cd'
+                        : drawerFormatInfo.type === 'vinyl_10'
+                        ? '28 cm x 28 cm x 2 cm | 300 g'
+                        : drawerFormatInfo.type === 'cd' || drawerFormatInfo.type === 'dvd'
                         ? '15 cm x 15 cm x 2 cm | 120 g'
+                        : drawerFormatInfo.type === 'cassette'
+                        ? '14 cm x 10 cm x 3 cm | 100 g'
                         : '33 cm x 33 cm x 3 cm | 450 g';
 
                       let mlDesc = selectedListing.mercadolivre?.description || selectedListing.shopee?.description || '';

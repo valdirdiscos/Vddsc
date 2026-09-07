@@ -264,9 +264,9 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
       genres: selectedGenres.length > 0 ? selectedGenres : ['Música Brasileira', 'Vinil'],
       styles: selectedStyles.length > 0 ? selectedStyles : [],
       formats: [{
-        name: mediaFormat,
+        name: mediaFormat.startsWith('CD') ? 'CD' : mediaFormat.startsWith('DVD') ? 'DVD' : mediaFormat.startsWith('Cassette') ? 'Cassette' : 'Vinyl',
         qty: '1',
-        descriptions: [mediaFormat]
+        descriptions: mediaFormat.split(',').map(s => s.trim())
       }],
       tracklist: parsedTracks.length > 0 ? parsedTracks : [
         { position: 'A1', title: 'Lado A - Faixa 1', duration: '03:30' },
@@ -434,9 +434,11 @@ export const ManualRegistrationForm: React.FC<ManualRegistrationFormProps> = ({
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
             >
               <option value="Vinyl, LP, Album">Vinil LP (12")</option>
+              <option value="Vinyl, 12&quot;, Single, EP">Single / EP (12")</option>
+              <option value="Vinyl, 12&quot;, Maxi-Single">Maxi-Single (12")</option>
               <option value="Vinyl, 7&quot;, Single">Compacto Simples (7")</option>
               <option value="Vinyl, 7&quot;, EP">Compacto Duplo (7" EP)</option>
-              <option value="Vinyl, 12&quot;, Maxi-Single">Maxi Single (12")</option>
+              <option value="Vinyl, 10&quot;, Album">Vinil 10" Polegadas</option>
               <option value="CD, Album">CD (Mídia Óptica)</option>
               <option value="DVD, Video">DVD</option>
               <option value="Cassette, Album">Fita Cassete (K7)</option>

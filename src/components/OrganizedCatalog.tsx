@@ -2998,6 +2998,26 @@ Colecionar é preservar a história.`;
                         : drawerPart.isBoxSet
                         ? 'Caixa rígida (Box Set)'
                         : 'Capa simples de papelão com plásticos novos';
+
+                      // Derivações dos campos específicos da tela "Características secundárias" do ML
+                      let totalDurationMinutes = 0;
+                      if (selectedListing.release?.tracklist && Array.isArray(selectedListing.release.tracklist)) {
+                        for (const t of selectedListing.release.tracklist) {
+                          if (t.duration) {
+                            const parts = t.duration.split(':').map((p: string) => parseInt(p, 10));
+                            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                              totalDurationMinutes += parts[0] + parts[1] / 60;
+                            } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+                              totalDurationMinutes += parts[0] * 60 + parts[1] + parts[2] / 60;
+                            }
+                          }
+                        }
+                      }
+                      const mlDurationFormatted = totalDurationMinutes > 0 ? `${Math.round(totalDurationMinutes)} m` : 'Não se aplica';
+                      const mlDiskFormatShort = drawerFormatInfo.type === 'vinyl_single' ? 'compacto' : drawerFormatInfo.type === 'cd' ? 'cd' : 'lp';
+                      const mlDiskSize = drawerFormatInfo.type === 'vinyl_single' ? '7' : drawerFormatInfo.type === 'vinyl_10' ? '10' : drawerFormatInfo.type === 'cd' ? '5' : '12';
+                      const mlDiskSpeed = drawerFormatInfo.type === 'vinyl_single' ? '45 rpm' : drawerFormatInfo.type === 'cd' ? 'Não se aplica' : '33,3 rpm';
+
                       const mlPriceVal = (selectedListing.mercadolivre?.suggestedPrice || selectedListing.pricing?.directPrice || selectedListing.pricing?.basePriceBrl || 0).toFixed(2);
                       const shippingDims = drawerFormatInfo.type === 'vinyl_single'
                         ? '20 cm x 20 cm x 2 cm | 150 g'
@@ -3021,7 +3041,7 @@ Colecionar é preservar a história.`;
                                   <span>Roteiro Sequencial Mercado Livre</span>
                                 </h4>
                                 <p className="text-[11px] text-amber-950 font-medium leading-tight">
-                                  Ordenado exatamente na sequência do aplicativo mobile: Artista &rarr; Álbum &rarr; Condição &rarr; Ficha Técnica &rarr; Título 60c &rarr; Preço.
+                                  Ordenado exatamente na sequência do aplicativo mobile: Artista &rarr; Álbum &rarr; Condição &rarr; Título 60c &rarr; Ficha Técnica &rarr; Preço.
                                 </p>
                               </div>
 
@@ -3121,7 +3141,7 @@ Colecionar é preservar a história.`;
                             </div>
                           </div>
 
-                          {/* PASSO 3: FICHA TÉCNICA (14 ATRIBUTOS OBRIGATÓRIOS DO ML) */}
+                          {/* PASSO 3: TÍTULO DO ANÚNCIO (MÁX 60 CARACTERES) */}
                           <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
                             <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
                               <div className="flex items-center gap-2">
@@ -3129,59 +3149,7 @@ Colecionar é preservar a história.`;
                                   3
                                 </span>
                                 <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                                  Tela 3: Ficha Técnica (14 Atributos)
-                                </h5>
-                              </div>
-                              <span className="text-[10px] text-slate-500 font-bold">Copie campo a campo</span>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
-                              {[
-                                { k: 'fmt', label: 'Formato do Álbum', val: mlFormatAlbum },
-                                { k: 'phy', label: 'Formato Físico', val: mlPhysical },
-                                { k: 'dis', label: 'Qtd de Discos', val: mlDiscs },
-                                { k: 'ano', label: 'Ano de Lançamento', val: mlYear },
-                                { k: 'fai', label: 'Qtd de Canções', val: mlTracks },
-                                { k: 'gen', label: 'Gênero Musical', val: mlGenre },
-                                { k: 'sel', label: 'Gravadora / Selo', val: mlLabel },
-                                { k: 'pai', label: 'Origem / País', val: mlCountry },
-                                { k: 'emb', label: 'Embalagem', val: mlPackage },
-                                { k: 'kit', label: 'É Kit?', val: 'Não' },
-                                { k: 'adc', label: 'Faixas Adicionais?', val: 'Não' },
-                                { k: 'ean', label: 'Código EAN/UPC', val: 'Não tem / Não se aplica' }
-                              ].map((field) => (
-                                <div key={field.k} className="p-1.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between gap-1.5">
-                                  <div className="min-w-0 flex-1">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase block truncate">{field.label}</span>
-                                    <span className="font-bold text-slate-800 truncate block text-[11px]">{field.val}</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => triggerCopy(field.val, `ml-cat-f-${field.k}`)}
-                                    className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded cursor-pointer shrink-0 flex items-center gap-1"
-                                    title={`Copiar ${field.label}`}
-                                  >
-                                    {copiedField === `ml-cat-f-${field.k}` ? (
-                                      <Check className="h-3 w-3 text-emerald-600" />
-                                    ) : (
-                                      <Copy className="h-3 w-3" />
-                                    )}
-                                    <span>{copiedField === `ml-cat-f-${field.k}` ? 'Copiado' : 'Copiar'}</span>
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* PASSO 4: TÍTULO DO ANÚNCIO (MÁX 60 CARACTERES) */}
-                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
-                            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                              <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
-                                  4
-                                </span>
-                                <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                                  Tela 4: Título do Anúncio (Máx 60 Caracteres)
+                                  Tela 3: Título do Anúncio (Máx 60 Caracteres)
                                 </h5>
                               </div>
                               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
@@ -3215,19 +3183,112 @@ Colecionar é preservar a história.`;
                             </div>
                           </div>
 
-                          {/* PASSO 5: FOTOS */}
+                          {/* PASSO 4: FOTOS DO DISCO */}
                           <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-1.5 shadow-2xs text-xs">
                             <div className="flex items-center gap-2 border-b border-slate-100 pb-1">
                               <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
-                                5
+                                4
                               </span>
                               <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                                Tela 5: Fotos do Disco
+                                Tela 4: Fotos do Disco (Sequência Recomendada)
                               </h5>
                             </div>
                             <p className="text-[11px] text-slate-600">
-                              Suba as fotos reais do exemplar tiradas sob boa iluminação (capa frontal, contracapa, selos e superfície do vinil/mídia com plásticos novos).
+                              Suba as fotos reais do exemplar tiradas sob boa iluminação: Capa Frontal, Contracapa, Selo A, Selo B, Encarte e Mídia/Superfície.
                             </p>
+                          </div>
+
+                          {/* PASSO 5: CARACTERÍSTICAS SECUNDÁRIAS / FICHA TÉCNICA */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
+                                  5
+                                </span>
+                                <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                  Tela 5: Características Secundárias / Ficha Técnica
+                                </h5>
+                              </div>
+                              <span className="text-[10px] text-slate-500 font-bold">Ordem exata do app</span>
+                            </div>
+
+                            {/* Destaque dos 7 campos da tela "Características secundárias" do ML */}
+                            <div className="space-y-1">
+                              <div className="text-[10px] font-bold text-amber-900 uppercase tracking-wider pb-0.5">
+                                Campos da Tela "Características secundárias"
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                                {[
+                                  { k: 'can', label: '1. Quantidade de canções', val: `${selectedListing.release.tracklist?.length || 0}` },
+                                  { k: 'fmt', label: '2. Formato do disco', val: mlDiskFormatShort },
+                                  { k: 'gen', label: '3. Gêneros musicais', val: mlGenre },
+                                  { k: 'dur', label: '4. Duração total do álbum', val: mlDurationFormatted },
+                                  { k: 'tam', label: '5. Tamanho', val: `${mlDiskSize} "` },
+                                  { k: 'ano', label: '6. Ano de lançamento', val: mlYear },
+                                  { k: 'vel', label: '7. Velocidade de rotação', val: mlDiskSpeed }
+                                ].map((field) => (
+                                  <div key={field.k} className="p-1.5 bg-amber-50/60 rounded-lg border border-amber-200/80 flex items-center justify-between gap-1.5">
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[9px] font-bold text-amber-900 uppercase block truncate">{field.label}</span>
+                                      <span className="font-bold text-slate-900 truncate block text-[11px]">{field.val}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => triggerCopy(field.val, `ml-cat-f-sec-${field.k}`)}
+                                      className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-amber-100 text-slate-800 border border-amber-200 rounded cursor-pointer shrink-0 flex items-center gap-1"
+                                      title={`Copiar ${field.label}`}
+                                    >
+                                      {copiedField === `ml-cat-f-sec-${field.k}` ? (
+                                        <Check className="h-3 w-3 text-emerald-600" />
+                                      ) : (
+                                        <Copy className="h-3 w-3" />
+                                      )}
+                                      <span>{copiedField === `ml-cat-f-sec-${field.k}` ? 'Copiado' : 'Copiar'}</span>
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Campos adicionais da Ficha Técnica */}
+                            <div className="pt-2 border-t border-slate-100 space-y-1">
+                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pb-0.5">
+                                Outros Atributos da Ficha Técnica
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                                {[
+                                  { k: 'afmt', label: 'Formato do Álbum', val: mlFormatAlbum },
+                                  { k: 'phy', label: 'Formato Físico', val: mlPhysical },
+                                  { k: 'dis', label: 'Qtd de Discos', val: mlDiscs },
+                                  { k: 'sel', label: 'Gravadora / Selo', val: mlLabel },
+                                  { k: 'pai', label: 'Origem / País', val: mlCountry },
+                                  { k: 'emb', label: 'Embalagem', val: mlPackage },
+                                  { k: 'kit', label: 'É Kit?', val: 'Não' },
+                                  { k: 'adc', label: 'Faixas Adicionais?', val: 'Não' },
+                                  { k: 'ean', label: 'Código EAN/UPC', val: 'Não tem / Não se aplica' }
+                                ].map((field) => (
+                                  <div key={field.k} className="p-1.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between gap-1.5">
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[9px] font-bold text-slate-400 uppercase block truncate">{field.label}</span>
+                                      <span className="font-bold text-slate-800 truncate block text-[11px]">{field.val}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => triggerCopy(field.val, `ml-cat-f-${field.k}`)}
+                                      className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded cursor-pointer shrink-0 flex items-center gap-1"
+                                      title={`Copiar ${field.label}`}
+                                    >
+                                      {copiedField === `ml-cat-f-${field.k}` ? (
+                                        <Check className="h-3 w-3 text-emerald-600" />
+                                      ) : (
+                                        <Copy className="h-3 w-3" />
+                                      )}
+                                      <span>{copiedField === `ml-cat-f-${field.k}` ? 'Copiado' : 'Copiar'}</span>
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           </div>
 
                           {/* PASSO 6: PREÇO & ESTOQUE */}

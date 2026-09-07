@@ -950,6 +950,26 @@ export function buildMercadoLivreOrderTxt(params: MlRoteiroParams): string {
   const priceNum = typeof price === 'number' ? price : parseFloat(String(price)) || 0;
   const priceFormatted = priceNum.toFixed(2);
 
+  // Calcula duração aproximada em minutos se houver duração nas faixas
+  let totalDurationMinutes = 0;
+  if (release?.tracklist && Array.isArray(release.tracklist)) {
+    for (const t of release.tracklist) {
+      if (t.duration) {
+        const parts = t.duration.split(':').map((p: string) => parseInt(p, 10));
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          totalDurationMinutes += parts[0] + parts[1] / 60;
+        } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+          totalDurationMinutes += parts[0] * 60 + parts[1] + parts[2] / 60;
+        }
+      }
+    }
+  }
+  const mlDurationFormatted = totalDurationMinutes > 0 ? `${Math.round(totalDurationMinutes)} m` : 'Não se aplica (marcar opção)';
+
+  const mlDiskFormatShort = formatInfo.type === 'vinyl_single' ? 'compacto' : formatInfo.type === 'cd' ? 'cd' : 'lp';
+  const mlDiskSize = formatInfo.type === 'vinyl_single' ? '7' : formatInfo.type === 'vinyl_10' ? '10' : formatInfo.type === 'cd' ? '5' : '12';
+  const mlDiskSpeed = formatInfo.type === 'vinyl_single' ? '45 rpm' : formatInfo.type === 'cd' ? 'Não se aplica' : '33,3 rpm';
+
   const shippingDims = formatInfo.type === 'vinyl_single'
     ? '20 cm x 20 cm x 2 cm | Peso: 150 g'
     : formatInfo.type === 'cd'
@@ -984,65 +1004,56 @@ export function buildMercadoLivreOrderTxt(params: MlRoteiroParams): string {
     `${mlCategory}`,
     ``,
     `------------------------------------------------------------`,
-    `TELA 3: CARACTERÍSTICAS / FICHA TÉCNICA DO PRODUTO`,
-    `------------------------------------------------------------`,
-    `FORMATO DO ÁLBUM:`,
-    `${mlFormatAlbum}`,
-    ``,
-    `FORMATO FÍSICO / TIPO:`,
-    `${mlPhysicalFormat}`,
-    ``,
-    `QUANTIDADE DE CANÇÕES (FAIXAS):`,
-    `${mlTrackCount}`,
-    ``,
-    `QUANTIDADE DE ÁLBUNS / DISCOS NO PACOTE:`,
-    `${mlAlbumCount}`,
-    ``,
-    `ANO DE LANÇAMENTO:`,
-    `${mlYear}`,
-    ``,
-    `GÊNERO MUSICAL:`,
-    `${mlGenre}`,
-    ``,
-    `COMPANHIA PRODUTORA / GRAVADORA / SELO:`,
-    `${mlLabel}`,
-    ``,
-    `ORIGEM / PAÍS DE PRENSAGEM:`,
-    `${mlCountry}`,
-    ``,
-    `TIPO DE EMBALAGEM:`,
-    `${mlPackaging}`,
-    ``,
-    `CÓDIGO UNIVERSAL DE PRODUTO (EAN / UPC):`,
-    `Não tem / Não se aplica`,
-    ``,
-    `É KIT?:`,
-    `Não`,
-    ``,
-    `COM FAIXAS ADICIONAIS / BÔNUS?:`,
-    `Não`,
-    ``,
-    `VELOCIDADE DE REPRODUÇÃO:`,
-    `33 RPM`,
-    ``,
-    `TAMANHO DO DISCO:`,
-    `12 polegadas`,
-    ``,
-    `------------------------------------------------------------`,
-    `TELA 4: TÍTULO DO ANÚNCIO (MÁXIMO 60 CARACTERES)`,
+    `TELA 3: TÍTULO DO ANÚNCIO (MÁXIMO 60 CARACTERES)`,
     `------------------------------------------------------------`,
     `TÍTULO (COM LOCALIZAÇÃO FIXADA):`,
     `${title}`,
     ``,
     `------------------------------------------------------------`,
-    `TELA 5: SEQUÊNCIA DE FOTOS RECOMENDADA`,
+    `TELA 4: FOTOS DO PRODUTO (SEQUÊNCIA RECOMENDADA)`,
     `------------------------------------------------------------`,
-    `Foto 1: Capa Frontal`,
+    `Foto 1: Capa Frontal (fundo limpo)`,
     `Foto 2: Contracapa (Verso)`,
     `Foto 3: Selo Central Lado A`,
     `Foto 4: Selo Central Lado B`,
     `Foto 5: Encarte / Letras (se houver)`,
     `Foto 6: Mídia / Superfície do Vinil`,
+    ``,
+    `------------------------------------------------------------`,
+    `TELA 5: CARACTERÍSTICAS SECUNDÁRIAS / FICHA TÉCNICA`,
+    `------------------------------------------------------------`,
+    `[Campos da Tela "Características secundárias":]`,
+    `1. QUANTIDADE DE CANÇÕES:`,
+    `${mlTrackCount}`,
+    ``,
+    `2. FORMATO DO DISCO:`,
+    `${mlDiskFormatShort}`,
+    ``,
+    `3. GÊNEROS MUSICAIS:`,
+    `${mlGenre}`,
+    ``,
+    `4. DURAÇÃO TOTAL DO ÁLBUM:`,
+    `${mlDurationFormatted}`,
+    ``,
+    `5. TAMANHO:`,
+    `${mlDiskSize} " (polegadas)`,
+    ``,
+    `6. ANO DE LANÇAMENTO:`,
+    `${mlYear}`,
+    ``,
+    `7. VELOCIDADE DE ROTAÇÃO:`,
+    `${mlDiskSpeed}`,
+    ``,
+    `[Atributos adicionais da Ficha Técnica / Características Principais:]`,
+    `- FORMATO DO ÁLBUM: ${mlFormatAlbum}`,
+    `- FORMATO FÍSICO / TIPO: ${mlPhysicalFormat}`,
+    `- QUANTIDADE DE DISCOS NO PACOTE: ${mlAlbumCount}`,
+    `- GRAVADORA / SELO / COMPANHIA: ${mlLabel}`,
+    `- ORIGEM / PAÍS: ${mlCountry}`,
+    `- TIPO DE EMBALAGEM: ${mlPackaging}`,
+    `- CÓDIGO UNIVERSAL (EAN/UPC): Não se aplica`,
+    `- É KIT?: Não`,
+    `- COM FAIXAS ADICIONAIS?: Não`,
     ``,
     `------------------------------------------------------------`,
     `TELA 6: PREÇO E ESTOQUE`,

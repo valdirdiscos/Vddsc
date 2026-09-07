@@ -473,7 +473,7 @@ export const LoteRegistrationForm: React.FC<LoteRegistrationFormProps> = ({
       ),
       `\n🔍 **ESTADO GERAL DO LOTE:**`,
       `• Mídia e Capa: ${conditionSummary}`,
-      `• Todos os discos foram testados e 100% higienizados profissionalmente.`,
+      `• Todos os discos foram criteriosamente avaliados no padrão Goldmine e 100% higienizados profissionalmente.`,
       `• Embalagem reforçada anti-impacto própria para envio seguro de discos de vinil para todo o Brasil.`
     ].filter(Boolean).join('\n');
 

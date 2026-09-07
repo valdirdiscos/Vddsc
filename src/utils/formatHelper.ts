@@ -1,4 +1,4 @@
-import { SavedListing, DiscogsRelease, Track, Format } from '../types';
+import { SavedListing, DiscogsRelease, Track, Format, ConditionSelection } from '../types';
 
 export interface ListingFormatInfo {
   type: 'vinyl_lp' | 'vinyl_single' | 'vinyl_10' | 'cd' | 'dvd' | 'cassette' | 'other';
@@ -174,7 +174,7 @@ export function getItemConditionInfo(listingOrRelease?: SavedListing | null): It
       tag: 'Usado',
       badgeBg: 'bg-amber-600',
       badgeClass: 'bg-amber-600 text-white font-bold',
-      modalDescription: 'Item do acervo clássico / Usado higienizado e testado'
+      modalDescription: 'Item do acervo clássico / Usado higienizado e revisado no padrão Goldmine'
     };
   }
 
@@ -890,5 +890,189 @@ export function detectReleaseParticularities(release?: DiscogsRelease | null) {
     isVariousArtists: isVA,
     suggestedDetails
   };
+}
+
+export interface MlRoteiroParams {
+  release: DiscogsRelease | null;
+  condition?: ConditionSelection;
+  title: string;
+  description: string;
+  price: number | string;
+  drawer?: string;
+}
+
+export function buildMercadoLivreOrderTxt(params: MlRoteiroParams): string {
+  const { release, condition, title, description, price, drawer } = params;
+  const artist = release?.artist || 'Não informado';
+  const album = release?.title || 'Não informado';
+
+  const rawLoc = drawer ? drawer.trim() : '';
+  const locClean = rawLoc.replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim();
+  const locDisplay = locClean ? `[${locClean}]` : '[Sem Localização]';
+
+  const formatInfo = getListingFormatInfo(release);
+  const particularities = detectReleaseParticularities(release);
+
+  const mlCategory = formatInfo.type === 'cd'
+    ? 'Música, Filmes e Seriados > Música > CDs e DVDs de Música'
+    : formatInfo.type === 'dvd'
+    ? 'Música, Filmes e Seriados > Música > DVDs de Música'
+    : 'Música, Filmes e Seriados > Música > Vinil';
+
+  const isNew = condition?.mediaCondition === 'M';
+  const mlCondition = isNew ? 'Novo' : 'Usado';
+  const mlFormatAlbum = formatInfo.type === 'cd' ? 'CD' : formatInfo.type === 'dvd' ? 'DVD' : 'Vinil';
+
+  const mlPhysicalFormat = particularities.isDoubleAlbum
+    ? 'Álbum Duplo (2 LPs 12")'
+    : formatInfo.type === 'vinyl_single'
+    ? 'Compacto / Single (7 polegadas, 33/45 RPM)'
+    : formatInfo.type === 'cd'
+    ? 'CD Áudio Padrão'
+    : formatInfo.type === 'dvd'
+    ? 'DVD Vídeo/Áudio'
+    : 'LP (12 polegadas, 33 ⅓ RPM)';
+
+  const mlYear = release?.year ? String(release.year) : 'Não informado';
+  const mlTrackCount = release?.tracklist?.length ? String(release.tracklist.length) : 'Não informado';
+  const mlGenre = release?.genres?.length ? release.genres.join(', ') : (release?.styles?.length ? release.styles.join(', ') : 'Rock / MPB');
+  const mlLabel = release?.label || 'Independente';
+  const mlCountry = release?.country || 'Brasil';
+  const mlAlbumCount = particularities.isDoubleAlbum ? '2' : (particularities.isBoxSet ? '3' : '1');
+  const mlPackaging = particularities.isGatefold
+    ? 'Capa dupla (Gatefold)'
+    : particularities.isBoxSet
+    ? 'Caixa rígida (Box Set)'
+    : formatInfo.type === 'cd'
+    ? 'Caixa acrílica padrão'
+    : 'Capa simples de papelão com plásticos novos';
+
+  const priceNum = typeof price === 'number' ? price : parseFloat(String(price)) || 0;
+  const priceFormatted = priceNum.toFixed(2);
+
+  const shippingDims = formatInfo.type === 'vinyl_single'
+    ? '20 cm x 20 cm x 2 cm | Peso: 150 g'
+    : formatInfo.type === 'cd'
+    ? '15 cm x 15 cm x 2 cm | Peso: 120 g'
+    : '34 cm x 34 cm x 4 cm | Peso: 500 g';
+
+  return [
+    `============================================================`,
+    `ROTEIRO DE CADASTRO MERCADO LIVRE - VALDIR DISCOS`,
+    `Disco: ${artist} - ${album}`,
+    `Localização Física no Acervo: ${locDisplay}`,
+    `============================================================`,
+    `INSTRUÇÃO: Este arquivo segue a ordem exata das telas de cadastro do Mercado Livre.`,
+    `Basta ir recortando (copiando e colando) cada valor diretamente no formulário do Mercado Livre.`,
+    ``,
+    `------------------------------------------------------------`,
+    `TELA 1: O QUE VOCÊ QUER ANUNCIAR?`,
+    `------------------------------------------------------------`,
+    `ARTISTA / BANDA / INTÉRPRETE:`,
+    `${artist}`,
+    ``,
+    `NOME DO ÁLBUM / TÍTULO:`,
+    `${album}`,
+    ``,
+    `------------------------------------------------------------`,
+    `TELA 2: CONDIÇÃO E CATEGORIA`,
+    `------------------------------------------------------------`,
+    `CONDIÇÃO DO PRODUTO:`,
+    `${mlCondition}`,
+    ``,
+    `CATEGORIA:`,
+    `${mlCategory}`,
+    ``,
+    `------------------------------------------------------------`,
+    `TELA 3: CARACTERÍSTICAS / FICHA TÉCNICA DO PRODUTO`,
+    `------------------------------------------------------------`,
+    `FORMATO DO ÁLBUM:`,
+    `${mlFormatAlbum}`,
+    ``,
+    `FORMATO FÍSICO / TIPO:`,
+    `${mlPhysicalFormat}`,
+    ``,
+    `QUANTIDADE DE CANÇÕES (FAIXAS):`,
+    `${mlTrackCount}`,
+    ``,
+    `QUANTIDADE DE ÁLBUNS / DISCOS NO PACOTE:`,
+    `${mlAlbumCount}`,
+    ``,
+    `ANO DE LANÇAMENTO:`,
+    `${mlYear}`,
+    ``,
+    `GÊNERO MUSICAL:`,
+    `${mlGenre}`,
+    ``,
+    `COMPANHIA PRODUTORA / GRAVADORA / SELO:`,
+    `${mlLabel}`,
+    ``,
+    `ORIGEM / PAÍS DE PRENSAGEM:`,
+    `${mlCountry}`,
+    ``,
+    `TIPO DE EMBALAGEM:`,
+    `${mlPackaging}`,
+    ``,
+    `CÓDIGO UNIVERSAL DE PRODUTO (EAN / UPC):`,
+    `Não tem / Não se aplica`,
+    ``,
+    `É KIT?:`,
+    `Não`,
+    ``,
+    `COM FAIXAS ADICIONAIS / BÔNUS?:`,
+    `Não`,
+    ``,
+    `VELOCIDADE DE REPRODUÇÃO:`,
+    `33 RPM`,
+    ``,
+    `TAMANHO DO DISCO:`,
+    `12 polegadas`,
+    ``,
+    `------------------------------------------------------------`,
+    `TELA 4: TÍTULO DO ANÚNCIO (MÁXIMO 60 CARACTERES)`,
+    `------------------------------------------------------------`,
+    `TÍTULO (COM LOCALIZAÇÃO FIXADA):`,
+    `${title}`,
+    ``,
+    `------------------------------------------------------------`,
+    `TELA 5: SEQUÊNCIA DE FOTOS RECOMENDADA`,
+    `------------------------------------------------------------`,
+    `Foto 1: Capa Frontal`,
+    `Foto 2: Contracapa (Verso)`,
+    `Foto 3: Selo Central Lado A`,
+    `Foto 4: Selo Central Lado B`,
+    `Foto 5: Encarte / Letras (se houver)`,
+    `Foto 6: Mídia / Superfície do Vinil`,
+    ``,
+    `------------------------------------------------------------`,
+    `TELA 6: PREÇO E ESTOQUE`,
+    `------------------------------------------------------------`,
+    `PREÇO DE VENDA:`,
+    `R$ ${priceFormatted}`,
+    ``,
+    `QUANTIDADE EM ESTOQUE:`,
+    `1`,
+    ``,
+    `MODALIDADE SUGERIDA:`,
+    `Clássico (~14% taxa) ou Premium (~19% taxa com parcelamento sem juros)`,
+    ``,
+    `------------------------------------------------------------`,
+    `TELA 7: ENVIO E GARANTIA (MERCADO ENVIOS)`,
+    `------------------------------------------------------------`,
+    `DIMENSÕES E PESO DO PACOTE:`,
+    `${shippingDims}`,
+    ``,
+    `GARANTIA DO VENDEDOR:`,
+    `Garantia do vendedor: 30 dias`,
+    ``,
+    `------------------------------------------------------------`,
+    `TELA 8: DESCRIÇÃO COMPLETA DO ANÚNCIO`,
+    `------------------------------------------------------------`,
+    `${description}`,
+    ``,
+    `============================================================`,
+    `FIM DO ROTEIRO MERCADO LIVRE - VALDIR DISCOS`,
+    `============================================================`
+  ].join('\n');
 }
 

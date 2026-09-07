@@ -16,7 +16,7 @@ import { SavedListing, Customer } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { SalesChannel } from '../types';
 import { getSalesChannelMeta } from '../utils/qrcode';
-import { isNativistaGauchoItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist, getListingFormatInfo, detectReleaseParticularities } from '../utils/formatHelper';
+import { isNativistaGauchoItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist, getListingFormatInfo, detectReleaseParticularities, buildMercadoLivreOrderTxt } from '../utils/formatHelper';
 import { CatalogViewMode, getSavedCatalogViewMode, saveCatalogViewMode } from '../utils/cookieStorage';
 import { BatchQRCodeModal } from './BatchQRCodeModal';
 import { DiscQRCodeModal } from './DiscQRCodeModal';
@@ -109,6 +109,40 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
     } finally {
       setIsPublishingCatalogId(null);
     }
+  };
+
+  const handleDownloadMlTxtFromCatalog = (listing: SavedListing) => {
+    const txtContent = buildMercadoLivreOrderTxt({
+      release: listing.release,
+      condition: listing.condition,
+      title: listing.mercadolivre?.title || listing.shopee.title,
+      description: listing.mercadolivre?.description || listing.shopee.description,
+      price: listing.mercadolivre?.suggestedPrice || listing.pricing?.directPrice || listing.pricing?.basePriceBrl || 0,
+      drawer: listing.drawer
+    });
+    const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeArtist = (listing.release.artist || 'Artista').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeAlbum = (listing.release.title || 'Album').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.download = `MercadoLivre_${safeArtist}_${safeAlbum}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyMlFullTxtFromCatalog = (listing: SavedListing) => {
+    const txtContent = buildMercadoLivreOrderTxt({
+      release: listing.release,
+      condition: listing.condition,
+      title: listing.mercadolivre?.title || listing.shopee.title,
+      description: listing.mercadolivre?.description || listing.shopee.description,
+      price: listing.mercadolivre?.suggestedPrice || listing.pricing?.directPrice || listing.pricing?.basePriceBrl || 0,
+      drawer: listing.drawer
+    });
+    triggerCopy(txtContent, 'ml-full-txt');
   };
 
   // Modal States
@@ -2853,76 +2887,6 @@ Colecionar é preservar a história.`;
                     </div>
                   </div>
 
-                  {/* Card de Cadastro Automático via API (1 Clique) */}
-                  <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs ${
-                    copyPlatformTab === 'mercadolivre'
-                      ? 'bg-amber-500/10 border-amber-300/80 text-amber-950'
-                      : 'bg-orange-500/10 border-orange-300/80 text-orange-950'
-                  }`}>
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
-                          copyPlatformTab === 'mercadolivre' ? 'bg-amber-400 text-slate-950' : 'bg-orange-500 text-white'
-                        }`}>
-                          {copyPlatformTab === 'mercadolivre' ? '⚡ Mercado Livre API' : '⚡ Shopee Open API'}
-                        </span>
-                        <span className="text-xs font-black text-slate-900">
-                          {copyPlatformTab === 'mercadolivre' ? 'Cadastrar Direto no Mercado Livre' : 'Cadastrar Direto na Shopee'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600">
-                        {copyPlatformTab === 'mercadolivre'
-                          ? 'Envia fotos, ficha técnica de vinil, preço e localização limpa direto para sua conta do Mercado Livre!'
-                          : 'Publica o anúncio completo instantaneamente na sua loja da Shopee via API.'}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handlePublishFromCatalog(selectedListing, copyPlatformTab)}
-                        disabled={isPublishingCatalogId === selectedListing.id}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer ${
-                          copyPlatformTab === 'mercadolivre'
-                            ? 'bg-amber-400 hover:bg-amber-500 text-slate-950 disabled:opacity-50'
-                            : 'bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50'
-                        }`}
-                      >
-                        {isPublishingCatalogId === selectedListing.id ? (
-                          <>
-                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                            <span>Cadastrando...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="h-3.5 w-3.5" />
-                            <span>Cadastrar Agora (1 Clique)</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {publishCatalogResult && publishCatalogResult.id === selectedListing.id && (
-                    <div className="p-2.5 bg-emerald-100 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle className="h-4 w-4 text-emerald-700 shrink-0" />
-                        <span>{publishCatalogResult.message}</span>
-                      </div>
-                      {publishCatalogResult.url && (
-                        <a
-                          href={publishCatalogResult.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2 py-1 bg-emerald-200 hover:bg-emerald-300 text-emerald-950 rounded text-[11px] font-black flex items-center gap-1"
-                        >
-                          <span>Ver</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </div>
-                  )}
-
                   {copyPlatformTab === 'shopee' ? (
                     <div className="space-y-3">
                       {/* Copy Shopee Title */}
@@ -2978,7 +2942,7 @@ Colecionar é preservar a história.`;
                       </div>
                     </div>
                   ) : (
-                    /* MERCADO LIVRE (60c + Ficha Celular) */
+                    /* MERCADO LIVRE (Ordem Exata do Aplicativo + TXT) */
                     (() => {
                       const rawDrawerLoc = selectedListing.drawer?.trim() || '';
                       const drawerLoc = rawDrawerLoc.replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim();
@@ -3046,160 +3010,330 @@ Colecionar é preservar a história.`;
                         mlDesc = `📍 **Localização no Estoque:** [${drawerLoc}]\n\n${mlDesc}`;
                       }
 
-                      const fullFichaText = [
-                        `=== FICHA MERCADO LIVRE (${mlFormatAlbum}) ===`,
-                        `Título: ${drawerMlTitle}`,
-                        `Categoria: ${mlCategory}`,
-                        `Condição: ${mlCondition}`,
-                        `Artista: ${selectedListing.release.artist}`,
-                        `Álbum: ${selectedListing.release.title}`,
-                        `Formato do Álbum: ${mlFormatAlbum}`,
-                        `Formato Físico: ${mlPhysical}`,
-                        `Ano: ${mlYear}`,
-                        `Faixas: ${mlTracks}`,
-                        `Gênero: ${mlGenre}`,
-                        `Gravadora: ${mlLabel}`,
-                        `Origem: ${mlCountry}`,
-                        `Discos no Pacote: ${mlDiscs}`,
-                        `Embalagem: ${mlPackage}`,
-                        `EAN: Não tem / Não se aplica`,
-                        `É kit?: Não`,
-                        `Faixas adicionais?: Não`,
-                        `Preço: R$ ${mlPriceVal}`,
-                        `Garantia: 30 dias vendedor`,
-                        `Envio: ${shippingDims}`,
-                        `Localização: [${drawerLoc || 'Não informada'}]`
-                      ].join('\n');
-
                       return (
-                        <div className="space-y-3.5">
-                          {/* Mercado Livre Title (Max 60c) */}
-                          <div className="space-y-1.5 bg-amber-50/50 p-3 rounded-xl border border-amber-200/70">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-800 font-black flex items-center gap-1.5">
-                                <span>Título Mercado Livre:</span>
-                                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold ${
-                                  drawerMlTitle.length <= 60 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                                }`}>
-                                  {drawerMlTitle.length}/60c
-                                </span>
-                                {drawerLoc && (
-                                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
-                                    ✓ [{drawerLoc}]
-                                  </span>
-                                )}
-                              </span>
-                              <button
-                                onClick={() => triggerCopy(drawerMlTitle, 'ml-title')}
-                                className="text-[10px] text-slate-800 font-bold bg-amber-200 hover:bg-amber-300 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-all"
-                              >
-                                {copiedField === 'ml-title' ? (
-                                  <>
-                                    <Check className="h-3 w-3 text-emerald-700" />
-                                    <span className="text-emerald-800 font-black">Copiado!</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="h-3 w-3" />
-                                    <span>Copiar Título</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                            <div className="p-2.5 bg-white border border-amber-200 rounded-lg text-xs font-mono font-bold text-slate-900 break-all select-all shadow-2xs">
-                              {drawerMlTitle}
+                        <div className="space-y-4">
+                          {/* Top Action Box: Download .TXT & Copiar Roteiro Completo */}
+                          <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-4 text-slate-950 shadow-sm space-y-2.5">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div>
+                                <h4 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                                  <FileText className="h-4 w-4" />
+                                  <span>Roteiro Sequencial Mercado Livre</span>
+                                </h4>
+                                <p className="text-[11px] text-amber-950 font-medium leading-tight">
+                                  Ordenado exatamente na sequência do aplicativo mobile: Artista &rarr; Álbum &rarr; Condição &rarr; Ficha Técnica &rarr; Título 60c &rarr; Preço.
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadMlTxtFromCatalog(selectedListing)}
+                                  className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                                  title="Baixar arquivo TXT organizado para ir recortando e cadastrando"
+                                >
+                                  <Download className="h-3.5 w-3.5 text-amber-400" />
+                                  <span>Baixar .TXT</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyMlFullTxtFromCatalog(selectedListing)}
+                                  className="px-3 py-1.5 bg-white hover:bg-amber-100 text-slate-900 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                                >
+                                  {copiedField === 'ml-full-txt' ? (
+                                    <>
+                                      <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                      <span className="text-emerald-700 font-black">Copiado!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="h-3.5 w-3.5" />
+                                      <span>Copiar TXT</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             </div>
                           </div>
 
-                          {/* Quick Ficha Tecnica Mobile Card */}
-                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2.5 shadow-2xs">
-                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                              <div className="flex items-center gap-1.5">
-                                <Smartphone className="h-4 w-4 text-amber-600" />
-                                <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                                  Ficha Técnica para Celular
-                                </span>
+                          {/* PASSO 1: ARTISTA & ÁLBUM */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5">
+                              <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-[10px] font-black">
+                                1
+                              </span>
+                              <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                Tela 1 do App: Artista e Nome do Álbum
+                              </h5>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">1. Artista Principal</span>
+                                  <span className="font-black text-slate-900 truncate block">{selectedListing.release.artist}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => triggerCopy(selectedListing.release.artist, 'ml-c-artist')}
+                                  className="px-2 py-1 text-[10px] font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-md cursor-pointer shrink-0 flex items-center gap-1"
+                                >
+                                  {copiedField === 'ml-c-artist' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                                  <span>{copiedField === 'ml-c-artist' ? 'Copiado' : 'Copiar'}</span>
+                                </button>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => triggerCopy(fullFichaText, 'ml-full-ficha')}
-                                className="text-[10px] font-black bg-slate-900 hover:bg-slate-800 text-white px-2.5 py-1 rounded-md flex items-center gap-1 transition-all cursor-pointer"
-                              >
-                                {copiedField === 'ml-full-ficha' ? (
-                                  <>
-                                    <Check className="h-3 w-3 text-emerald-400" />
-                                    <span>Copiado!</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="h-3 w-3 text-amber-400" />
-                                    <span>Copiar Tudo</span>
-                                  </>
-                                )}
-                              </button>
+
+                              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">2. Título do Álbum</span>
+                                  <span className="font-black text-slate-900 truncate block">{selectedListing.release.title}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => triggerCopy(selectedListing.release.title, 'ml-c-album')}
+                                  className="px-2 py-1 text-[10px] font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-md cursor-pointer shrink-0 flex items-center gap-1"
+                                >
+                                  {copiedField === 'ml-c-album' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                                  <span>{copiedField === 'ml-c-album' ? 'Copiado' : 'Copiar'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* PASSO 2: CONDIÇÃO & CATEGORIA */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
+                                2
+                              </span>
+                              <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                Tela 2 do App: Condição e Categoria
+                              </h5>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase block">Condição do Produto</span>
+                                <span className="font-bold text-amber-900">{mlCondition}</span>
+                              </div>
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase block">Categoria ML</span>
+                                <span className="font-bold text-slate-800 truncate block">{mlCategory}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* PASSO 3: FICHA TÉCNICA (14 ATRIBUTOS OBRIGATÓRIOS DO ML) */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
+                                  3
+                                </span>
+                                <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                  Tela 3: Ficha Técnica (14 Atributos)
+                                </h5>
+                              </div>
+                              <span className="text-[10px] text-slate-500 font-bold">Copie campo a campo</span>
                             </div>
 
-                            {/* 1-Click Copy Fields */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
                               {[
-                                { k: 'art', label: 'Artista', val: selectedListing.release.artist },
-                                { k: 'alb', label: 'Álbum', val: selectedListing.release.title },
-                                { k: 'fmt', label: 'Formato', val: mlFormatAlbum },
-                                { k: 'phy', label: 'Tipo Físico', val: mlPhysical },
-                                { k: 'ano', label: 'Ano', val: mlYear },
-                                { k: 'fai', label: 'Canções', val: mlTracks },
-                                { k: 'gen', label: 'Gênero', val: mlGenre },
-                                { k: 'sel', label: 'Gravadora', val: mlLabel },
-                                { k: 'pai', label: 'Origem', val: mlCountry },
-                                { k: 'qtd', label: 'Qtd Discos', val: mlDiscs },
+                                { k: 'fmt', label: 'Formato do Álbum', val: mlFormatAlbum },
+                                { k: 'phy', label: 'Formato Físico', val: mlPhysical },
+                                { k: 'dis', label: 'Qtd de Discos', val: mlDiscs },
+                                { k: 'ano', label: 'Ano de Lançamento', val: mlYear },
+                                { k: 'fai', label: 'Qtd de Canções', val: mlTracks },
+                                { k: 'gen', label: 'Gênero Musical', val: mlGenre },
+                                { k: 'sel', label: 'Gravadora / Selo', val: mlLabel },
+                                { k: 'pai', label: 'Origem / País', val: mlCountry },
                                 { k: 'emb', label: 'Embalagem', val: mlPackage },
-                                { k: 'prc', label: 'Preço Sugerido', val: `R$ ${mlPriceVal}` },
-                                { k: 'dim', label: 'Envio (Dims/Peso)', val: shippingDims }
+                                { k: 'kit', label: 'É Kit?', val: 'Não' },
+                                { k: 'adc', label: 'Faixas Adicionais?', val: 'Não' },
+                                { k: 'ean', label: 'Código EAN/UPC', val: 'Não tem / Não se aplica' }
                               ].map((field) => (
-                                <div key={field.k} className="p-1.5 bg-slate-50 rounded border border-slate-150 flex items-center justify-between gap-1.5">
-                                  <div className="min-w-0">
+                                <div key={field.k} className="p-1.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between gap-1.5">
+                                  <div className="min-w-0 flex-1">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase block truncate">{field.label}</span>
-                                    <span className="font-bold text-slate-800 truncate block">{field.val}</span>
+                                    <span className="font-bold text-slate-800 truncate block text-[11px]">{field.val}</span>
                                   </div>
                                   <button
                                     type="button"
-                                    onClick={() => triggerCopy(field.val, `ml-f-${field.k}`)}
-                                    className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-all cursor-pointer shrink-0"
+                                    onClick={() => triggerCopy(field.val, `ml-cat-f-${field.k}`)}
+                                    className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded cursor-pointer shrink-0 flex items-center gap-1"
                                     title={`Copiar ${field.label}`}
                                   >
-                                    {copiedField === `ml-f-${field.k}` ? (
+                                    {copiedField === `ml-cat-f-${field.k}` ? (
                                       <Check className="h-3 w-3 text-emerald-600" />
                                     ) : (
                                       <Copy className="h-3 w-3" />
                                     )}
+                                    <span>{copiedField === `ml-cat-f-${field.k}` ? 'Copiado' : 'Copiar'}</span>
                                   </button>
                                 </div>
                               ))}
                             </div>
                           </div>
 
-                          {/* Mercado Livre Description */}
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-500 font-bold">Descrição Completa:</span>
+                          {/* PASSO 4: TÍTULO DO ANÚNCIO (MÁX 60 CARACTERES) */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
+                                  4
+                                </span>
+                                <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                  Tela 4: Título do Anúncio (Máx 60 Caracteres)
+                                </h5>
+                              </div>
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                                drawerMlTitle.length <= 60 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                              }`}>
+                                {drawerMlTitle.length}/60c
+                              </span>
+                            </div>
+
+                            <div className="p-3 bg-amber-50/50 border border-amber-200 rounded-xl flex items-center justify-between gap-2">
+                              <div className="font-mono text-xs font-bold text-slate-900 break-all select-all">
+                                {drawerMlTitle}
+                              </div>
                               <button
-                                onClick={() => triggerCopy(mlDesc, 'ml-desc')}
-                                className="text-[10px] text-indigo-600 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                                type="button"
+                                onClick={() => triggerCopy(drawerMlTitle, 'ml-title')}
+                                className="px-3 py-1 text-xs font-bold bg-amber-400 hover:bg-amber-500 text-slate-950 rounded-lg flex items-center gap-1.5 cursor-pointer shrink-0 transition-all shadow-2xs"
                               >
-                                {copiedField === 'ml-desc' ? (
+                                {copiedField === 'ml-title' ? (
                                   <>
-                                    <Check className="h-3 w-3 text-emerald-600" />
-                                    <span className="text-emerald-600 font-black">Copiado!</span>
+                                    <Check className="h-3.5 w-3.5 text-emerald-950" />
+                                    <span>Copiado!</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Copy className="h-3 w-3" />
+                                    <Copy className="h-3.5 w-3.5" />
+                                    <span>Copiar Título</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* PASSO 5: FOTOS */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-1.5 shadow-2xs text-xs">
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-1">
+                              <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
+                                5
+                              </span>
+                              <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                Tela 5: Fotos do Disco
+                              </h5>
+                            </div>
+                            <p className="text-[11px] text-slate-600">
+                              Suba as fotos reais do exemplar tiradas sob boa iluminação (capa frontal, contracapa, selos e superfície do vinil/mídia com plásticos novos).
+                            </p>
+                          </div>
+
+                          {/* PASSO 6: PREÇO & ESTOQUE */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
+                                6
+                              </span>
+                              <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                Tela 6: Preço de Venda & Estoque
+                              </h5>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between gap-2">
+                                <div>
+                                  <span className="text-[10px] font-bold text-emerald-800 uppercase block">Preço Sugerido</span>
+                                  <span className="font-black text-base text-emerald-900 font-mono">R$ {mlPriceVal}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => triggerCopy(mlPriceVal, 'ml-prc-val')}
+                                  className="px-2 py-1 text-[10px] font-bold bg-white text-emerald-900 border border-emerald-300 rounded cursor-pointer flex items-center gap-1"
+                                >
+                                  {copiedField === 'ml-prc-val' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                                  <span>{copiedField === 'ml-prc-val' ? 'Copiado' : 'Copiar'}</span>
+                                </button>
+                              </div>
+                              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase block">Estoque</span>
+                                <span className="font-bold text-slate-800">1 unidade (Exemplar Único)</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* PASSO 7: MERCADO ENVIOS & GARANTIA */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
+                                7
+                              </span>
+                              <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                Tela 7: Mercado Envios & Garantia
+                              </h5>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between gap-2">
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Dimensões & Peso</span>
+                                  <span className="font-mono text-slate-800 font-bold text-[11px]">{shippingDims}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => triggerCopy(shippingDims, 'ml-dims')}
+                                  className="p-1 hover:bg-slate-200 rounded text-slate-600 cursor-pointer"
+                                  title="Copiar medidas de envio"
+                                >
+                                  {copiedField === 'ml-dims' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                                </button>
+                              </div>
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between gap-2">
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Garantia do Vendedor</span>
+                                  <span className="font-bold text-slate-800 text-[11px]">30 dias</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => triggerCopy("30 dias", 'ml-war')}
+                                  className="p-1 hover:bg-slate-200 rounded text-slate-600 cursor-pointer"
+                                  title="Copiar garantia"
+                                >
+                                  {copiedField === 'ml-war' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* PASSO 8: DESCRIÇÃO DETALHADA */}
+                          <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
+                                  8
+                                </span>
+                                <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                  Tela 8: Descrição do Anúncio
+                                </h5>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => triggerCopy(mlDesc, 'ml-desc')}
+                                className="px-3 py-1 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all"
+                              >
+                                {copiedField === 'ml-desc' ? (
+                                  <>
+                                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                    <span className="text-emerald-700 font-bold">Descrição Copiada!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-3.5 w-3.5" />
                                     <span>Copiar Descrição</span>
                                   </>
                                 )}
                               </button>
                             </div>
-                            <pre className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 whitespace-pre-wrap font-sans max-h-[180px] overflow-y-auto break-words leading-relaxed select-all">
+                            <pre className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 whitespace-pre-wrap font-sans max-h-[220px] overflow-y-auto break-words leading-relaxed select-all">
                               {mlDesc}
                             </pre>
                           </div>

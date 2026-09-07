@@ -83,7 +83,7 @@ export function AboutAndContactSection({
     },
     {
       q: 'Como os discos são avaliados e graduados?',
-      a: 'Utilizamos estritamente a graduação internacional Goldmine (Mint, Near Mint, VG+, VG, G). Todos os vinis são inspecionados visualmente sob luz forte, higienizados e testados no toca-discos para garantir a reprodução fiel sem pulos.'
+      a: 'Utilizamos estritamente a graduação internacional Goldmine (Mint, Near Mint, VG+, VG, G). Todos os vinis são inspecionados visualmente sob luz forte, higienizados profissionalmente e embalados com plásticos novos para garantir total fidelidade à descrição.'
     },
     {
       q: 'Como funciona o cálculo de frete e envio para outras cidades?',

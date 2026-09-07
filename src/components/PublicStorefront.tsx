@@ -919,7 +919,7 @@ export function PublicStorefront({
                 </h2>
                 
                 <p className="text-xs text-slate-200/90 leading-relaxed font-medium max-w-xl">
-                  Avaliados no padrão internacional Goldmine, testados e com envio seguro para todo o Brasil.
+                  Avaliados no padrão internacional Goldmine, 100% higienizados e com envio seguro para todo o Brasil.
                 </p>
 
                 <div className="pt-1 flex items-center justify-center sm:justify-start gap-3">
@@ -2077,7 +2077,7 @@ export function PublicStorefront({
                 </li>
                 <li className="flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  <span>Discos testados e higienizados</span>
+                  <span>Discos higienizados e plásticos novos</span>
                 </li>
               </ul>
             </div>

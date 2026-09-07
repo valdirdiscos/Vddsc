@@ -159,7 +159,7 @@ export const GOLDMINE_CD_MEDIA: ConditionOption[] = [
   {
     code: 'VG',
     name: 'Very Good (VG) - CD',
-    description: 'Bom Estado. Vários riscos superficiais visíveis, mas foi testado e toca 100% sem pular em aparelhos convencionais.',
+    description: 'Bom Estado. Riscos superficiais visíveis pela graduação Goldmine, conservação justa sem danos severos de leitura.',
     vibe: 'bg-amber-50 text-amber-700 border-amber-200'
   },
   {

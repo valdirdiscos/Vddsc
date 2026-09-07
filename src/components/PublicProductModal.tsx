@@ -565,7 +565,7 @@ export function PublicProductModal({
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600 leading-snug">
-                        {condition?.mediaDetails || (conditionInfo.isNew ? 'Item novo, nunca tocado, sem qualquer marca de uso.' : mediaCondObj?.description || 'Testado e higienizado, toca com excelente fidelidade.')}
+                        {condition?.mediaDetails || (conditionInfo.isNew ? 'Item novo, sem qualquer marca de uso.' : mediaCondObj?.description || 'Higienizado profissionalmente e avaliado sob luz forte no padrão Goldmine.')}
                       </p>
                     </div>
 

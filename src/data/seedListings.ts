@@ -596,7 +596,7 @@ export const SEED_LISTINGS: SavedListing[] = [
     },
     condition: {
       mediaCondition: 'EX',
-      mediaDetails: 'Todos os 4 discos testados e higienizados na máquina PH. Sem pulos ou chiados incômodos.',
+      mediaDetails: 'Todos os 4 discos higienizados na máquina PH e avaliados sob luz forte no padrão Goldmine.',
       sleeveCondition: 'VG+',
       sleeveDetails: 'Capas íntegras com plásticos protetores novos inclusos.',
       hasInsert: true

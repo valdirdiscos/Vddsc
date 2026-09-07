@@ -157,7 +157,7 @@ async function startServer() {
 Seu tom de voz é caloroso, amigável, acolhedor, conhecedor profundo de música brasileira (MPB, Samba, Bossa Nova, Rock Nacional, Tropicália, Soul, Funk, Forró, Música Regional Gaúcha e Nativista), Rock Clássico, Hard Rock, Heavy Metal, Jazz, Blues e colecionismo de vinil.
 
 INFORMAÇÕES ESSENCIAIS DA VALDIR DISCOS:
-1. **Envio & Embalagem**: Embalagem blindada com caixas de papelão reforçado duplo sob medida, plástico bolha reforçado, e discos acompanhados de plásticos protetores internos e externos novos de alta gramatura. Todos os vinis usados são higienizados e testados antes do envio. Enviamos para todo o Brasil.
+1. **Envio & Embalagem**: Embalagem blindada com caixas de papelão reforçado duplo sob medida, plástico bolha reforçado, e discos acompanhados de plásticos protetores internos e externos novos de alta gramatura. Todos os vinis usados são higienizados profissionalmente e avaliados minuciosamente sob luz forte no padrão internacional Goldmine. Enviamos para todo o Brasil.
 2. **Pagamentos**: Aceitamos Pix (com desconto especial de 5% à vista), cartões de crédito em até 12x via Mercado Pago, e boleto.
 3. **Graduação Goldmine**:
    - **M (Mint)**: Novo e lacrado de fábrica.
@@ -221,7 +221,7 @@ DIRETRIZES DE RECOMENDAÇÃO:
       let reply = "Olá, colecionador! Sou o Valdir Virtual. Estou à sua disposição para indicar discos por estilo musical, tirar dúvidas sobre frete blindado, camisetas e pagamentos.";
 
       if (lower.includes('rock') || lower.includes('metal') || lower.includes('punk') || lower.includes('hard rock') || lower.includes('prog')) {
-        reply = "🎸 **Destaques de Rock no Acervo Valdir Discos:**\nTemos uma seleção especial de Rock Clássico, Hard Rock, Rock Nacional e Progressivo em vinil original! Nossos LPs de Rock passam por higienização profissional e inspeção minuciosa na agulha para garantir uma audição pesada e sem estalos graves. Dê uma olhada nos cards abaixo ou digite o nome da banda!";
+        reply = "🎸 **Destaques de Rock no Acervo Valdir Discos:**\nTemos uma seleção especial de Rock Clássico, Hard Rock, Rock Nacional e Progressivo em vinil original! Nossos LPs de Rock passam por higienização profissional cuidadosa e rigorosa inspeção visual no padrão Goldmine para garantir excelente conservação. Dê uma olhada nos cards abaixo ou digite o nome da banda!";
       } else if (lower.includes('mpb') || lower.includes('brasileir') || lower.includes('tropicalia') || lower.includes('tropicália') || lower.includes('bossa')) {
         reply = "🇧🇷 **A Essência da Música Brasileira (MPB & Bossa Nova):**\nA MPB e a Bossa Nova são o coração do nosso garimpo! De Elis Regina, Chico Buarque, Caetano, Gil, Milton Nascimento até Tom Jobim e João Gilberto, temos prensagens de época com encartes originais e som orgânico inigualável.";
       } else if (lower.includes('samba') || lower.includes('pagode') || lower.includes('choro') || lower.includes('chorinho')) {
@@ -233,7 +233,7 @@ DIRETRIZES DE RECOMENDAÇÃO:
       } else if (lower.includes('forro') || lower.includes('forró') || lower.includes('baiao') || lower.includes('baião') || lower.includes('nordest')) {
         reply = "🪗 **Forró Pé de Serra & Música Nordestina:**\nLuiz Gonzaga, Jackson do Pandeiro, Dominguinhos, Trio Nordestino e a rica sonoridade do acordeom e do triângulo em prensagens com aquele calor analógico que só o vinil proporciona!";
       } else if (lower.includes('frete') || lower.includes('envio') || lower.includes('embalagem') || lower.includes('entrega') || lower.includes('chegar')) {
-        reply = "📦 **Envio Seguro & Embalagem Blindada Valdir Discos:**\nEnviamos para todo o Brasil via Correios e transportadoras parceiras! Nossos discos vão em caixas de papelão duplo super reforçadas com plástico bolha extra, acompanhados de plásticos protetores internos e externos novos. Todos os vinis são higienizados e testados antes do envio.";
+        reply = "📦 **Envio Seguro & Embalagem Blindada Valdir Discos:**\nEnviamos para todo o Brasil via Correios e transportadoras parceiras! Nossos discos vão em caixas de papelão duplo super reforçadas com plástico bolha extra, acompanhados de plásticos protetores internos e externos novos. Todos os vinis são higienizados profissionalmente e avaliados visualmente sob luz forte no padrão Goldmine.";
       } else if (lower.includes('pix') || lower.includes('pagamento') || lower.includes('cartao') || lower.includes('cartão') || lower.includes('desconto') || lower.includes('parcel')) {
         reply = "💳 **Formas de Pagamento & Desconto:**\n• **Pix:** 5% de desconto à vista imediato!\n• **Cartão de Crédito:** Parcelamento em até 12x pelo Mercado Pago.\n• **Boleto Bancário** e compra direta pelo WhatsApp.";
       } else if (lower.includes('estado') || lower.includes('conservacao') || lower.includes('conservação') || lower.includes('goldmine') || lower.includes('risco') || lower.includes('chiado') || lower.includes('vg') || lower.includes('nm') || lower.includes('mint')) {
@@ -588,7 +588,7 @@ function getImportTag(country?: string): string {
     }
 
     descLines.push(`\n📦 **DIFERENCIAL DE ENVIO PREMIUM - VALDIR DISCOS**`);
-    descLines.push(`1. **Higienização & Teste:** Discos de vinil usados passam por higienização profissional cuidadosa e teste de audição antes do envio (itens novos/lacrados permanecem intactos).`);
+    descLines.push(`1. **Higienização & Avaliação Goldmine:** Discos de vinil usados passam por higienização profissional cuidadosa e rigorosa inspeção visual sob luz forte no padrão internacional Goldmine (itens novos/lacrados permanecem intactos de fábrica).`);
     descLines.push(`2. **Plásticos Novos:** Enviamos com plásticos protetores externos e internos novos de alta espessura (micragem), protegendo sua mídia contra poeira e riscos.`);
     descLines.push(`3. **Embalagem Blindada:** Embalamos sob medida em caixas de papelão super reforçadas e plástico bolha extra, garantindo que seu produto chegue intacto e perfeito em suas mãos.`);
 
@@ -1042,7 +1042,8 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
         Exemplo: "A1. Raul Seixas - Metamorfose Ambulante (03:50)" ou "1. Titãs - Flores (03:20)".
         É TERMINANTEMENTE PROIBIDO omitir os nomes dos artistas nas faixas de uma coletânea / álbum VA!
       * Coloque cada faixa em uma nova linha separada por quebra de linha dupla.
-   - Descreva de forma compacta e objetiva o Diferencial de Envio Premium Valdir Discos (higienização profissional, plásticos novos, embalagem reforçada).
+   - Descreva de forma compacta e objetiva o Diferencial de Envio Premium Valdir Discos (higienização profissional cuidadosa, plásticos protetores novos, embalagem reforçada).
+   - REGRA CRÍTICA SOBRE TESTE DE DISCOS: Devido ao grande volume de discos do acervo, NUNCA afirme ou mencione que os discos foram testados, ouvidos ou tocados na agulha. Diga apenas que são higienizados profissionalmente e avaliados visualmente sob luz forte no padrão internacional Goldmine.
 
 4. **hashtags**:
    - Uma lista de 8 a 12 hashtags relevantes em português neutras.
@@ -1484,7 +1485,7 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
         questionText: 'Olá amigo! Esse LP do Tim Maia tem algum chiado na faixa "Imunização Racional"? Acompanha o encarte original da época?',
         createdAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
         status: 'UNANSWERED' as const,
-        aiSuggestedAnswer: 'Olá Rodrigo, tudo bem? O disco foi testado na agulha e está em excelente estado (VG+), tocando limpo e sem estalos em "Imunização Racional". Acompanha encarte original de época e plásticos protetores novos de alta gramatura. Envio super seguro em caixa reforçada com plástico bolha!'
+        aiSuggestedAnswer: 'Olá Rodrigo, tudo bem? O disco foi avaliado sob luz forte no padrão Goldmine e está em excelente estado (VG+), com superfície brilhante e sem marcas profundas. Acompanha encarte original de época e plásticos protetores novos de alta gramatura. Envio super seguro em caixa reforçada com plástico bolha!'
       },
       {
         id: 'q_shp_1',
@@ -1822,7 +1823,7 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
 
             const shpPayload = {
               item_name: shpTitle,
-              description: listing.shopee?.description || `Disco de Vinil LP ${listing.release.artist} - ${listing.release.title}. Higienizado e testado pela Valdir Discos.`,
+              description: listing.shopee?.description || `Disco de Vinil LP ${listing.release.artist} - ${listing.release.title}. Higienizado e revisado no padrão Goldmine pela Valdir Discos.`,
               category_id: 100019, // Vinyl Records
               original_price: Number(shpPrice),
               normal_stock: 1,
@@ -2128,7 +2129,7 @@ PERGUNTA DO COMPRADOR:
 
 DIRETRIZES DE RESPOSTA:
 1. Responda de forma educada, precisa, profissional e acolhedora em português brasileiro (máximo de 2 a 3 frases concisas).
-2. Se a dúvida for sobre chiado/riscos, ressalte que todos os nossos vinis usados são higienizados profissionalmente e testados na agulha.
+2. Se a dúvida for sobre chiado/riscos/conservação, ressalte nossa avaliação visual rigorosa sob luz forte no padrão Goldmine, higienização profissional cuidadosa e embalagem blindada com plásticos protetores novos. NUNCA mencione que o disco foi testado na agulha ou tocado antes do envio.
 3. Se a dúvida for sobre embalagem/frete, garanta que enviamos em caixa de papelão duplo reforçado, com plástico bolha e plásticos protetores novos internos e externos.
 4. Se a dúvida for sobre envio rápido, confirme que postamos no mesmo dia ou no próximo dia útil com código de rastreamento.
 5. Seja direto e encoraje o comprador a finalizar a compra com tranquilidade.
@@ -2140,7 +2141,7 @@ Gere apenas o texto final da resposta, sem introduções ou aspas extras.`;
         contents: prompt
       });
 
-      const replyText = response.text?.trim() || "Olá! O disco foi higienizado e testado na agulha, tocando com excelente fidelidade sonora. Enviamos em embalagem blindada com papelão duplo e plásticos protetores novos. Qualquer dúvida estamos à disposição!";
+      const replyText = response.text?.trim() || "Olá! O disco foi cuidadosamente higienizado e avaliado sob luz forte no padrão internacional Goldmine. Enviamos em embalagem blindada com papelão duplo e plásticos protetores novos. Qualquer dúvida estamos à disposição!";
 
       return res.json({
         success: true,
@@ -2150,11 +2151,11 @@ Gere apenas o texto final da resposta, sem introduções ou aspas extras.`;
       console.warn("Error generating AI reply for question:", err);
       // Fallback response engine
       const lower = questionText.toLowerCase();
-      let fallback = "Olá! O disco está em excelente estado, higienizado e testado antes do envio. Nossa embalagem é super reforçada com papelão duplo e plásticos protetores novos inclusos. Aguardamos sua compra!";
+      let fallback = "Olá! O disco está em excelente estado, higienizado e cuidadosamente avaliado no padrão Goldmine. Nossa embalagem é super reforçada com papelão duplo e plásticos protetores novos inclusos. Aguardamos sua compra!";
       if (lower.includes('frete') || lower.includes('envio') || lower.includes('embalagem')) {
         fallback = "Olá! Enviamos em caixas de papelão duplo sob medida com cantoneiras e plástico bolha reforçado. O disco vai acompanhado de plásticos protetores novos internos e externos para chegar impecável!";
       } else if (lower.includes('risco') || lower.includes('chiado') || lower.includes('estado')) {
-        fallback = `Olá! O álbum está com conservação ${listingCondition || 'VG+'}, higienizado e testado na agulha, com reprodução limpa e sem pulos. Pode comprar com total segurança!`;
+        fallback = `Olá! O álbum está com conservação ${listingCondition || 'VG+'}, higienizado e avaliado com rigor sob luz forte no padrão Goldmine. Pode comprar com total segurança!`;
       }
       return res.json({
         success: true,
@@ -2371,7 +2372,7 @@ Gere apenas o texto final da resposta, sem introduções ou aspas extras.`;
         questionText: qText,
         createdAt: new Date().toISOString(),
         status: 'UNANSWERED' as const,
-        aiSuggestedAnswer: `Olá! O álbum ${albumTitle} está com excelente conservação (${cond}), higienizado e testado na agulha. Enviamos em embalagem reforçada de papelão duplo com plásticos protetores novos. Postamos no mesmo dia ou no próximo dia útil!`
+        aiSuggestedAnswer: `Olá! O álbum ${albumTitle} está com excelente conservação (${cond}), higienizado profissionalmente e avaliado sob luz forte no padrão Goldmine. Enviamos em embalagem reforçada de papelão duplo com plásticos protetores novos. Postamos no mesmo dia ou no próximo dia útil!`
       };
 
       marketplaceStore.questions.unshift(newQuestion);

@@ -10,18 +10,20 @@ import {
   Sparkles, Calendar, Layers, Shield, Tag, DollarSign, Eye, Play,
   ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Bookmark, AlertTriangle,
   Edit3, FileText, Phone, Plus, Heart, QrCode, Printer, Flame, Star, Package, Percent,
-  LayoutGrid, Grid3X3, Table, Smartphone, Camera, Zap, ExternalLink
+  LayoutGrid, Grid3X3, Table, Smartphone, Camera, Zap, ExternalLink, FileSpreadsheet
 } from 'lucide-react';
 import { SavedListing, Customer } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { SalesChannel } from '../types';
 import { getSalesChannelMeta } from '../utils/qrcode';
-import { isNativistaGauchoItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist, getListingFormatInfo, detectReleaseParticularities, buildMercadoLivreOrderTxt } from '../utils/formatHelper';
+import { isNativistaGauchoItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist, getListingFormatInfo, detectReleaseParticularities, buildMercadoLivreOrderTxt, cleanLocationCode, cleanTitleRedundancies, buildOptimizedTitle } from '../utils/formatHelper';
 import { CatalogViewMode, getSavedCatalogViewMode, saveCatalogViewMode } from '../utils/cookieStorage';
 import { BatchQRCodeModal } from './BatchQRCodeModal';
 import { DiscQRCodeModal } from './DiscQRCodeModal';
 import { ThermalPrintModal } from './ThermalPrintModal';
 import { LoteRegistrationForm } from './LoteRegistrationForm';
+import { ExportCatalogModal } from './ExportCatalogModal';
+import { CorreiosDeclarationModal } from './CorreiosDeclarationModal';
 
 interface OrganizedCatalogProps {
   listings: SavedListing[];
@@ -47,6 +49,9 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
   const [isLoteModalOpen, setIsLoteModalOpen] = useState(false);
   const [qrModalListing, setQrModalListing] = useState<SavedListing | null>(null);
   const [thermalPrintListing, setThermalPrintListing] = useState<SavedListing | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [correiosDeclarationListing, setCorreiosDeclarationListing] = useState<SavedListing | null>(null);
+  const [isGeneralCorreiosModalOpen, setIsGeneralCorreiosModalOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedFormat, setSelectedFormat] = useState<string>('all');
   const [selectedDrawer, setSelectedDrawer] = useState<string>('all');
@@ -1035,20 +1040,20 @@ Colecionar é preservar a história.`;
                   <span>Etiquetas QR</span>
                 </button>
                 <button
-                  onClick={handleExportJSON}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl border border-slate-200 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                  title="Exportar backup completo (JSON)"
+                  onClick={() => setIsGeneralCorreiosModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl border border-blue-950 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  title="Gerar Declaração de Conteúdo Oficial dos Correios (Portaria 2.610/2018)"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>JSON</span>
+                  <Package className="h-3.5 w-3.5 text-yellow-400" />
+                  <span>Declaração Correios</span>
                 </button>
                 <button
-                  onClick={exportCatalogToCSV}
-                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm shadow-emerald-50"
-                  title="Exportar acervo para Excel (CSV)"
+                  onClick={() => setIsExportModalOpen(true)}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-600/20"
+                  title="Exportar Acervo para Excel (.xlsx), CSV ou Backup JSON"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>Excel (CSV)</span>
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-200" />
+                  <span>Exportar Excel (XLSX)</span>
                 </button>
               </div>
             </div>
@@ -1546,6 +1551,13 @@ Colecionar é preservar a história.`;
                               >
                                 <Printer className="h-3.5 w-3.5" />
                               </button>
+                              <button
+                                onClick={() => setCorreiosDeclarationListing(item)}
+                                className="p-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200/60 rounded-lg transition-colors cursor-pointer"
+                                title="Gerar Declaração de Conteúdo dos Correios"
+                              >
+                                <Package className="h-3.5 w-3.5 text-blue-700" />
+                              </button>
                               {confirmDeleteId === item.id ? (
                                 <div className="flex items-center gap-0.5">
                                   <button
@@ -1953,6 +1965,14 @@ Colecionar é preservar a história.`;
                           >
                             <Printer className="h-3 w-3 text-amber-700" />
                             Térmica
+                          </button>
+                          <button
+                            onClick={() => setCorreiosDeclarationListing(item)}
+                            className="px-1.5 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200/70 text-blue-900 rounded-lg text-[9.5px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                            title="Gerar Declaração de Conteúdo dos Correios"
+                          >
+                            <Package className="h-3 w-3 text-blue-700" />
+                            Correios
                           </button>
                           {confirmDeleteId === item.id ? (
                             <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
@@ -2841,22 +2861,31 @@ Colecionar é preservar a história.`;
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => setQrModalListing(selectedListing)}
-                      className="py-2.5 px-3 bg-white hover:bg-slate-100 text-slate-900 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                      className="py-2.5 px-2 bg-white hover:bg-slate-100 text-slate-900 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
                     >
                       <QrCode className="h-4 w-4 text-indigo-600" />
-                      Ver / Imprimir QR Code
+                      QR Code
                     </button>
                     <button
                       type="button"
                       onClick={() => setThermalPrintListing(selectedListing)}
-                      className="py-2.5 px-3 bg-indigo-700/80 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-indigo-500/50"
+                      className="py-2.5 px-2 bg-indigo-700/80 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-indigo-500/50"
                     >
                       <Printer className="h-4 w-4 text-indigo-200" />
-                      Cupom Térmico (58/80mm)
+                      Cupom Térmico
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCorreiosDeclarationListing(selectedListing)}
+                      className="py-2.5 px-2 bg-blue-700 hover:bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-blue-500/50"
+                      title="Gerar Declaração de Conteúdo Oficial dos Correios para este disco"
+                    >
+                      <Package className="h-4 w-4 text-yellow-300" />
+                      Declaração Correios
                     </button>
                   </div>
                 </div>
@@ -2951,30 +2980,18 @@ Colecionar é preservar a história.`;
                   ) : (
                     /* MERCADO LIVRE (Ordem Exata do Aplicativo + TXT) */
                     (() => {
-                      const rawDrawerLoc = selectedListing.drawer?.trim() || '';
-                      const drawerLoc = rawDrawerLoc.replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim();
-                      const drawerLocTag = drawerLoc ? ` [${drawerLoc}]` : '';
-
-                      // Calculate robust ML title with location always preserved without Loc: redundancy
-                      let drawerMlTitle = selectedListing.mercadolivre?.title;
-                      if (!drawerMlTitle) {
-                        const prefix = 'Vinil LP ';
-                        let base = `${selectedListing.release.artist} - ${selectedListing.release.title}`;
-                        const maxLen = 60;
-                        const avail = maxLen - prefix.length - drawerLocTag.length;
-                        if (base.length > avail) {
-                          base = base.slice(0, Math.max(10, avail - 3)).trim() + '...';
-                        }
-                        drawerMlTitle = `${prefix}${base}${drawerLocTag}`.slice(0, 60);
-                      } else if (drawerLoc && !drawerMlTitle.toLowerCase().includes(`[${drawerLoc.toLowerCase()}]`)) {
-                        let base = drawerMlTitle.replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
-                        const maxLen = 60;
-                        const avail = maxLen - drawerLocTag.length;
-                        if (base.length > avail) {
-                          base = base.slice(0, Math.max(10, avail - 3)).trim() + '...';
-                        }
-                        drawerMlTitle = `${base}${drawerLocTag}`.slice(0, 60);
-                      }
+                      const drawerLoc = cleanLocationCode(selectedListing.drawer);
+                      const drawerMlTitle = buildOptimizedTitle({
+                        artist: selectedListing.release.artist,
+                        title: selectedListing.release.title,
+                        drawer: drawerLoc,
+                        platform: 'mercadolivre',
+                        customBase: selectedListing.mercadolivre?.title,
+                        isOnlySleeve: selectedListing.condition?.isOnlySleeve,
+                        isOnlyMedia: selectedListing.condition?.isOnlyMedia,
+                        isMint: selectedListing.condition?.mediaCondition === 'M',
+                        year: selectedListing.release.year
+                      });
 
                       const drawerFormatInfo = getListingFormatInfo(selectedListing.release);
                       const drawerPart = detectReleaseParticularities(selectedListing.release);
@@ -4235,6 +4252,26 @@ Colecionar é preservar a história.`;
           </div>
         </div>
       )}
+
+      {/* Modal de Exportação Avançada para Excel (.xlsx), CSV e JSON */}
+      <ExportCatalogModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        allListings={listings}
+        filteredListings={filteredListings}
+        hasActiveFilters={Boolean(search || selectedFormat !== 'all' || selectedDrawer !== 'all' || selectedGrading !== 'all' || selectedStatus !== 'all' || selectedChannel !== 'all')}
+      />
+
+      {/* Modal de Declaração de Conteúdo Oficial dos Correios (Portaria 2.610/2018) */}
+      <CorreiosDeclarationModal
+        isOpen={isGeneralCorreiosModalOpen || !!correiosDeclarationListing}
+        onClose={() => {
+          setIsGeneralCorreiosModalOpen(false);
+          setCorreiosDeclarationListing(null);
+        }}
+        initialListing={correiosDeclarationListing}
+        allListings={listings}
+      />
     </div>
   );
 };

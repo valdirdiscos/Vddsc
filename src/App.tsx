@@ -70,7 +70,7 @@ import { OnlineOrdersIntranetTab } from './components/OnlineOrdersIntranetTab';
 import { IntranetAuthModal } from './components/IntranetAuthModal';
 import { useCustomerAuth } from './context/CustomerAuthContext';
 import { getSalesChannelMeta } from './utils/qrcode';
-import { detectReleaseParticularities } from './utils/formatHelper';
+import { detectReleaseParticularities, cleanLocationCode, cleanTitleRedundancies, buildOptimizedTitle } from './utils/formatHelper';
 import { SEED_LISTINGS } from './data/seedListings';
 
 function isImportedCountry(country?: string): boolean {
@@ -1209,46 +1209,44 @@ export default function App() {
   // Real-time synchronization of location (drawer) with ad titles and descriptions without redundant 'Loc:'
   const handleDrawerChange = (newVal: string) => {
     setDrawer(newVal);
-    const trimmed = newVal.trim().replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim();
-    const mlDrawerSuffix = trimmed ? ` [${trimmed}]` : '';
-    const shopeeDrawerSuffix = trimmed ? ` [${trimmed}]` : '';
+    const cleanDrawer = cleanLocationCode(newVal);
 
     // 1. Sync Mercado Livre title in real-time
     setMercadoLivreListing(prevMl => {
       if (!prevMl) return prevMl;
-      let baseTitle = prevMl.title || '';
-      // Strip any existing trailing bracket tags like [4], [Loc: 4], [Loc:4]
-      baseTitle = baseTitle.replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
-      if (!baseTitle && release) {
-        baseTitle = `Vinil LP ${release.artist} - ${release.title}`.trim();
-      }
-      const maxMlLen = 60;
-      const avail = maxMlLen - mlDrawerSuffix.length;
-      if (baseTitle.length > avail) {
-        baseTitle = baseTitle.slice(0, Math.max(10, avail - 3)).trim() + '...';
-      }
+      const current = prevMl.title || '';
+      const updatedTitle = buildOptimizedTitle({
+        artist: release?.artist || '',
+        title: release?.title || '',
+        drawer: cleanDrawer,
+        platform: 'mercadolivre',
+        customBase: current || undefined,
+        isOnlySleeve: condition.mediaCondition === 'SEM_DISCO',
+        isOnlyMedia: condition.sleeveCondition === 'SEM_CAPA',
+      });
       return {
         ...prevMl,
-        title: `${baseTitle}${mlDrawerSuffix}`.slice(0, 60)
+        title: updatedTitle
       };
     });
 
     // 2. Sync Shopee title in real-time
     setShopeeListing(prevSh => {
       if (!prevSh) return prevSh;
-      let baseTitle = prevSh.title || '';
-      baseTitle = baseTitle.replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
-      if (!baseTitle && release) {
-        baseTitle = `Disco De Vinil LP ${release.artist} - ${release.title}`.trim();
-      }
-      const maxShopeeLen = 120;
-      const avail = maxShopeeLen - shopeeDrawerSuffix.length;
-      if (baseTitle.length > avail) {
-        baseTitle = baseTitle.slice(0, Math.max(10, avail - 3)).trim() + '...';
-      }
+      const current = prevSh.title || '';
+      const updatedTitle = buildOptimizedTitle({
+        artist: release?.artist || '',
+        title: release?.title || '',
+        drawer: cleanDrawer,
+        platform: 'shopee',
+        customBase: current || undefined,
+        isOnlySleeve: condition.mediaCondition === 'SEM_DISCO',
+        isOnlyMedia: condition.sleeveCondition === 'SEM_CAPA',
+        isMint: condition.mediaCondition === 'M',
+      });
       return {
         ...prevSh,
-        title: `${baseTitle}${shopeeDrawerSuffix}`.slice(0, 120)
+        title: updatedTitle
       };
     });
   };
@@ -1783,6 +1781,28 @@ export default function App() {
     setError(null);
   };
 
+  // Helper to start extracting a new disc after saving or finishing current work
+  const handleStartNewExtraction = () => {
+    handleResetWorkspace();
+    setDrawer('');
+    setIsSavedSuccess(false);
+    setSaveToast(null);
+    setSuccessMsg('Workspace pronto para cadastrar um novo disco!');
+    setMainTab('announce');
+
+    // Smoothly scroll to extraction section and focus the input field
+    setTimeout(() => {
+      const section = document.getElementById('input-extraction-section');
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      const input = (document.getElementById('discogs-url-input') || document.getElementById('discogs-manual-input')) as HTMLInputElement | null;
+      if (input) {
+        input.focus();
+      }
+    }, 100);
+  };
+
   // Helper to compress images client-side using HTML5 Canvas to 800px max and JPEG 70% quality
   const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -1924,35 +1944,6 @@ export default function App() {
             setAppMode('intranet');
           }}
         />
-
-        {/* Global Floating Save Confirmation Toast */}
-        <AnimatePresence>
-          {saveToast && (
-            <motion.div
-              initial={{ opacity: 0, y: 50, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.9 }}
-              className="fixed bottom-6 right-6 z-50 bg-slate-900/95 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/80 flex items-start gap-3.5 max-w-sm backdrop-blur-md"
-            >
-              <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl shrink-0 mt-0.5 border border-emerald-500/30">
-                <CheckCircle className="h-6 w-6 animate-pulse" />
-              </div>
-              <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="font-bold text-sm text-emerald-400">{saveToast.message}</h4>
-                  <button 
-                    onClick={() => setSaveToast(null)}
-                    className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <p className="text-xs text-slate-200 truncate font-semibold">{saveToast.title}</p>
-                <p className="text-[11px] text-slate-400">Gravado no Histórico e na Nuvem (Firebase).</p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Modals & Access Dialogs */}
         <LogoUploadModal
@@ -2343,8 +2334,64 @@ export default function App() {
           <>
             {/* Input Extraction Panel */}
             <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4" id="input-extraction-section">
-          {/* Mode Tabs */}
-          <div className="flex border-b border-slate-100 overflow-x-auto whitespace-nowrap scrollbar-none">
+              {/* Active Workspace Status Banner & Extrair Novo Button */}
+              {release && (
+                <div className={`border rounded-xl p-3 sm:px-4 flex flex-col sm:flex-row items-center justify-between gap-3 transition-all ${
+                  isSavedSuccess
+                    ? 'bg-emerald-50/90 border-emerald-300 shadow-xs'
+                    : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                      isSavedSuccess ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white'
+                    }`}>
+                      {isSavedSuccess ? <CheckCircle className="h-5 w-5" /> : <Disc className="h-5 w-5" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-black text-slate-900 truncate">
+                          {release.artist} - {release.title}
+                        </span>
+                        {isSavedSuccess ? (
+                          <span className="text-[10px] bg-emerald-200 text-emerald-950 font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                            <Check className="h-3 w-3" /> Anúncio Salvo
+                          </span>
+                        ) : activeListingId ? (
+                          <span className="text-[10px] bg-slate-200 text-slate-800 font-bold px-2 py-0.5 rounded-full shrink-0">
+                            Carregado do Catálogo
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full shrink-0">
+                            Em Edição
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        {isSavedSuccess
+                          ? 'O disco atual foi gravado com sucesso! Clique ao lado para extrair o próximo.'
+                          : 'Disco carregado no editor abaixo. Você pode salvá-lo ou iniciar uma nova extração.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleStartNewExtraction}
+                    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shrink-0 active:scale-95 ${
+                      isSavedSuccess
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 ring-2 ring-amber-300 animate-pulse'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100'
+                    }`}
+                    title="Limpar campos e extrair um novo disco"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Extrair Novo</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Mode Tabs */}
+              <div className="flex border-b border-slate-100 overflow-x-auto whitespace-nowrap scrollbar-none">
             <button
               onClick={() => { setActiveTab('url'); setError(null); }}
               className={`pb-3 text-xs font-bold px-4 border-b-2 transition-all cursor-pointer ${
@@ -2484,6 +2531,7 @@ export default function App() {
                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cole o link da Release do Discogs</label>
                    <div className="flex flex-col sm:flex-row gap-2">
                      <input
+                       id="discogs-url-input"
                        type="url"
                        placeholder="Ex: https://www.discogs.com/release/249504-The-Beatles-Abbey-Road"
                        value={discogsUrl}
@@ -2508,6 +2556,17 @@ export default function App() {
                          </>
                        )}
                      </button>
+                     {release && (
+                       <button
+                         type="button"
+                         onClick={handleStartNewExtraction}
+                         className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer flex-shrink-0 shadow-sm"
+                         title="Limpar o disco atual e extrair um novo"
+                       >
+                         <Plus className="h-4 w-4" />
+                         <span>Extrair Novo</span>
+                       </button>
+                     )}
                    </div>
                    <p className="text-[10px] text-slate-400 leading-relaxed">
                      Dica: Você também pode colar apenas o número ID da Release (ex: <code className="text-slate-600 bg-slate-100 px-1 py-0.5 rounded border border-slate-200">249504</code>). Links de Masters também são resolvidos para a edição principal.
@@ -2518,6 +2577,7 @@ export default function App() {
                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Artista, Nome do Álbum e Formato</label>
                    <div className="flex flex-col sm:flex-row gap-2">
                      <input
+                       id="discogs-manual-input"
                        type="text"
                        placeholder="Ex: Legião Urbana - Dois (Vinil 1986 EMI) ou Queen - Greatest Hits (CD)"
                        value={manualQuery}
@@ -2542,6 +2602,17 @@ export default function App() {
                          </>
                        )}
                      </button>
+                     {release && (
+                       <button
+                         type="button"
+                         onClick={handleStartNewExtraction}
+                         className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer flex-shrink-0 shadow-sm"
+                         title="Limpar o disco atual e extrair um novo"
+                       >
+                         <Plus className="h-4 w-4" />
+                         <span>Extrair Novo</span>
+                       </button>
+                     )}
                    </div>
                    <p className="text-[10px] text-slate-400 leading-relaxed">
                      Excelente para quando você não tem o link em mãos. Nossa inteligência artificial pesquisa nos registros históricos musicais para reconstituir a tracklist original, ano, gravadora e catalogação exatos.
@@ -3680,8 +3751,54 @@ export default function App() {
                             </>
                           )}
                         </button>
+
+                        {/* Botão Extrair Novo - Próximo disco após salvar */}
+                        <button
+                          type="button"
+                          onClick={handleStartNewExtraction}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-md active:scale-95 ${
+                            isSavedSuccess
+                              ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-200 animate-pulse'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                          }`}
+                          title="Limpar o disco atual e extrair um novo"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>Extrair Novo</span>
+                        </button>
                       </div>
                     </div>
+
+                    {/* Banner com atalho de Extrair Novo após salvar o disco */}
+                    {isSavedSuccess && (
+                      <div className="bg-emerald-50 border-2 border-emerald-400/80 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <CheckCircle className="h-6 w-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-black text-emerald-950">Anúncio Salvo com Sucesso!</h4>
+                              <span className="text-[10px] font-extrabold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">Pronto para o próximo</span>
+                            </div>
+                            <p className="text-xs text-emerald-800 font-medium truncate">
+                              <strong>{release.artist} - {release.title}</strong> foi gravado no acervo.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleStartNewExtraction}
+                            className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs rounded-xl transition-all shadow-md shadow-emerald-200 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Extrair Novo Disco</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Sales Channels Multi-Select Selector */}
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -3872,8 +3989,21 @@ export default function App() {
                 </div>
                 <p className="text-xs text-slate-200 truncate font-semibold">{saveToast.title}</p>
                 <p className="text-[11px] text-slate-400">Gravado no Histórico e na Nuvem (Firebase).</p>
-                <div className="pt-2 flex items-center gap-2">
+                <div className="pt-2 flex items-center gap-2 flex-wrap">
                   <button
+                    type="button"
+                    onClick={() => {
+                      setSaveToast(null);
+                      handleStartNewExtraction();
+                    }}
+                    className="text-xs font-black bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Limpar e extrair um novo disco"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Extrair Novo
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => {
                       const target = savedListings.find(l => l.id === saveToast.id) || {
                         id: saveToast.id,
@@ -3892,6 +4022,7 @@ export default function App() {
                     Ver QR Code
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       setMainTab('catalog');
                       setSaveToast(null);

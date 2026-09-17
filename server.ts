@@ -10,6 +10,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import dns from "dns";
 import { calculateCorreiosRates, estimatePackageSpecs, VALDIR_ORIGIN_CEP, VALDIR_ORIGIN_CITY, VALDIR_ORIGIN_STATE } from "./src/utils/correiosMatrix";
+import { cleanLocationCode, formatLocationTag, cleanTitleRedundancies, buildOptimizedTitle } from "./src/utils/formatHelper";
 
 // Force IPv4 first to prevent IPv6 DNS resolution connection hangs in container environments
 dns.setDefaultResultOrder("ipv4first");
@@ -402,7 +403,7 @@ function getImportTag(country?: string): string {
 
   // Programmatic fallback for Listing Generation if Gemini fails/is overloaded
   function generateProgrammaticListing(release: any, condition: any, pricing: any, drawer: string, isGarimpo?: boolean, garimpoDetails?: string) {
-    const drawerClean = drawer ? String(drawer).trim() : "";
+    const drawerClean = cleanLocationCode(drawer);
     const formatString = release.formats?.map((f: any) => `${f.qty}x ${f.name} (${f.descriptions?.join(", ") || ""})`).join(", ") || "Disco";
     
     const mediaFormatLower = (release.formats?.[0]?.name || "").toLowerCase();
@@ -427,8 +428,8 @@ function getImportTag(country?: string): string {
 
     // Shopee title limit is 115 characters
     let shopeeSuffix = "";
-    if (isOnlySleeve) shopeeSuffix += " APENAS CAPA (SEM DISCO)";
-    else if (isOnlyMedia) shopeeSuffix += " APENAS DISCO (SEM CAPA)";
+    if (isOnlySleeve) shopeeSuffix += " [APENAS CAPA]";
+    else if (isOnlyMedia) shopeeSuffix += " [APENAS DISCO]";
     else if (isMint) shopeeSuffix += " NOVO LACRADO";
 
     if (isImported && importTag) {
@@ -444,12 +445,12 @@ function getImportTag(country?: string): string {
     if (baseTitleShopee.length > availableShopeeLen) {
       baseTitleShopee = baseTitleShopee.substring(0, Math.max(10, availableShopeeLen - 3)) + "...";
     }
-    const finalTitleShopee = `${prefix}${baseTitleShopee}${shopeeSuffix}`;
+    const finalTitleShopee = cleanTitleRedundancies(`${prefix}${baseTitleShopee}${shopeeSuffix}`, 'shopee').slice(0, 115);
 
-    // Mercado Livre title limit is 60 characters
+    // Mercado Livre title limit is 60 characters - STRICTLY NO "LOC:" OR WASTEFUL PREFIXES
     let mlSuffix = "";
-    if (isOnlySleeve) mlSuffix = " APENAS CAPA (SEM DISCO)";
-    else if (isOnlyMedia) mlSuffix = " APENAS DISCO (SEM CAPA)";
+    if (isOnlySleeve) mlSuffix = " [SEM DISCO]";
+    else if (isOnlyMedia) mlSuffix = " [SEM CAPA]";
     else if (isImported && importTag) mlSuffix = ` ${importTag}`;
     if (drawerClean) mlSuffix += ` [${drawerClean}]`;
 
@@ -462,7 +463,7 @@ function getImportTag(country?: string): string {
     if (baseTitleMl.length > availableMlLen) {
       baseTitleMl = baseTitleMl.substring(0, Math.max(10, availableMlLen - 3)) + "...";
     }
-    const finalTitleMl = `${prefix}${baseTitleMl}${mlSuffix}`;
+    const finalTitleMl = cleanTitleRedundancies(`${prefix}${baseTitleMl}${mlSuffix}`, 'mercadolivre').slice(0, 60);
 
     // Build description markdown lines
     const descLines: string[] = [];
@@ -485,7 +486,7 @@ function getImportTag(country?: string): string {
     }
 
     if (drawerClean) {
-      descLines.push(`📍 **Loc:** ${drawerClean}\n`);
+      descLines.push(`📍 [${drawerClean}]\n`);
     }
 
     descLines.push(`🎵 **BEM-VINDO À VALDIR DISCOS!** 🎵`);
@@ -908,7 +909,7 @@ Gravadora original e número de catálogo devem ser os reais deste álbum cláss
 
   // Unified generator function for generating both Shopee and Mercado Livre listings in a single Gemini call
   async function generateAllListings(release: any, condition: any, pricing: any, drawer: string, isGarimpo?: boolean, garimpoDetails?: string) {
-    const drawerClean = drawer ? String(drawer).trim() : "";
+    const drawerClean = cleanLocationCode(drawer);
     const formatString = release.formats?.map((f: any) => `${f.qty}x ${f.name} (${f.descriptions?.join(", ") || ""})`).join(", ") || "Disco";
     const mediaFormatLower = (release.formats?.[0]?.name || "").toLowerCase();
     const allFormatsText = (release.formats || []).flatMap((f: any) => [f.name, ...(f.descriptions || [])]).join(" ").toLowerCase();
@@ -1009,8 +1010,8 @@ Capa / Estojo: ${condition.sleeveCondition} ${condition.sleeveDetails ? `(${cond
 ${!isCdDvd ? (condition.hasInsert ? `Encarte: Sim, em estado de conservação ${condition.insertCondition || 'VG+'} ${condition.insertDetails ? `(${condition.insertDetails})` : ""}` : "Encarte: Não possui / Não acompanha encarte.") : ""}
 ${isMint ? "Este produto é NOVO." : "Este produto é USADO."}
 
---- LOCALIZAÇÃO DE ESTOQUE ---
-${drawerClean ? `Localização física do produto para indicação (Loc): ${drawerClean}` : "Nenhuma localização especificada."}
+--- IDENTIFICADOR DE ACERVO / GAVETA ---
+${drawerClean ? `Código identificador interno: "${drawerClean}". ATENÇÃO ABSOLUTA: NUNCA escreva "loc:", "Loc:", "Gaveta:", "Localização:" ou nada parecido no título nem na descrição! No título, use apenas o código "[${drawerClean}]" no final.` : "Nenhuma localização especificada."}
 
 --- DETALHES DE PREÇO ---
 Preço sugerido calculated: R$ ${pricing.basePriceBrl.toFixed(2)}
@@ -1027,7 +1028,7 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
      * Exemplo real: "${formatLabel} [Nome do Álbum] ([Ano]) [Banda 1] [Banda 2] [Banda 3] [Banda 4]" (exemplo real: "CD Surf Ataque (1998) NOFX No Use For A Name Lagwagon").
      * Inclua quantas bandas famosas da tracklist couberem no limite de 115 caracteres do título para atração máxima em buscas diretas por essas bandas.
    - Se o estado da mídia for Mint ('M') (novo/lacrado), termine o título obrigatoriamente com "NOVO LACRADO" em letras maiúsculas.
-   - Se a localização (Loc) estiver especificada, adicione o identificador dela no final do título (ex: "[${drawerClean}]").
+   - Se a localização estiver especificada, adicione APENAS o código puro dela entre colchetes no final do título (ex: "[${drawerClean}]"). É TERMINANTEMENTE PROIBIDO usar a palavra "LOC:" ou "Loc:" no título para não desperdiçar caracteres preciosos!
 
 2. **titleMl**:
    - Título super otimizado e curto com **LIMITE MÁXIMO E ABSOLUTO DE 60 CARACTERES**.
@@ -1035,7 +1036,7 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
    - NÃO use pontuações desnecessárias, asteriscos, aspas ou excesso de parênteses.
    - Para artista único: "${formatLabel} [Artista] [Nome do Álbum] ([Ano])".
    - **PARA COLETÂNEAS**: Não coloque "Vários Artistas" nem palavras genéricas de "encher linguiça". Coloque o tipo do produto, o nome do álbum e 2 ou 3 bandas principais da coletânea que couberem no limite estrito de 60 caracteres. Exemplo: "${formatLabel} Surf Ataque NOFX Lagwagon".
-   - **LOCALIZAÇÃO OBRIGATÓRIA NO FIM DO TÍTULO**: Se a localização (Loc) estiver especificada, inclua a gaveta/localização no final do título (ex: "[${drawerClean}]"). O título completo com a localização DEVE caber dentro do limite de 60 caracteres do Mercado Livre.
+   - **LOCALIZAÇÃO NO FIM DO TÍTULO**: Se a localização estiver especificada, inclua APENAS o código dela entre colchetes no final do título (ex: "[${drawerClean}]"). É ESTRITAMENTE PROIBIDO escrever "LOC:", "Loc:" ou "Gaveta" no título, pois consome caracteres preciosos. O título completo com o identificador "[${drawerClean}]" DEVE caber dentro do limite estrito de 60 caracteres do Mercado Livre.
    - Deve ser curto, atrativo e caber perfeitamente no limite de 60 caracteres do Mercado Livre.
 
 3. **description**:
@@ -1047,7 +1048,7 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
    - **OBRIGATÓRIO SEPARAR CADA ITEM, LINHA OU SEÇÃO COM DUAS QUEBRAS DE LINHA (QUEBRA DE LINHA DUPLA)**.
    - Utilize emojis sutis de música e de tópicos para criar uma apresentação limpa, arejada e bem espaçada.
    - **A PRIMEIRÍSSIMA COISA NO TEXTO DE DESCRIÇÃO DEVE SER O ESTADO DE CONSERVAÇÃO DA CAPA, DO DISCO E DO ENCARTE** (ou a localização se especificada). Comece imediatamente com isso, sem saudações ou apresentações prévias de abertura.
-   - Se a localização foi especificada, comece com: "LOC: ${drawerClean}" seguido de quebra de linha dupla.
+   - Se a localização foi especificada, comece com: "📍 [${drawerClean}]" seguido de quebra de linha dupla (sem escrever "Loc:", "Gaveta" ou palavras redundantes).
    - Avalie detalhadamente e com transparência as condições físicas da mídia (${condition.mediaCondition}) e da capa (${condition.sleeveCondition}). Integre todas as observações do Valdir.
    - Se for Mint ('M'), enfatize de forma curta que o produto é NOVO e LACRADO de fábrica.
    - Inclua em destaque a frase exata "fotos originais do produto" (sem aspas), separada por quebra de linha dupla.
@@ -1110,9 +1111,9 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
 
       let shopeeConditionSuffix = "";
       if (isOnlySleeve) {
-        shopeeConditionSuffix = " APENAS CAPA (SEM DISCO)";
+        shopeeConditionSuffix = " [APENAS CAPA]";
       } else if (isOnlyMedia) {
-        shopeeConditionSuffix = " APENAS DISCO (SEM CAPA)";
+        shopeeConditionSuffix = " [APENAS DISCO]";
       } else if (isMint) {
         shopeeConditionSuffix = " NOVO LACRADO";
       }
@@ -1132,16 +1133,17 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
 
       if (drawerClean) {
         const escDrawer = drawerClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-        const drawerRegex = new RegExp(`\\[\\s*${escDrawer}\\s*\\]|\\b${escDrawer}\\b`, 'gi');
-        titleShopee = titleShopee.replace(drawerRegex, "").replace(/\s+/g, " ").trim();
+        const drawerRegex = new RegExp(`(?:[-–—]\\s*)?(?:\\[\\s*)?(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)?[\\s:.-]*${escDrawer}(?:\\s*\\])?|\\b${escDrawer}\\b`, 'gi');
+        titleShopee = titleShopee.replace(drawerRegex, " ").replace(/\s+/g, " ").trim();
       }
+      titleShopee = titleShopee.replace(/(?:[-–—]\s*)?\b(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)[\s:.-]*(?:\[[^\]]*\])?/gi, " ").trim();
 
       const fullShopeeSuffix = shopeeConditionSuffix + drawerSuffix;
       const availableLenForShopeeTitle = maxShopeeLen - prefix.length - fullShopeeSuffix.length;
       if (titleShopee.length > availableLenForShopeeTitle) {
         titleShopee = titleShopee.substring(0, Math.max(10, availableLenForShopeeTitle - 3)).trim() + "...";
       }
-      titleShopee = `${prefix}${titleShopee}${fullShopeeSuffix}`;
+      titleShopee = cleanTitleRedundancies(`${prefix}${titleShopee}${fullShopeeSuffix}`, 'shopee').slice(0, 115);
 
       // Post-process Mercado Livre title
       let titleMl = rawListing.titleMl || "";
@@ -1155,9 +1157,9 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
 
       let mlConditionSuffix = "";
       if (isOnlySleeve) {
-        mlConditionSuffix = " APENAS CAPA (SEM DISCO)";
+        mlConditionSuffix = " [SEM DISCO]";
       } else if (isOnlyMedia) {
-        mlConditionSuffix = " APENAS DISCO (SEM CAPA)";
+        mlConditionSuffix = " [SEM CAPA]";
       } else if (isImported && importTag) {
         mlConditionSuffix = ` ${importTag}`;
       }
@@ -1171,19 +1173,20 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
 
       if (drawerClean) {
         const escDrawer = drawerClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-        const drawerRegex = new RegExp(`\\[\\s*(Loc:)?\\s*${escDrawer}\\s*\\]|\\b${escDrawer}\\b`, 'gi');
-        titleMl = titleMl.replace(drawerRegex, "").replace(/\s+/g, " ").trim();
+        const drawerRegex = new RegExp(`(?:[-–—]\\s*)?(?:\\[\\s*)?(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)?[\\s:.-]*${escDrawer}(?:\\s*\\])?|\\b${escDrawer}\\b`, 'gi');
+        titleMl = titleMl.replace(drawerRegex, " ").replace(/\s+/g, " ").trim();
       }
+      titleMl = titleMl.replace(/(?:[-–—]\s*)?\b(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)[\s:.-]*(?:\[[^\]]*\])?/gi, " ").trim();
 
-      const locDisplay = /^loc[:\s]/i.test(drawerClean) ? drawerClean : `Loc: ${drawerClean}`;
-      const mlDrawerSuffix = drawerClean ? ` [${locDisplay}]` : "";
+      // STRICTLY NO "LOC:" OR "Loc:" IN ML TITLE - Saves precious characters
+      const mlDrawerSuffix = drawerClean ? ` [${drawerClean}]` : "";
       const fullMlSuffix = mlConditionSuffix + mlDrawerSuffix;
       const maxMlLen = 60;
       const availableLenForMlTitle = maxMlLen - prefix.length - fullMlSuffix.length;
       if (titleMl.length > availableLenForMlTitle) {
         titleMl = titleMl.substring(0, Math.max(10, availableLenForMlTitle - 3)).trim() + "...";
       }
-      let fullTitleMl = `${prefix}${titleMl}${fullMlSuffix}`.trim();
+      let fullTitleMl = cleanTitleRedundancies(`${prefix}${titleMl}${fullMlSuffix}`, 'mercadolivre').slice(0, 60);
 
       // Handle Description - clean platform mentions & ensure key phrases
       let description = rawListing.description || "";
@@ -1202,12 +1205,12 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
         description = `📷 **Observação importante:** fotos originais do produto\n\n${description}`;
       }
 
-      // Guarantee drawer localization is at the start
+      // Guarantee drawer localization is at the start (without redundant "Loc:")
       if (drawerClean) {
         const escDrawer = drawerClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-        const drawerHeaderRegex = new RegExp(`^📍\\s*\\*\\*(Localização física\\s*/\\s*Gaveta|Loc):\\*\\*\\s*${escDrawer}\\n*`, 'i');
+        const drawerHeaderRegex = new RegExp(`^📍\\s*(?:\\*\\*(?:Localização física\\s*/\\s*Gaveta|Loc):\\*\\*|Acervo:|Gaveta:|Localização:)?\\s*\\[?${escDrawer}\\]?\\n*`, 'i');
         description = description.replace(drawerHeaderRegex, "").trim();
-        description = `📍 **Loc:** ${drawerClean}\n\n${description}`;
+        description = `📍 [${drawerClean}]\n\n${description}`;
       }
 
       // Sanitization function for personal data & safety against any accidental platform name leaks
@@ -1714,7 +1717,7 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
       const condMedia = listing.condition?.mediaCondition || 'VG+';
       const condSleeve = listing.condition?.sleeveCondition || 'VG+';
       const price = listing.pricing?.directPrice || listing.pricing?.basePriceBrl || 120.00;
-      const cleanDrawer = listing.drawer ? String(listing.drawer).trim().replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim() : '';
+      const cleanDrawer = cleanLocationCode(listing.drawer);
       const drawerTag = cleanDrawer ? ` [${cleanDrawer}]` : '';
 
       // 4A. Mercado Livre Publish Logic
@@ -1722,22 +1725,22 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
         const mlCfg = marketplaceStore.config.mercadolivre;
         let mlTitle = listing.mercadolivre?.title;
         if (!mlTitle) {
-          const prefix = 'Vinil LP ';
-          const maxMlLen = 60;
-          let base = `${listing.release.artist} - ${listing.release.title}`;
-          const avail = maxMlLen - prefix.length - drawerTag.length;
-          if (base.length > avail) {
-            base = base.substring(0, Math.max(10, avail - 3)) + '...';
-          }
-          mlTitle = `${prefix}${base}${drawerTag}`.trim();
-        } else if (drawerTag && !mlTitle.toLowerCase().includes(`[${cleanDrawer.toLowerCase()}]`)) {
-          let base = mlTitle.replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
-          const maxMlLen = 60;
-          const avail = maxMlLen - drawerTag.length;
-          if (base.length > avail) {
-            base = base.substring(0, Math.max(10, avail - 3)).trim() + '...';
-          }
-          mlTitle = `${base}${drawerTag}`;
+          mlTitle = buildOptimizedTitle({
+            artist: listing.release.artist,
+            title: listing.release.title,
+            drawer: cleanDrawer,
+            platform: 'mercadolivre',
+            isOnlySleeve: listing.condition?.mediaCondition === 'SEM_DISCO',
+            isOnlyMedia: listing.condition?.sleeveCondition === 'SEM_CAPA',
+          });
+        } else {
+          mlTitle = buildOptimizedTitle({
+            artist: listing.release.artist,
+            title: listing.release.title,
+            drawer: cleanDrawer,
+            platform: 'mercadolivre',
+            customBase: mlTitle,
+          });
         }
         const mlPrice = listing.mercadolivre?.suggestedPrice || price;
         let mlExternalId = `MLB${Math.floor(1000000000 + Math.random() * 9000000000)}`;
@@ -1925,19 +1928,27 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
         const title = `${listing.release.artist} - ${listing.release.title}`;
         const condMedia = listing.condition?.mediaCondition || 'VG+';
         const price = listing.pricing?.directPrice || listing.pricing?.basePriceBrl || 120.00;
-        const drawerTag = listing.drawer ? ` [${listing.drawer}]` : '';
+        const cleanDrawer = cleanLocationCode(listing.drawer);
 
         if (platforms.includes('mercadolivre')) {
           let mlTitle = listing.mercadolivre?.title;
           if (!mlTitle) {
-            const prefix = 'Vinil LP ';
-            const maxMlLen = 60;
-            let base = `${listing.release.artist} - ${listing.release.title}`;
-            const avail = maxMlLen - prefix.length - drawerTag.length;
-            if (base.length > avail) {
-              base = base.substring(0, Math.max(10, avail - 3)) + '...';
-            }
-            mlTitle = `${prefix}${base}${drawerTag}`.trim();
+            mlTitle = buildOptimizedTitle({
+              artist: listing.release.artist,
+              title: listing.release.title,
+              drawer: cleanDrawer,
+              platform: 'mercadolivre',
+              isOnlySleeve: listing.condition?.mediaCondition === 'SEM_DISCO',
+              isOnlyMedia: listing.condition?.sleeveCondition === 'SEM_CAPA',
+            });
+          } else {
+            mlTitle = buildOptimizedTitle({
+              artist: listing.release.artist,
+              title: listing.release.title,
+              drawer: cleanDrawer,
+              platform: 'mercadolivre',
+              customBase: mlTitle,
+            });
           }
           const mlPrice = listing.mercadolivre?.suggestedPrice || price;
           const mlExternalId = `MLB${Math.floor(1000000000 + Math.random() * 9000000000)}`;

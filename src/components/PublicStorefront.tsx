@@ -58,6 +58,7 @@ import { CustomerAuthModal } from './CustomerAuthModal';
 import { CustomerDashboardModal } from './CustomerDashboardModal';
 import { LogoUploadModal } from './LogoUploadModal';
 import { ValdirVirtualChat } from './ValdirVirtualChat';
+import { InstallPwaBanner } from './InstallPwaBanner';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { useLogos } from '../hooks/useLogos';
 import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
@@ -428,6 +429,9 @@ export function PublicStorefront({
   return (
     <div className="min-h-screen bg-[#faf8f5] text-slate-900 font-sans flex flex-col selection:bg-amber-200 selection:text-amber-950">
       
+      {/* PWA App Install & Bookmark Helper Banner */}
+      <InstallPwaBanner />
+
       {/* Top Banner & Fast Perks */}
       <div className="bg-slate-950 text-slate-300 text-[11px] py-2 px-4 border-b border-slate-800">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -908,56 +912,38 @@ export function PublicStorefront({
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
         
-        {/* Curated Hero Spotlight (if not searching and on Discos tab) */}
-        {!searchQuery && activeMainTab === 'discos' && selectedGenre === 'all' && (
-          <div className="bg-gradient-to-r from-[#0c232a] via-[#163840] to-[#8c3518] text-white rounded-2xl p-4 sm:p-5 shadow-md border border-teal-900/40 relative overflow-hidden">
-            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="space-y-1.5 text-center sm:text-left">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-xs font-bold shadow-xs">
-                  <Sparkles className="h-3 w-3 text-amber-400" />
-                  <span>Curadoria Valdir Discos</span>
-                </div>
-                
-                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight font-sans">
-                  Discos de Vinil Originais & Higienizados
-                </h2>
-                
-                <p className="text-xs text-slate-200/90 leading-relaxed font-medium max-w-xl">
-                  Avaliados no padrão internacional Goldmine, 100% higienizados e com envio seguro para todo o Brasil.
-                </p>
-
-                <div className="pt-1 flex items-center justify-center sm:justify-start gap-3">
-                  <a
-                    href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent('Olá Valdir! Gostaria de consultar um disco no catálogo online.')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  >
-                    <MessageCircle className="h-3.5 w-3.5" />
-                    <span>WhatsApp do Valdir</span>
-                  </a>
-                  <span className="text-xs text-amber-300/80 font-serif italic font-bold">
-                    ★ Disco é cultura
+        {/* Contato do WhatsApp - Limpo, Direto e Bem Visível (Sem poluição visual) */}
+        {!searchQuery && (
+          <div className="bg-emerald-50/90 border border-emerald-300/80 rounded-2xl p-3 sm:px-4 sm:py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow-2xs">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <MessageCircle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-black text-slate-900">
+                    Atendimento Valdir Discos
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300/70">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                    WhatsApp Online
                   </span>
                 </div>
-              </div>
-
-              {/* Logo Emblem Badge Compact */}
-              <div className="hidden sm:flex items-center justify-center shrink-0">
-                <div className="w-20 h-20 rounded-full p-1 bg-white/95 shadow-md border-2 border-amber-400 overflow-hidden">
-                  <img 
-                    src={logoBadge} 
-                    alt="Valdir Discos" 
-                    className="w-full h-full object-contain rounded-full"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = "/valdir-logo-badge.jpg";
-                    }}
-                  />
-                </div>
+                <p className="text-[11px] text-slate-600 font-medium truncate">
+                  (55) 98116-4666 • Dúvidas sobre discos, conservação ou encomendas
+                </p>
               </div>
             </div>
+
+            <a
+              href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent('Olá Valdir! Vi o catálogo no site e gostaria de tirar uma dúvida sobre um disco.')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span>Chamar no WhatsApp</span>
+            </a>
           </div>
         )}
 

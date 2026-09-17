@@ -1052,7 +1052,7 @@ export function buildMercadoLivreOrderTxt(params: MlRoteiroParams): string {
   const album = release?.title || 'Não informado';
 
   const rawLoc = drawer ? drawer.trim() : '';
-  const locClean = rawLoc.replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim();
+  const locClean = cleanLocationCode(rawLoc);
   const locDisplay = locClean ? `[${locClean}]` : '[Sem Localização]';
 
   const formatInfo = getListingFormatInfo(release);
@@ -1160,7 +1160,7 @@ export function buildMercadoLivreOrderTxt(params: MlRoteiroParams): string {
     `TELA 3: TÍTULO DO ANÚNCIO (MÁXIMO 60 CARACTERES)`,
     `------------------------------------------------------------`,
     `TÍTULO (COM LOCALIZAÇÃO FIXADA):`,
-    `${title}`,
+    `${cleanTitleRedundancies(title, 'mercadolivre')}`,
     ``,
     `------------------------------------------------------------`,
     `TELA 4: FOTOS DO PRODUTO (SEQUÊNCIA RECOMENDADA)`,
@@ -1238,5 +1238,177 @@ export function buildMercadoLivreOrderTxt(params: MlRoteiroParams): string {
     `FIM DO ROTEIRO MERCADO LIVRE - VALDIR DISCOS`,
     `============================================================`
   ].join('\n');
+}
+
+/**
+ * Limpa e padroniza o código da gaveta / localização de estoque.
+ * Remove rigorosamente qualquer menção a "LOC:", "Loc:", "loc:", "Localização", "Gaveta", "Gav:" e colchetes.
+ * Exemplo: "LOC: 4" -> "4", "[Loc: GAV-01]" -> "GAV-01", "Gaveta 12" -> "12"
+ */
+export function cleanLocationCode(drawer?: string | null): string {
+  if (!drawer) return '';
+  return String(drawer)
+    .trim()
+    .replace(/^\[?\s*(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local|estoque)[\s:.-]*/i, '')
+    .replace(/\]\s*$/, '')
+    .trim();
+}
+
+/**
+ * Retorna a tag de localização para inclusão em títulos.
+ * NUNCA inclui "LOC:" ou "Loc:" para economizar caracteres preciosos.
+ * Exemplo: "4" -> " [4]", "GAV-01" -> " [GAV-01]", "cx01" -> " [cx01]", vazio -> ""
+ */
+export function formatLocationTag(drawer?: string | null): string {
+  const code = cleanLocationCode(drawer);
+  return code ? ` [${code}]` : '';
+}
+
+/**
+ * Elimina todas as redundâncias e desperdícios de caracteres em um título de marketplace (especialmente Mercado Livre).
+ * - Remove "LOC:", "Loc:", "loc:", "Gav:" de dentro do título ou de tags como "[Loc: cx01]" -> "[cx01]", "loc: cx01" -> "[cx01]"
+ * - Remove prefixos redundantes triplos como "Disco De Vinil LP " -> "LP "
+ * - Remove "Disco Vinil LP " -> "LP "
+ * - Remove "Vinil LP " -> "LP "
+ * - Remove redundâncias de artistas genéricos em coletâneas ("Vários Artistas -", "Various Artists -", "Coletânea -")
+ * - Enxuga termos de condição longos no Mercado Livre: "[APENAS DISCO/MÍDIA]" -> "[SEM CAPA]"
+ * - Remove espaços duplos e colchetes duplicados/vazios
+ */
+export function cleanTitleRedundancies(title: string, platform: 'mercadolivre' | 'shopee' = 'mercadolivre'): string {
+  if (!title) return '';
+  let cleaned = title;
+
+  // 1a. Converte qualquer tag com "Loc:" entre colchetes para código puro: [loc: cx01] -> [cx01]
+  cleaned = cleaned.replace(/\[\s*(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)[\s:.-]*([^\]]+)\]/gi, '[$1]');
+  // 1b. Remove menção a "loc: [X]" -> "[X]"
+  cleaned = cleaned.replace(/\b(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)[\s:.-]+(\[[^\]]+\])/gi, '$1');
+  // 1c. Converte menção solta a "- loc: X" ou "loc: X" no final do título para "[X]"
+  cleaned = cleaned.replace(/(?:[-–—]\s*)?\b(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)[\s:.-]+([a-zA-Z0-9_-]+)\s*$/gi, ' [$1]');
+  // 1d. Se houver "loc: X" no meio do título, converte para "[X]"
+  cleaned = cleaned.replace(/(?:[-–—]\s*)?\b(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)[\s:.-]+([a-zA-Z0-9_-]+)\b/gi, ' [$1]');
+  // 1e. Remove qualquer palavra residual de "loc:", "gaveta:" com dois pontos
+  cleaned = cleaned.replace(/\b(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)\s*[:]\s*/gi, '');
+
+  // 2. Remove repetições redundantes de formato de vinil
+  // "Disco de Vinil LP", "Disco De Vinil LP", "Disco Vinil LP" -> "LP"
+  cleaned = cleaned.replace(/^(?:disco\s+de\s+vinil\s+lp|disco\s+vinil\s+lp)\s*[:-]?\s*/i, 'LP ');
+  // "Vinil LP" -> "LP" (especialmente no Mercado Livre, onde cada caractere conta)
+  cleaned = cleaned.replace(/^vinil\s+lp\s*[:-]?\s*/i, 'LP ');
+  // "Disco de Vinil", "Disco Vinil" sem LP -> "Vinil"
+  cleaned = cleaned.replace(/^(?:disco\s+de\s+vinil|disco\s+vinil)\s*[:-]?\s*/i, 'Vinil ');
+
+  // 3. Remove termos vazios/genéricos de coletânea do início
+  cleaned = cleaned.replace(/^(?:v[áa]rios\s+artistas|various\s+artists|colet[âa]nea)\s*[-–—:]\s*/i, '');
+  cleaned = cleaned.replace(/^(?:v[áa]rios\s+artistas|various\s+artists|colet[âa]nea)\s+/i, '');
+
+  // 4. Encurta avisos de condição no Mercado Livre (onde o limite é 60 caracteres)
+  if (platform === 'mercadolivre') {
+    cleaned = cleaned.replace(/\[\s*apenas\s+disco(?:\/m[íi]dia)?\s*\]/gi, '[SEM CAPA]');
+    cleaned = cleaned.replace(/\[\s*apenas\s+capa(?:\s*\(sem\s+disco\))?\s*\]/gi, '[SEM DISCO]');
+    cleaned = cleaned.replace(/\bapenas\s+disco\s*\(sem\s+capa\)/gi, '[SEM CAPA]');
+    cleaned = cleaned.replace(/\bapenas\s+capa\s*\(sem\s+disco\)/gi, '[SEM DISCO]');
+    cleaned = cleaned.replace(/\[\s*sem\s+disco\s*\]/gi, '[SEM DISCO]');
+    cleaned = cleaned.replace(/\[\s*sem\s+capa\s*\]/gi, '[SEM CAPA]');
+  }
+
+  // 5. Remove colchetes vazios ou duplicados (ex: "[cx01] [cx01]" -> "[cx01]")
+  cleaned = cleaned.replace(/\[\s*\]/g, '');
+  cleaned = cleaned.replace(/(\[[^\]]+\])\s*\1/g, '$1');
+
+  // 6. Normaliza espaços múltiplos
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return cleaned;
+}
+
+/**
+ * Gera ou ajusta um título otimizado e estritamente limpo de redundâncias,
+ * garantindo que a localização esteja no final (se existir) SEM a palavra "LOC:".
+ */
+export function buildOptimizedTitle(params: {
+  artist: string;
+  title: string;
+  formatType?: string;
+  drawer?: string | null;
+  platform: 'mercadolivre' | 'shopee';
+  isOnlySleeve?: boolean;
+  isOnlyMedia?: boolean;
+  isMint?: boolean;
+  year?: string | number | null;
+  customBase?: string;
+}): string {
+  const {
+    artist,
+    title,
+    formatType = 'vinyl_lp',
+    drawer,
+    platform,
+    isOnlySleeve,
+    isOnlyMedia,
+    isMint,
+    year,
+    customBase
+  } = params;
+
+  const locTag = formatLocationTag(drawer); // Ex: " [4]"
+  const isML = platform === 'mercadolivre';
+  const maxLen = isML ? 60 : 115;
+
+  // Prefixo super enxuto por formato (sem redundâncias como "Disco De Vinil LP")
+  let prefix = '';
+  if (formatType === 'cd') prefix = 'CD ';
+  else if (formatType === 'dvd') prefix = 'DVD ';
+  else if (formatType === 'cassette') prefix = isML ? 'K7 ' : 'Fita K7 ';
+  else if (formatType === 'vinyl_single') prefix = isML ? 'Compacto ' : 'Compacto 7" ';
+  else if (formatType === 'vinyl_12_single') prefix = isML ? 'Single ' : 'Single 12" ';
+  else if (formatType === 'vinyl_10') prefix = isML ? 'Vinil 10" ' : 'Vinil 10" ';
+  else prefix = 'LP '; // LP 12" padrão
+
+  // Sufixo de condição super compacto
+  let condSuffix = '';
+  if (isOnlySleeve) {
+    condSuffix = isML ? ' [SEM DISCO]' : ' [APENAS CAPA]';
+  } else if (isOnlyMedia) {
+    condSuffix = isML ? ' [SEM CAPA]' : ' [APENAS DISCO]';
+  } else if (isMint && !isML) {
+    condSuffix = ' NOVO LACRADO';
+  }
+
+  // Base do título
+  let base = '';
+  if (customBase) {
+    base = cleanTitleRedundancies(customBase, platform);
+    // Remove qualquer prefixo já existente para não duplicar
+    base = base.replace(new RegExp(`^${prefix.trim()}\\s*`, 'i'), '').trim();
+    // Remove qualquer tag de loc já existente (colchetes ou solta no fim)
+    base = base.replace(/\s*\[\s*(?:loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
+    base = base.replace(/(?:[-–—]\s*)?\b(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)[\s:.-]*[a-zA-Z0-9_-]+\s*$/gi, '').trim();
+  } else {
+    // Monta base com Artista - Título
+    const cleanArt = (artist || '').trim();
+    const cleanTit = (title || '').trim();
+    const yearStr = (!isML && year) ? ` (${year})` : '';
+
+    const isVA = /^(?:various\s+artists|v[áa]rios\s+artistas|colet[âa]nea)/i.test(cleanArt);
+    if (isVA) {
+      base = `${cleanTit}${yearStr}`.trim();
+    } else if (cleanArt && cleanTit) {
+      base = `${cleanArt} - ${cleanTit}${yearStr}`.trim();
+    } else {
+      base = `${cleanArt || cleanTit}${yearStr}`.trim();
+    }
+  }
+
+  // Limita o tamanho respeitando o prefixo, condição e tag de localização
+  const totalReserved = prefix.length + condSuffix.length + locTag.length;
+  const avail = maxLen - totalReserved;
+
+  if (base.length > avail) {
+    // Trunca de forma inteligente
+    base = base.slice(0, Math.max(8, avail - 3)).trim() + '...';
+  }
+
+  const finalTitle = `${prefix}${base}${condSuffix}${locTag}`.trim();
+  return cleanTitleRedundancies(finalTitle, platform).slice(0, maxLen);
 }
 

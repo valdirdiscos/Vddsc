@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { CustomerOnlineOrder } from '../types';
+import { CorreiosDeclarationModal } from './CorreiosDeclarationModal';
 
 interface OnlineOrdersIntranetTabProps {
   onPrintThermal?: (order: CustomerOnlineOrder) => void;
@@ -32,6 +33,7 @@ export function OnlineOrdersIntranetTab({ onPrintThermal }: OnlineOrdersIntranet
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'aguardando_pagamento' | 'em_separacao' | 'pronto_retirada' | 'enviado' | 'entregue' | 'cancelado'>('all');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [correiosOrder, setCorreiosOrder] = useState<CustomerOnlineOrder | null>(null);
 
   const filteredOrders = allOnlineOrders.filter(order => {
     const matchesSearch = 
@@ -72,41 +74,8 @@ export function OnlineOrdersIntranetTab({ onPrintThermal }: OnlineOrdersIntranet
     });
   };
 
-  const handlePrintCorreiosDeclaration = async (order: CustomerOnlineOrder) => {
-    try {
-      const res = await fetch('/api/shipping/correios/declaracao', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destinatario: {
-            nome: order.customerName,
-            endereco: order.shippingAddress ? `${order.shippingAddress.street}` : '',
-            cidade: order.shippingAddress?.city || '',
-            uf: order.shippingAddress?.state || '',
-            cep: order.shippingAddress?.cep || '',
-            telefone: order.customerPhone || ''
-          },
-          itens: order.items.map(it => ({
-            title: it.title,
-            artist: it.artist,
-            quantity: 1,
-            price: it.price
-          })),
-          orderNumber: order.orderNumber,
-          observacoes: order.notes || ''
-        })
-      });
-      if (res.ok) {
-        const html = await res.text();
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-          printWindow.document.write(html);
-          printWindow.document.close();
-        }
-      }
-    } catch (err) {
-      console.error('Erro ao abrir declaração Correios:', err);
-    }
+  const handlePrintCorreiosDeclaration = (order: CustomerOnlineOrder) => {
+    setCorreiosOrder(order);
   };
 
   return (
@@ -360,6 +329,36 @@ export function OnlineOrdersIntranetTab({ onPrintThermal }: OnlineOrdersIntranet
           })}
         </div>
       )}
+
+      {/* Modal Interativo de Declaração de Conteúdo dos Correios */}
+      <CorreiosDeclarationModal
+        isOpen={!!correiosOrder}
+        onClose={() => setCorreiosOrder(null)}
+        initialOrder={
+          correiosOrder
+            ? {
+                orderNumber: correiosOrder.orderNumber,
+                customerName: correiosOrder.customerName,
+                customerPhone: correiosOrder.customerPhone,
+                shippingAddress: {
+                  street: correiosOrder.shippingAddress?.street,
+                  number: correiosOrder.shippingAddress?.number,
+                  complement: correiosOrder.shippingAddress?.complement,
+                  neighborhood: correiosOrder.shippingAddress?.neighborhood,
+                  city: correiosOrder.shippingAddress?.city,
+                  state: correiosOrder.shippingAddress?.state,
+                  cep: correiosOrder.shippingAddress?.cep,
+                },
+                items: correiosOrder.items.map((it) => ({
+                  title: it.title,
+                  artist: it.artist,
+                  price: it.price,
+                  quantity: 1,
+                })),
+              }
+            : null
+        }
+      />
     </div>
   );
 }

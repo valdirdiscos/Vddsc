@@ -24,7 +24,9 @@ import {
   Gift,
   Sparkles,
   Truck,
-  Store
+  Store,
+  Folder,
+  FileText
 } from 'lucide-react';
 import { SavedListing } from '../types';
 import { GOLDMINE_VINYL_MEDIA, GOLDMINE_VINYL_SLEEVE, OFFICIAL_MARKETPLACE_LINKS } from '../constants';
@@ -70,9 +72,14 @@ export function PublicProductModal({
   const formatInfo = getListingFormatInfo(listing);
   const conditionInfo = getItemConditionInfo(listing);
   const particularities = getAlbumParticularities(listing);
+  
+  // Filter out insert from header/photo badges to prevent duplicate mentions
+  const editionParticularities = particularities.filter(p => p.id !== 'insert_included');
+  const hasInsert = !!(condition?.hasInsert || particularities.some(p => p.id === 'insert_included'));
 
   const mediaCondObj = GOLDMINE_VINYL_MEDIA.find(c => c.code === condition?.mediaCondition);
   const sleeveCondObj = GOLDMINE_VINYL_SLEEVE.find(c => c.code === condition?.sleeveCondition);
+  const insertCondObj = condition?.insertCondition ? GOLDMINE_VINYL_SLEEVE.find(c => c.code === condition.insertCondition) : null;
 
   // Price & Promotion calculations
   const isOutOfStockOrNone = !listing.salesChannels || listing.salesChannels.length === 0 || (listing.salesChannels.length === 1 && listing.salesChannels[0] === 'none');
@@ -144,47 +151,48 @@ export function PublicProductModal({
           className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col"
         >
           {/* Top Bar */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+          <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-slate-50/80">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider ${
+              {/* Format Badge */}
+              <span className={`h-7 px-3 text-xs font-black rounded-lg uppercase tracking-wider inline-flex items-center shadow-2xs ${
                 formatInfo.type === 'cd' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
                 formatInfo.type === 'dvd' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
                 formatInfo.type === 'cassette' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                'bg-amber-500/10 text-amber-800 border border-amber-500/20'
+                'bg-amber-500/10 text-amber-900 border border-amber-500/25'
               }`}>
                 {formatInfo.fullLabel}
               </span>
 
               {/* Novo / Usado Badge */}
-              <span className={`px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider ${
+              <span className={`h-7 px-3 text-xs font-black rounded-lg uppercase tracking-wider inline-flex items-center shadow-2xs ${
                 conditionInfo.isNew
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-slate-200 text-slate-800 border border-slate-300'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-100 text-slate-800 border border-slate-300/80'
               }`}>
                 {conditionInfo.isNew ? '✨ Novo / Lacrado' : condition?.mediaCondition ? `Usado (${condition.mediaCondition})` : 'Usado'}
               </span>
 
               {/* Nativista / Música Gaúcha Badge */}
               {isNativistaGauchoItem(listing) && (
-                <span className="px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider bg-emerald-800 text-white shadow-xs flex items-center gap-1 border border-emerald-600/40">
+                <span className="h-7 px-2.5 text-xs font-black rounded-lg uppercase tracking-wider bg-emerald-800 text-white shadow-2xs inline-flex items-center gap-1 border border-emerald-600/40">
                   <span>🧉</span>
-                  Música Gaúcha (Nativista)
+                  Música Gaúcha
                 </span>
               )}
 
               {/* Exclusivo Loja Online Badge */}
               {isOnlineExclusiveItem(listing) && (
-                <span className="px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-xs flex items-center gap-1 border border-yellow-300">
-                  <Star className="h-3 w-3 fill-slate-950 text-slate-950" />
-                  ⭐ Exclusivo do Site
+                <span className="h-7 px-2.5 text-xs font-black rounded-lg uppercase tracking-wider bg-amber-100 text-amber-950 shadow-2xs inline-flex items-center gap-1 border border-amber-300">
+                  <Star className="h-3 w-3 fill-amber-500 text-amber-600" />
+                  Exclusivo Site
                 </span>
               )}
 
-              {/* Particularities Badges in Modal Header */}
-              {particularities.map((part) => (
+              {/* Genuine Edition Particularities (insert excluded to avoid duplication) */}
+              {editionParticularities.map((part) => (
                 <span
                   key={part.id}
-                  className={`px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider flex items-center gap-1 shadow-xs border ${part.badgeClass}`}
+                  className={`h-7 px-2.5 text-xs font-bold rounded-lg uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs border ${part.badgeClass}`}
                 >
                   <span>{part.icon}</span>
                   <span>{part.label}</span>
@@ -192,7 +200,7 @@ export function PublicProductModal({
               ))}
 
               {listing.barcode && (
-                <span className="text-xs font-mono font-bold text-slate-500 bg-slate-200/60 px-2 py-0.5 rounded">
+                <span className="h-7 px-2.5 text-xs font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200/80 rounded-lg inline-flex items-center shadow-2xs">
                   #{listing.barcode}
                 </span>
               )}
@@ -253,10 +261,10 @@ export function PublicProductModal({
                   {/* Subtle Vinyl Groove Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-40 pointer-events-none" />
 
-                  {/* Badges on Modal Photo */}
-                  {particularities.length > 0 && (
+                  {/* Badges on Modal Photo (excluding insert to prevent duplication) */}
+                  {editionParticularities.length > 0 && (
                     <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5 pointer-events-none z-10">
-                      {particularities.map((part) => (
+                      {editionParticularities.map((part) => (
                         <span
                           key={part.id}
                           className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg border backdrop-blur-xs ${part.badgeClass}`}
@@ -378,8 +386,8 @@ export function PublicProductModal({
                   </div>
                 )}
 
-                {/* Particularidades da Edição (Álbum Duplo, Box Set, Capa Dupla, Edição Especial) */}
-                {particularities.length > 0 && (
+                {/* Particularidades da Edição (Álbum Duplo, Box Set, Capa Dupla, Edição Especial - Encarte filtered to avoid duplication) */}
+                {editionParticularities.length > 0 && (
                   <div className="bg-gradient-to-r from-indigo-50/70 via-purple-50/50 to-amber-50/50 border border-indigo-200/80 rounded-2xl p-4 space-y-2.5 shadow-xs">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
@@ -388,7 +396,7 @@ export function PublicProductModal({
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {particularities.map((part) => (
+                      {editionParticularities.map((part) => (
                         <div
                           key={part.id}
                           className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-indigo-200/60 text-slate-800 shadow-2xs flex items-center gap-2"
@@ -541,54 +549,94 @@ export function PublicProductModal({
                   </div>
                 )}
 
-                {/* Goldmine Condition Card */}
-                <div className="space-y-2">
+                {/* Standardized Goldmine Condition Evaluation Display */}
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                       <Disc className="h-4 w-4 text-amber-700" />
                       Avaliação do Estado de Conservação
                     </span>
-                    <span className={`text-[11px] font-black px-2 py-0.5 rounded ${conditionInfo.badgeClass}`}>
+                    <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-md shadow-2xs ${conditionInfo.badgeClass}`}>
                       {conditionInfo.label}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Standardized Condition Cards Grid */}
+                  <div className={`grid grid-cols-1 ${hasInsert ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
                     {/* Media Condition */}
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          {formatInfo.type === 'cd' ? 'Estado do CD (Mídia):' : formatInfo.type === 'dvd' ? 'Estado do DVD (Mídia):' : formatInfo.type === 'cassette' ? 'Estado da Fita K7:' : 'Estado do Vinil (Mídia):'}
-                        </span>
-                        <span className={`text-xs font-black px-2 py-0.5 rounded ${mediaCondObj?.vibe || 'bg-slate-200 text-slate-800'}`}>
+                    <div className="p-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl flex flex-col justify-between gap-2 shadow-2xs hover:border-slate-300 transition-colors">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Disc className="h-4 w-4 text-amber-700 shrink-0" />
+                          <span className="text-xs font-bold text-slate-800 truncate">
+                            {formatInfo.type === 'cd' ? 'CD (Mídia)' : formatInfo.type === 'dvd' ? 'DVD (Mídia)' : formatInfo.type === 'cassette' ? 'Fita K7' : 'Vinil (Mídia)'}
+                          </span>
+                        </div>
+                        <span className={`text-[11px] font-black px-2 py-0.5 rounded-md font-mono shrink-0 shadow-2xs ${mediaCondObj?.vibe || 'bg-slate-200 text-slate-800'}`}>
                           {condition?.mediaCondition || (conditionInfo.isNew ? 'M' : 'VG+')}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        {condition?.mediaDetails || (conditionInfo.isNew ? 'Item novo, sem qualquer marca de uso.' : mediaCondObj?.description || 'Higienizado profissionalmente e avaliado sob luz forte no padrão Goldmine.')}
+                      <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                        {condition?.mediaDetails || (conditionInfo.isNew ? 'Item novo, sem qualquer marca de uso.' : mediaCondObj?.description || 'Higienizado profissionalmente sob luz forte no padrão Goldmine.')}
                       </p>
                     </div>
 
-                    {/* Sleeve Condition */}
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-slate-500 font-medium">Estado da Capa / Encarte:</span>
-                        <span className={`text-xs font-black px-2 py-0.5 rounded ${sleeveCondObj?.vibe || 'bg-slate-200 text-slate-800'}`}>
+                    {/* Sleeve Condition (Capa strictly separated from Encarte) */}
+                    <div className="p-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl flex flex-col justify-between gap-2 shadow-2xs hover:border-slate-300 transition-colors">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Folder className="h-4 w-4 text-amber-700 shrink-0" />
+                          <span className="text-xs font-bold text-slate-800 truncate">
+                            Capa Original
+                          </span>
+                        </div>
+                        <span className={`text-[11px] font-black px-2 py-0.5 rounded-md font-mono shrink-0 shadow-2xs ${sleeveCondObj?.vibe || 'bg-slate-200 text-slate-800'}`}>
                           {condition?.sleeveCondition || (conditionInfo.isNew ? 'M' : 'VG+')}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 leading-snug">
+                      <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                         {condition?.sleeveDetails || (conditionInfo.isNew ? 'Capa perfeita, lacre original ou impecável.' : sleeveCondObj?.description || 'Capa íntegra em ótimo estado de conservação.')}
                       </p>
                     </div>
+
+                    {/* Insert Condition (Standardized alongside Media and Sleeve) */}
+                    {hasInsert && (
+                      <div className="p-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl flex flex-col justify-between gap-2 shadow-2xs hover:border-slate-300 transition-colors">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <FileText className="h-4 w-4 text-emerald-700 shrink-0" />
+                            <span className="text-xs font-bold text-slate-800 truncate">
+                              Encarte Original
+                            </span>
+                          </div>
+                          <span className={`text-[11px] font-black px-2 py-0.5 rounded-md shrink-0 shadow-2xs ${
+                            insertCondObj?.vibe || 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-mono'
+                          }`}>
+                            {condition?.insertCondition || 'Incluso'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                          {condition?.insertDetails || 'Encarte original completo com letras, ficha técnica ou fotos de época.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  {condition?.hasInsert && (
-                    <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-medium flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      <span><strong>Acompanha Encarte Original:</strong> {condition.insertDetails || 'Encarte completo incluso.'}</span>
-                    </div>
-                  )}
+                  {/* Standardized Quality & Care Banner */}
+                  <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      Higienização profissional profunda
+                    </span>
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                      Plásticos protetores novos inclusos
+                    </span>
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Package className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      Embalagem blindada com papelão duplo
+                    </span>
+                  </div>
                 </div>
 
                 {/* Tracklist Section if available */}

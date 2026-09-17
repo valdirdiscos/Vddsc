@@ -31,7 +31,17 @@ import {
   Download
 } from 'lucide-react';
 import { DiscogsRelease, ConditionSelection, PricingConfig, ShopeeListing, MercadoLivreListing } from '../types';
-import { isVariousArtistsAlbum, formatTrackWithArtist, getListingFormatInfo, detectReleaseParticularities, buildMercadoLivreOrderTxt } from '../utils/formatHelper';
+import { 
+  isVariousArtistsAlbum, 
+  formatTrackWithArtist, 
+  getListingFormatInfo, 
+  detectReleaseParticularities, 
+  buildMercadoLivreOrderTxt,
+  cleanLocationCode,
+  formatLocationTag,
+  cleanTitleRedundancies,
+  buildOptimizedTitle
+} from '../utils/formatHelper';
 
 interface DiscDescriptionEditorProps {
   release: DiscogsRelease | null;
@@ -109,10 +119,9 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
     : (mercadoLivreListing?.description || '');
 
   // Strip redundant 'loc:', 'loc -', 'loc ' prefixes and brackets so only clean location remains (e.g. '4', 'A1')
-  const rawLoc = drawer ? drawer.trim() : '';
-  const locClean = rawLoc.replace(/^\[?loc[\s:-]*/i, '').replace(/\]$/, '').trim();
+  const locClean = cleanLocationCode(drawer);
   // Location tag: compact [4] instead of wasteful [Loc: 4], saving 6 characters
-  const locTag = locClean ? ` [${locClean}]` : '';
+  const locTag = formatLocationTag(locClean);
 
   // Check if current title has location (clean or legacy)
   const hasLocationInTitle = Boolean(
@@ -120,7 +129,9 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
       currentTitle.toLowerCase().includes(`[${locClean.toLowerCase()}]`) ||
       currentTitle.toLowerCase().includes(`[loc: ${locClean.toLowerCase()}]`) ||
       currentTitle.toLowerCase().includes(`[loc:${locClean.toLowerCase()}]`) ||
-      currentTitle.toLowerCase().includes(`[loc ${locClean.toLowerCase()}]`)
+      currentTitle.toLowerCase().includes(`[loc ${locClean.toLowerCase()}]`) ||
+      currentTitle.toLowerCase().includes(`loc: ${locClean.toLowerCase()}`) ||
+      new RegExp(`(?:[-–—]\\s*)?(?:\\[\\s*)?(?:loc(?:aliza[çc][ãa]o)?|gav(?:eta)?|local)?[\\s:.-]*${locClean.toLowerCase().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}(?:\\s*\\])?|\\b${locClean.toLowerCase().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i').test(currentTitle)
     )
   );
 
@@ -189,69 +200,64 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
     handleTextChange(newText);
   };
 
-  // Generate optimized title based on platform limits - ALWAYS PRESERVE LOCATION
+  // Generate optimized title based on platform limits - ALWAYS PRESERVE LOCATION WITHOUT REDUNDANCIES
   const handleAutoFormatTitle = () => {
     if (!release) return;
 
-    const yearTag = release.year ? ` (${release.year})` : '';
-
     if (activePlatformTab === 'shopee') {
-      // Shopee allows up to 120 chars - include format, artist, title, year, loc
-      let formatted = `Disco Vinil LP ${release.artist} - ${release.title}${yearTag}${locTag}`;
-      if (condition.mediaCondition === 'SEM_DISCO') {
-        formatted = `[APENAS CAPA] ${release.artist} - ${release.title}${locTag}`;
-      } else if (condition.sleeveCondition === 'SEM_CAPA') {
-        formatted = `[APENAS DISCO/MÍDIA] ${release.artist} - ${release.title}${locTag}`;
-      }
-      onChangeShopeeTitle(formatted.slice(0, 120));
+      const formatted = buildOptimizedTitle({
+        artist: release.artist,
+        title: release.title,
+        year: release.year,
+        drawer: locClean,
+        platform: 'shopee',
+        isOnlySleeve: condition.mediaCondition === 'SEM_DISCO',
+        isOnlyMedia: condition.sleeveCondition === 'SEM_CAPA',
+        isMint: condition.mediaCondition === 'M',
+      });
+      onChangeShopeeTitle(formatted);
     } else {
-      // Mercado Livre strict 60 chars - STRICT GUARANTEE OF LOCATION
-      let base = `${release.artist} - ${release.title}`;
-      let prefix = 'Vinil LP ';
-      if (condition.mediaCondition === 'SEM_DISCO') {
-        base = `[APENAS CAPA] ${release.artist} - ${release.title}`;
-        prefix = '';
-      } else if (condition.sleeveCondition === 'SEM_CAPA') {
-        base = `[APENAS DISCO] ${release.artist} - ${release.title}`;
-        prefix = '';
-      }
-      const maxMlLen = 60;
-      const avail = maxMlLen - prefix.length - locTag.length;
-      if (base.length > avail) {
-        base = base.slice(0, Math.max(10, avail - 3)).trim() + '...';
-      }
-      const formatted = `${prefix}${base}${locTag}`.trim();
-      onChangeMlTitle(formatted.slice(0, 60));
+      const formatted = buildOptimizedTitle({
+        artist: release.artist,
+        title: release.title,
+        year: release.year,
+        drawer: locClean,
+        platform: 'mercadolivre',
+        isOnlySleeve: condition.mediaCondition === 'SEM_DISCO',
+        isOnlyMedia: condition.sleeveCondition === 'SEM_CAPA',
+      });
+      onChangeMlTitle(formatted);
     }
   };
 
-  // Dedicated one-click action to guarantee location in title without truncating location
+  // Dedicated one-click action to guarantee location in title without truncating location or redundant "Loc:"
   const handleEnsureLocationInTitle = () => {
     if (!locClean) return;
 
     if (activePlatformTab === 'mercadolivre') {
-      let base = (mercadoLivreListing?.title || currentTitle || '').replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
-      if (!base && release) {
-        base = `Vinil LP ${release.artist} - ${release.title}`.trim();
-      }
-      const maxMlLen = 60;
-      const avail = maxMlLen - locTag.length;
-      if (base.length > avail) {
-        base = base.slice(0, Math.max(10, avail - 3)).trim() + '...';
-      }
-      const fixedTitle = `${base}${locTag}`.slice(0, 60);
+      const current = (mercadoLivreListing?.title || currentTitle || '').trim();
+      const fixedTitle = buildOptimizedTitle({
+        artist: release?.artist || '',
+        title: release?.title || '',
+        drawer: locClean,
+        platform: 'mercadolivre',
+        customBase: current || undefined,
+        isOnlySleeve: condition.mediaCondition === 'SEM_DISCO',
+        isOnlyMedia: condition.sleeveCondition === 'SEM_CAPA',
+      });
       onChangeMlTitle(fixedTitle);
     } else {
-      let base = (shopeeListing?.title || currentTitle || '').replace(/\s*\[\s*(?:Loc:?\s*)?[^\]]+\]\s*$/gi, '').trim();
-      if (!base && release) {
-        base = `Disco De Vinil LP ${release.artist} - ${release.title}`.trim();
-      }
-      const maxShLen = 120;
-      const avail = maxShLen - locTag.length;
-      if (base.length > avail) {
-        base = base.slice(0, Math.max(10, avail - 3)).trim() + '...';
-      }
-      const fixedTitle = `${base}${locTag}`.slice(0, 120);
+      const current = (shopeeListing?.title || currentTitle || '').trim();
+      const fixedTitle = buildOptimizedTitle({
+        artist: release?.artist || '',
+        title: release?.title || '',
+        drawer: locClean,
+        platform: 'shopee',
+        customBase: current || undefined,
+        isOnlySleeve: condition.mediaCondition === 'SEM_DISCO',
+        isOnlyMedia: condition.sleeveCondition === 'SEM_CAPA',
+        isMint: condition.mediaCondition === 'M',
+      });
       onChangeShopeeTitle(fixedTitle);
     }
   };
@@ -264,7 +270,7 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
 
     // Location line without redundant 'Loc:'
     if (locClean) {
-      lines.push(`📍 **Localização no Acervo:** [${locClean}]`);
+      lines.push(`📍 [${locClean}]`);
     }
 
     // High warning if item is sleeve only or media only
@@ -655,6 +661,7 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
                     type="text"
                     value={drawer}
                     onChange={(e) => onDrawerChange(e.target.value)}
+                    onBlur={() => onDrawerChange(cleanLocationCode(drawer))}
                     placeholder="Ex: 4 ou A1"
                     className="w-32 sm:w-36 px-2.5 py-1.5 text-xs font-bold font-mono bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                     title="Editar localização física do disco (ex: 4)"
@@ -1322,6 +1329,7 @@ export const DiscDescriptionEditor: React.FC<DiscDescriptionEditorProps> = ({
                     type="text"
                     value={drawer}
                     onChange={(e) => onDrawerChange(e.target.value)}
+                    onBlur={() => onDrawerChange(cleanLocationCode(drawer))}
                     placeholder="Ex: 4 ou A1"
                     className="w-32 sm:w-36 px-2.5 py-1.5 text-xs font-bold font-mono bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                     title="Editar localização física do disco (ex: 4)"

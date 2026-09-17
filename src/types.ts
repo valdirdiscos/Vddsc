@@ -44,6 +44,8 @@ export interface ConditionSelection {
   hasInsert?: boolean;     // For vinyl/LPs: has insert (encarte)?
   insertCondition?: string;// insert condition code e.g. 'NM', 'VG+', 'VG', 'G+'
   insertDetails?: string;  // insert details text
+  isOnlySleeve?: boolean;  // apenas capa (sem o disco de vinil)
+  isOnlyMedia?: boolean;   // apenas disco (sem a capa)
 }
 
 export interface PricingConfig {

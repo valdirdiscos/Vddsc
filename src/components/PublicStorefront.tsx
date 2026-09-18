@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Disc, 
@@ -43,7 +43,9 @@ import {
   LayoutGrid,
   Grid3X3,
   List,
-  Table
+  Table,
+  BookOpen,
+  Tv
 } from 'lucide-react';
 import { SavedListing, DJPlaylist, TShirtProduct, TShirtSize, TShirtModel, TShirtColor, AudioFormat, DigitalAlbumProduct } from '../types';
 import { OFFICIAL_MARKETPLACE_LINKS } from '../constants';
@@ -62,7 +64,7 @@ import { InstallPwaBanner } from './InstallPwaBanner';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { useLogos } from '../hooks/useLogos';
 import { LOGO_BADGE, LOGO_COLOR, LOGO_BW } from '../assets/logos';
-import { getListingFormatInfo, getItemConditionInfo, isNativistaGauchoItem, getNativistaInfo, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities } from '../utils/formatHelper';
+import { getListingFormatInfo, getItemConditionInfo, isNativistaGauchoItem, getNativistaInfo, isNovelaItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities } from '../utils/formatHelper';
 import { StoreViewMode, getSavedStoreViewMode, saveStoreViewMode } from '../utils/cookieStorage';
 
 interface PublicStorefrontProps {
@@ -106,6 +108,9 @@ export function PublicStorefront({
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
+  const [artistBioData, setArtistBioData] = useState<{ bio: string | null; realname?: string | null; profileImage?: string | null } | null>(null);
+  const [loadingBio, setLoadingBio] = useState(false);
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
   const [selectedFormat, setSelectedFormat] = useState<string>('vinyl');
   const [selectedCondition, setSelectedCondition] = useState<string>('all');
@@ -135,6 +140,46 @@ export function PublicStorefront({
       localStorage.setItem('valdir_public_cart_v1', JSON.stringify(newCart));
     } catch {}
   };
+
+  // Fetch Artist Bio (Discogs Style) when an artist is selected
+  useEffect(() => {
+    if (!selectedArtist || /various|v[áa]rios|colet[âa]nea/i.test(selectedArtist)) {
+      setArtistBioData(null);
+      setLoadingBio(false);
+      return;
+    }
+
+    let isMounted = true;
+    setLoadingBio(true);
+    setArtistBioData(null);
+
+    fetch(`/api/artist-bio?artist=${encodeURIComponent(selectedArtist.trim())}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted) {
+          if (data && data.success && data.bio) {
+            setArtistBioData({
+              bio: data.bio,
+              realname: data.realname || null,
+              profileImage: data.profileImage || null
+            });
+          } else {
+            setArtistBioData(null);
+          }
+          setLoadingBio(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setArtistBioData(null);
+          setLoadingBio(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedArtist]);
 
   const handleAddToCart = (listing: SavedListing) => {
     const existingIndex = cart.findIndex(item => item.listing && item.listing.id === listing.id);
@@ -266,6 +311,25 @@ export function PublicStorefront({
         return false;
       }
 
+      // 4. Filtro por Artista Selecionado (Página Particular do Artista)
+      if (selectedArtist) {
+        const targetArtist = selectedArtist.trim().toLowerCase();
+        const mainArtist = (item.release.artist || '').trim().toLowerCase();
+        
+        // Verifica se é o artista principal
+        const isMain = mainArtist === targetArtist || mainArtist.includes(targetArtist) || targetArtist.includes(mainArtist);
+        
+        // Se for coletânea/VA ou participação, verifica também a lista de faixas
+        const hasInTracks = (item.release.tracklist || []).some(t => {
+          const tArtist = (t.artist || '').trim().toLowerCase();
+          return tArtist && (tArtist === targetArtist || tArtist.includes(targetArtist) || targetArtist.includes(tArtist));
+        });
+
+        if (!isMain && !hasInTracks) {
+          return false;
+        }
+      }
+
       // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -299,6 +363,8 @@ export function PublicStorefront({
           if (!item.isLote) return false;
         } else if (selectedGenre === 'nativista') {
           if (!isNativistaGauchoItem(item)) return false;
+        } else if (selectedGenre === 'novela') {
+          if (!isNovelaItem(item)) return false;
         } else {
           // Check matching against MAJOR_GENRE_GROUPS or legacy/custom IDs
           const matched = matchMajorGenre(item.release.genres, item.release.styles, selectedGenre);
@@ -403,10 +469,11 @@ export function PublicStorefront({
       if (sortBy === 'artist_asc') return (a.release.artist || '').localeCompare(b.release.artist || '');
       return (b.createdAt || '').localeCompare(a.createdAt || '');
     });
-  }, [listings, searchQuery, selectedGenre, selectedFormat, selectedCondition, conditionCategory, particularityFilter, sortBy, availabilityFilter, activeMainTab]);
+  }, [listings, searchQuery, selectedArtist, selectedGenre, selectedFormat, selectedCondition, conditionCategory, particularityFilter, sortBy, availabilityFilter, activeMainTab]);
 
   const genresPills = [
     { id: 'all', label: '🔥 Todo o Acervo' },
+    { id: 'novela', label: '📺 Trilhas de Novela' },
     { id: 'nativista', label: '🧉 Música Gaúcha (RS)' },
     { id: 'promocoes', label: '🏷️ Promoções (% OFF)' },
     { id: 'lotes', label: '📦 Lotes (4 Discos)' },
@@ -1181,6 +1248,68 @@ export function PublicStorefront({
           </div>
         ) : (
           <>
+            {/* Active Artist Filter Banner (Página do Artista no Acervo - Padrão Discogs) */}
+            {selectedArtist && (
+              <div className="bg-gradient-to-r from-amber-950 via-[#26170c] to-slate-950 text-white rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-md border border-amber-800/40 relative overflow-hidden">
+                <div className="absolute right-0 top-0 bottom-0 w-72 opacity-10 flex items-center justify-center pointer-events-none">
+                  <Disc className="w-64 h-64 text-amber-300" />
+                </div>
+                
+                <div className="relative z-10 flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5" />
+                          Perfil do Artista
+                        </span>
+                        <span className="text-amber-200/80 text-xs font-semibold bg-black/30 px-2.5 py-0.5 rounded-md border border-white/10">
+                          {filteredListings.length} {filteredListings.length === 1 ? 'título em estoque' : 'títulos em estoque'}
+                        </span>
+                      </div>
+                      
+                      <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-amber-100">
+                        {selectedArtist}
+                      </h2>
+                      {artistBioData?.realname && (
+                        <p className="text-xs text-amber-300/80 font-medium">
+                          Nome de registro: {artistBioData.realname}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedArtist(null)}
+                      className="self-start sm:self-center px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white border border-white/20 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 shadow-xs"
+                      title="Ver todo o acervo da loja"
+                    >
+                      <X className="h-4 w-4 text-amber-400" />
+                      <span>Ver Todo o Acervo</span>
+                    </button>
+                  </div>
+
+                  {/* Discogs-Style Biography Section (Exibida SOMENTE se houver biografia real) */}
+                  {loadingBio ? (
+                    <div className="pt-2 border-t border-white/10 flex items-center gap-2 text-xs text-amber-200/70">
+                      <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Consultando dados e perfil do artista...</span>
+                    </div>
+                  ) : artistBioData?.bio ? (
+                    <div className="pt-3 border-t border-white/15 space-y-2 max-w-4xl bg-black/20 p-3.5 sm:p-4 rounded-xl border border-amber-500/20 backdrop-blur-xs">
+                      <div className="flex items-center gap-2 text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                        <BookOpen className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Biografia & Trajetória (Discogs Profile)</span>
+                      </div>
+                      <p className="text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-line font-normal">
+                        {artistBioData.bio}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
             {/* Filter and Sorting Toolbar - Limpo, Direto e Focado no Produto */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1373,6 +1502,7 @@ export function PublicStorefront({
                   type="button"
                   onClick={() => {
                     setSearchQuery('');
+                    setSelectedArtist(null);
                     setSelectedGenre('all');
                     setConditionCategory('all');
                     setParticularityFilter('all');
@@ -1451,7 +1581,17 @@ export function PublicStorefront({
                             <td className="py-2.5 px-3">
                               <div className="font-bold text-slate-900 line-clamp-1">{release.title}</div>
                               <div className="text-[11px] text-amber-800 font-semibold line-clamp-1 flex items-center gap-1.5">
-                                <span>{release.artist}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedArtist(release.artist);
+                                  }}
+                                  className="hover:underline hover:text-amber-950 transition-colors cursor-pointer text-left font-bold"
+                                  title={`Ver página do artista ${release.artist}`}
+                                >
+                                  {release.artist}
+                                </button>
                                 {release.year && <span className="text-slate-400 font-normal font-mono text-[10px]">({release.year})</span>}
                                 {isNativista && (
                                   <span className="px-1 py-0.2 rounded text-[8px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
@@ -1621,9 +1761,19 @@ export function PublicStorefront({
                               <span className="text-xs text-slate-400 font-mono">({release.year})</span>
                             )}
                           </div>
-                          <p className="text-xs font-bold text-amber-800 truncate">
-                            {release.artist}
-                          </p>
+                          <div className="flex items-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedArtist(release.artist);
+                              }}
+                              className="text-xs font-bold text-amber-800 hover:text-amber-950 hover:underline transition-colors truncate cursor-pointer text-left"
+                              title={`Ver página do artista ${release.artist}`}
+                            >
+                              {release.artist}
+                            </button>
+                          </div>
                           <p className="text-[11px] text-slate-500 truncate">
                             {release.label || 'Nacional'} {release.country ? `• ${release.country}` : ''}
                           </p>
@@ -1885,11 +2035,21 @@ export function PublicStorefront({
                           }`}>
                             {release.title}
                           </h4>
-                          <p className={`font-bold text-amber-800 truncate ${
-                            storeViewMode === 'compact' ? 'text-[10px]' : 'text-[11px]'
-                          }`}>
-                            {release.artist}
-                          </p>
+                          <div className="flex items-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedArtist(release.artist);
+                              }}
+                              className={`font-bold text-amber-800 hover:text-amber-950 hover:underline truncate cursor-pointer text-left ${
+                                storeViewMode === 'compact' ? 'text-[10px]' : 'text-[11px]'
+                              }`}
+                              title={`Ver página do artista ${release.artist}`}
+                            >
+                              {release.artist}
+                            </button>
+                          </div>
                           <p className="text-[10px] text-slate-500 truncate">
                             {release.label || 'Nacional'} {release.year ? `• ${release.year}` : ''}
                           </p>
@@ -2177,6 +2337,11 @@ export function PublicStorefront({
         onOpenAuthModal={() => {
           setAuthModalTab('login');
           setIsAuthModalOpen(true);
+        }}
+        onSelectArtist={(artistName) => {
+          setSelectedArtist(artistName);
+          // Rola suavemente até o topo da vitrine para ver os álbuns do artista
+          window.scrollTo({ top: 400, behavior: 'smooth' });
         }}
       />
 

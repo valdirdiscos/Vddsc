@@ -38,34 +38,43 @@ function getGeminiClient(): GoogleGenAI {
 }
 
 async function generateContentWithFallback(ai: GoogleGenAI, params: any): Promise<any> {
-  // Ultra-fast responsive models (gemini-2.5-flash and gemini-3.1-flash-lite)
-  let requestedModel = params.model || "gemini-2.5-flash";
+  // Use gemini-3.8-flash as the primary, most reliable and high-capacity model per official @google/genai guidelines
+  let requestedModel = params.model || "gemini-3.8-flash";
   if (
-    requestedModel === "gemini-flash-latest" || 
-    requestedModel === "gemini-3.5-flash" || 
-    requestedModel === "gemini-3.8-flash" ||
     requestedModel.includes("1.5") ||
-    requestedModel.includes("2.0")
+    requestedModel.includes("2.0") ||
+    requestedModel === "gemini-pro"
   ) {
-    requestedModel = "gemini-2.5-flash";
+    requestedModel = "gemini-3.8-flash";
   }
-  
-  // Cleanly list active, supported modern Gemini models in order of speed and stability
-  const modelsToTry = [
-    requestedModel,
+
+  // Model chain: prioritize robust, high-availability models first, leaving high-demand lite models as last resort
+  const baseOrder = [
+    "gemini-3.8-flash",
+    "gemini-flash-latest",
     "gemini-2.5-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-flash-latest"
-  ].filter((model, idx, self) => self.indexOf(model) === idx);
-  
+    "gemini-3.1-flash-lite"
+  ];
+
+  // If a specific valid model other than the congested 3.1-flash-lite was requested, prioritize it
+  const modelsToTry: string[] = [];
+  if (requestedModel && requestedModel !== "gemini-3.1-flash-lite") {
+    modelsToTry.push(requestedModel);
+  }
+  for (const m of baseOrder) {
+    if (!modelsToTry.includes(m)) {
+      modelsToTry.push(m);
+    }
+  }
+
   let lastError: any = null;
-  
-  // Inject thinkingConfig: { thinkingBudget: 0 } to prevent 15-20s thinking lag on flash models
+
+  // Clean config with optional zero thinking budget for minimal latency
   const optimizedConfig = {
     ...(params.config || {}),
     thinkingConfig: params.config?.thinkingConfig || { thinkingBudget: 0 }
   };
-  
+
   for (const model of modelsToTry) {
     try {
       console.log(`Calling Gemini API using model ${model}...`);
@@ -77,11 +86,11 @@ async function generateContentWithFallback(ai: GoogleGenAI, params: any): Promis
       return response;
     } catch (error: any) {
       lastError = error;
-      console.warn(`Gemini call failed with model ${model}:`, error?.message || error);
-      
       const errMsg = (error?.message || "").toLowerCase();
       const errStatus = error?.status || error?.statusCode || error?.code || (error?.error && (error?.error?.code || error?.error?.status));
-      
+
+      console.warn(`Gemini call with model ${model} did not succeed (status ${errStatus}): ${error?.message || error}`);
+
       // Stop immediately on absolute terminal errors (authentication or safety blocks)
       const isTerminalError = 
         errStatus === 401 || 
@@ -93,16 +102,31 @@ async function generateContentWithFallback(ai: GoogleGenAI, params: any): Promis
         errMsg.includes("blocked") ||
         errMsg.includes("unauthorized") ||
         errMsg.includes("invalid key");
-        
+
       if (isTerminalError) {
         throw error;
       }
-      
-      // Otherwise immediately fall through to the next model in modelsToTry without waiting
+
+      // If temporary 503 high demand or 429 rate limit, pause briefly before next model failover
+      const isTransientOverload = 
+        errStatus === 503 || 
+        errStatus === "503" || 
+        errStatus === 429 || 
+        errStatus === "429" ||
+        errMsg.includes("503") ||
+        errMsg.includes("high demand") || 
+        errMsg.includes("unavailable");
+
+      if (isTransientOverload) {
+        console.warn(`Model ${model} is experiencing temporary high demand/overload. Seamlessly failing over to next model in pool...`);
+        await new Promise(r => setTimeout(r, 250));
+      }
+
+      // Immediately continue to next model in modelsToTry
       continue;
     }
   }
-  
+
   throw lastError;
 }
 
@@ -204,7 +228,7 @@ DIRETRIZES DE RECOMENDAÇÃO:
       });
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-3.1-flash-lite",
+        model: "gemini-3.8-flash",
         contents,
         config: {
           systemInstruction,
@@ -252,6 +276,107 @@ DIRETRIZES DE RECOMENDAÇÃO:
       }
 
       return res.json({ success: true, reply });
+    }
+  });
+
+  // Artist Bio Endpoint (Discogs-style profile with optional biography)
+  app.get("/api/artist-bio", async (req, res) => {
+    const artistName = (req.query.artist as string || "").trim();
+    if (!artistName || /various|v[áa]rios|colet[âa]nea/i.test(artistName)) {
+      return res.json({ success: true, artist: artistName, bio: null });
+    }
+
+    try {
+      // 1. Try Discogs API first if token or public search
+      try {
+        const searchUrl = `https://api.discogs.com/database/search?q=${encodeURIComponent(artistName)}&type=artist`;
+        const discogsSearchRes = await fetch(searchUrl, {
+          headers: {
+            'User-Agent': 'ValdirDiscosShopeeExtractor/2.0 (+https://valdirdiscos.com; contact@valdirdiscos.com)',
+            'Accept': 'application/json',
+            ...(process.env.DISCOGS_TOKEN ? { 'Authorization': `Discogs token=${process.env.DISCOGS_TOKEN}` } : {})
+          },
+          signal: AbortSignal.timeout(3500)
+        });
+
+        if (discogsSearchRes.ok) {
+          const searchJson: any = await discogsSearchRes.json();
+          const firstResult = searchJson.results?.[0];
+          if (firstResult && firstResult.id) {
+            const artistDetailRes = await fetch(`https://api.discogs.com/artists/${firstResult.id}`, {
+              headers: {
+                'User-Agent': 'ValdirDiscosShopeeExtractor/2.0 (+https://valdirdiscos.com; contact@valdirdiscos.com)',
+                'Accept': 'application/json',
+                ...(process.env.DISCOGS_TOKEN ? { 'Authorization': `Discogs token=${process.env.DISCOGS_TOKEN}` } : {})
+              },
+              signal: AbortSignal.timeout(3500)
+            });
+
+            if (artistDetailRes.ok) {
+              const artistDetail: any = await artistDetailRes.json();
+              let profile = (artistDetail.profile || "").trim();
+              if (profile) {
+                // Strip Discogs bbcode tags like [a=Raul Seixas], [b], [i], [l=Selo]
+                profile = profile
+                  .replace(/\[[abi]=([^\]]+)\]/g, '$1')
+                  .replace(/\[\/?(b|i|u|url|quote)\]/g, '')
+                  .replace(/\[l=[^\]]+\]/g, '')
+                  .replace(/\[m=\d+\]/g, '')
+                  .replace(/\[r=\d+\]/g, '');
+                
+                return res.json({
+                  success: true,
+                  artist: artistName,
+                  bio: profile,
+                  realname: artistDetail.realname || null,
+                  profileImage: artistDetail.images?.[0]?.resource_url || artistDetail.images?.[0]?.uri || null,
+                  source: 'discogs'
+                });
+              }
+            }
+          }
+        }
+      } catch (discogsErr: any) {
+        // Fallback gracefully to Gemini if Discogs API is slow or unavailable
+      }
+
+      // 2. Fallback to Gemini for clean factual music bio (Discogs profile style)
+      try {
+        const ai = getGeminiClient();
+        const bioPrompt = `Escreva uma biografia factual, concisa e de referência (no estilo perfil do Discogs / AllMusic) em português para o artista/banda de música: "${artistName}".
+Foque estritamente em: local e ano de surgimento/atividade, principais gêneros e legado musical.
+Máximo de 2 parágrafos curtos e objetivos (máximo 80-110 palavras no total). Não invente dados.
+Se você não tiver certeza de quem é o artista ou se for um nome genérico sem biografia real conhecida, retorne estritamente: NÃO_ENCONTRADO.
+NÃO use cabeçalhos, títulos ou markdown complexo.`;
+
+        const aiResponse = await Promise.race([
+          generateContentWithFallback(ai, {
+            model: "gemini-3.8-flash",
+            contents: bioPrompt,
+            config: {
+              thinkingConfig: { thinkingBudget: 0 }
+            }
+          }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timeout bio IA")), 5000))
+        ]);
+
+        const bioText = (aiResponse.text || "").trim();
+        if (bioText && !bioText.includes("NÃO_ENCONTRADO") && !bioText.includes("NAO_ENCONTRADO") && bioText.length > 25) {
+          return res.json({
+            success: true,
+            artist: artistName,
+            bio: bioText,
+            source: 'music_database'
+          });
+        }
+      } catch (geminiBioErr) {
+        // Bio remains null if unavailable
+      }
+
+      // Caso não tenha bio, retorna null conforme solicitado
+      return res.json({ success: true, artist: artistName, bio: null });
+    } catch (err: any) {
+      return res.json({ success: true, artist: artistName, bio: null });
     }
   });
 
@@ -415,7 +540,11 @@ function getImportTag(country?: string): string {
     const isCdDvd = formatLabel === "CD" || formatLabel === "DVD";
     const isMint = condition.mediaCondition === 'M';
 
-    const artistName = release.artist || "Artista Desconhecido";
+    let rawArtistName = release.artist || "Artista Desconhecido";
+    if (/various\s+artists|v[áa]rios\s+artistas/i.test(rawArtistName)) {
+      rawArtistName = "VA";
+    }
+    const artistName = rawArtistName;
     const albumTitle = release.title || "Álbum Desconhecido";
     const releaseYear = release.year || "N/A";
     const labelName = release.label || "N/A";
@@ -701,7 +830,7 @@ Se for uma coletânea (Various Artists / Vários Artistas), você DEVE obrigator
 
             const aiResponse = await Promise.race([
               generateContentWithFallback(ai, {
-                model: "gemini-2.5-flash",
+                model: "gemini-3.8-flash",
                 contents: aiPrompt,
                 config: {
                   responseMimeType: "application/json",
@@ -709,7 +838,7 @@ Se for uma coletânea (Various Artists / Vários Artistas), você DEVE obrigator
                 }
               }),
               new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("Timeout IA")), 6000)
+                setTimeout(() => reject(new Error("Timeout IA")), 12000)
               )
             ]);
 
@@ -795,7 +924,7 @@ Para cada uma das faixas acima, identifique com precisão o ARTISTA OU BANDA ori
 Retorne um array JSON com a lista completa das faixas contendo os campos: position, title, artist.`;
 
             const aiRes = await generateContentWithFallback(ai, {
-              model: "gemini-3.1-flash-lite",
+              model: "gemini-3.8-flash",
               contents: aiPrompt,
               config: {
                 responseMimeType: "application/json",
@@ -875,7 +1004,7 @@ Gravadora original e número de catálogo devem ser os reais deste álbum cláss
 
           const response = await Promise.race([
             generateContentWithFallback(ai, {
-              model: "gemini-2.5-flash",
+              model: "gemini-3.8-flash",
               contents: prompt,
               config: {
                 responseMimeType: "application/json",
@@ -883,7 +1012,7 @@ Gravadora original e número de catálogo devem ser os reais deste álbum cláss
               }
             }),
             new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error("Timeout IA")), 6000)
+              setTimeout(() => reject(new Error("Timeout IA")), 12000)
             )
           ]);
 
@@ -1079,7 +1208,7 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
 
       const response = await Promise.race([
         generateContentWithFallback(ai, {
-          model: "gemini-2.5-flash",
+          model: "gemini-3.8-flash",
           contents: prompt + "\n\nRetorne estritamente o JSON com as chaves: titleShopee, titleMl, description, suggestedPrice, hashtags.",
           config: {
             responseMimeType: "application/json",
@@ -1087,7 +1216,7 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
           }
         }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Timeout IA")), 6000)
+          setTimeout(() => reject(new Error("Timeout IA")), 12000)
         )
       ]);
 
@@ -1306,7 +1435,7 @@ Retorne um JSON contendo a lista completa de faixas enriquecida com os seguintes
 - duration: duração estimada ou original (MM:SS)`;
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-3.1-flash-lite",
+        model: "gemini-3.8-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -1426,7 +1555,7 @@ Retorne os dados estritamente em formato JSON estruturado conforme o schema.`
       };
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-3.1-flash-lite",
+        model: "gemini-3.8-flash",
         contents: { parts: [imagePart, promptText] },
         config: {
           responseMimeType: "application/json",
@@ -2173,7 +2302,7 @@ DIRETRIZES DE RESPOSTA:
 Gere apenas o texto final da resposta, sem introduções ou aspas extras.`;
 
       const response = await generateContentWithFallback(ai, {
-        model: "gemini-3.1-flash-lite",
+        model: "gemini-3.8-flash",
         contents: prompt
       });
 

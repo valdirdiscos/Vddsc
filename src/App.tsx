@@ -538,6 +538,9 @@ export default function App() {
           // Backward compatibility: Auto-enrich any existing listings with format particularities
           for (let i = 0; i < uniqueListings.length; i++) {
             const it = uniqueListings[i];
+            const isGenericVa = it.specialEditionDetails && /colet[aâ]nea|v[aá]rios\s+artistas|various\s+artists|\bv\.?a\.?\b/i.test(it.specialEditionDetails);
+            const sanitizedDetails = isGenericVa ? undefined : it.specialEditionDetails;
+
             if (it.isDoubleAlbum === undefined && it.isBoxSet === undefined && it.isGatefold === undefined) {
               const detected = detectReleaseParticularities(it.release);
               if (detected.isDoubleAlbum || detected.isBoxSet || detected.isSpecialEdition || detected.isGatefold) {
@@ -547,9 +550,17 @@ export default function App() {
                   isBoxSet: it.isBoxSet ?? detected.isBoxSet,
                   isSpecialEdition: it.isSpecialEdition ?? detected.isSpecialEdition,
                   isGatefold: it.isGatefold ?? detected.isGatefold,
-                  specialEditionDetails: it.specialEditionDetails || detected.suggestedDetails
+                  specialEditionDetails: sanitizedDetails || detected.suggestedDetails || undefined
                 };
+                continue;
               }
+            }
+
+            if (isGenericVa) {
+              uniqueListings[i] = {
+                ...it,
+                specialEditionDetails: undefined
+              };
             }
           }
         }

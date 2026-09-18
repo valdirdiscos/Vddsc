@@ -503,6 +503,115 @@ export function getNativistaInfo(listingOrRelease?: SavedListing | DiscogsReleas
 }
 
 /**
+ * Palavras-chave e títulos clássicos de Trilhas Sonoras de Novela brasileiras
+ * (Globo, Som Livre, Tupi, Manchete, SBT, etc.)
+ */
+const NOVELA_TITLES_AND_KEYWORDS = [
+  'roque santeiro', 'vale tudo', 'tieta', 'pantanal', 'o clone', 'renascer', 
+  'laços de família', 'lacos de familia', 'mulheres de areia', 'por amor', 
+  'rainha da sucata', 'fera radical', 'top model', 'vamp', 'quatro por quatro', 
+  'o rei do gado', 'a viagem', 'selva de pedra', 'dancin\' days', 'dancin days', 
+  'dancing days', 'locomotivas', 'água viva', 'agua viva', 'bailado', 'brilhante', 
+  'guerra dos sexos', 'vereda tropical', 'cambalacho', 'brega & chique', 'brega e chique', 
+  'bebe a bordo', 'bebê a bordo', 'salvador da pátria', 'salvador da patria', 
+  'barriga de aluguel', 'de corpo e alma', 'sonho meu', 'história de amor', 
+  'historia de amor', 'explodir', 'salsa e merengue', 'torre de babel', 'terra nostra', 
+  'porto dos milagres', 'o cravo e a rosa', 'celebridade', 'senhora do destino', 
+  'américa', 'america', 'belíssima', 'belissima', 'páginas da vida', 'paginas da vida', 
+  'paraíso tropical', 'paraiso tropical', 'a favorita', 'caminho das índias', 
+  'caminho das indias', 'passione', 'avenida brasil', 'saravá', 'estúpido cupido', 
+  'estupido cupido', 'gabriela', 'saramandaia', 'pecado capital', 'espelho mágico', 
+  'espelho magico', 'marron glacê', 'marron glace', 'coração alado', 'coracao alado', 
+  'plumas e paetês', 'plumas e paetes', 'sétimo sentido', 'setimo sentido', 
+  'sol de verão', 'sol de verao', 'final feliz', 'champagne', 'corpo a corpo', 
+  'mandala', 'sassaricando', 'ti-ti-ti', 'tititi', 'hipertensão', 'hipertensao', 
+  'mandacaru', 'xica da silva', 'dona beija', 'kananga do japão', 'kananga do japao',
+  'malhação', 'malhacao'
+];
+
+/**
+ * Identifica se o disco pertence à categoria de Trilhas Sonoras de Novelas
+ * (Trilha Sonora Nacional / Internacional de Novela, Som Livre, Rede Globo).
+ */
+export function isNovelaItem(listingOrRelease?: SavedListing | DiscogsRelease | null): boolean {
+  if (!listingOrRelease) return false;
+
+  const listing: SavedListing | null = 'release' in listingOrRelease ? (listingOrRelease as SavedListing) : null;
+  const release: DiscogsRelease = listing ? listing.release : (listingOrRelease as DiscogsRelease);
+
+  // 1. Flag explícita do item
+  if (listing?.isNovela === true) return true;
+
+  const artist = (release.artist || '').toLowerCase();
+  const title = (release.title || '').toLowerCase();
+  const label = (release.label || '').toLowerCase();
+  const notes = (release.notes || '').toLowerCase();
+  const genres = (release.genres || []).map(g => (g || '').toLowerCase());
+  const styles = (release.styles || []).map(s => (s || '').toLowerCase());
+  const drawer = (listing?.drawer || '').toLowerCase();
+
+  const fullText = `${artist} ${title} ${label} ${notes} ${styles.join(' ')} ${genres.join(' ')} ${drawer}`;
+
+  // 2. Gaveta / Localização
+  if (drawer.includes('novela') || drawer.includes('trilha') || drawer.includes('som livre')) {
+    return true;
+  }
+
+  // 3. Palavras-chave explícitas de Novela no Título ou Notas
+  if (
+    /\btrilha\s+(?:sonora\s+)?(?:da\s+)?novela\b/i.test(fullText) ||
+    /\btrilha\s+nacional\b/i.test(fullText) ||
+    /\btrilha\s+internacional\b/i.test(fullText) ||
+    /\bnovela\s+(?:nacional|internacional)\b/i.test(fullText) ||
+    /\bnovela\s+da\s+(?:globo|tupi|manchete|band)\b/i.test(fullText) ||
+    /\brede\s+globo\b/i.test(fullText) ||
+    /\bsoap\s+opera\b/i.test(fullText) ||
+    /\btelenovela\b/i.test(fullText)
+  ) {
+    return true;
+  }
+
+  // 4. Se tiver a palavra "novela" associada ao título ou artista
+  if (title.includes('novela') || artist.includes('novela')) {
+    return true;
+  }
+
+  // 5. Verifica se o título do álbum bate com novelas consagradas
+  const isSoundtrackContext = 
+    label.includes('som livre') || 
+    genres.some(g => g.includes('stage & screen') || g.includes('soundtrack')) ||
+    styles.some(s => s.includes('soundtrack') || s.includes('theme') || s.includes('score')) ||
+    /\b(nacional|internacional|vol\.?\s*\d+|trilha)\b/i.test(title) ||
+    /v[áa]rios|various/i.test(artist);
+
+  if (NOVELA_TITLES_AND_KEYWORDS.some(novela => title.includes(novela))) {
+    // Se o título contém o nome da novela e há contexto de trilha/Som Livre/compilação
+    if (isSoundtrackContext || label.includes('som livre') || label.includes('sigla') || fullText.includes('globo')) {
+      return true;
+    }
+    // "Roque Santeiro" ou novelas marcantes mesmo sem menção explícita a trilha no selo
+    if (title.includes('roque santeiro') || title.includes('vale tudo') || title.includes('tieta') || title.includes('dancin days') || title.includes('dancin\' days')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function getNovelaInfo(listingOrRelease?: SavedListing | DiscogsRelease | null): {
+  isNovela: boolean;
+  label: string;
+  tag: string;
+} {
+  const isNov = isNovelaItem(listingOrRelease);
+  return {
+    isNovela: isNov,
+    label: '📺 Trilhas Sonoras de Novela',
+    tag: 'Trilha de Novela'
+  };
+}
+
+/**
  * Checks if a listing is marked as an online exclusive rare record
  * (Discos raros vendidos exclusivamente pelo site / loja online).
  */
@@ -595,16 +704,20 @@ export function getAlbumParticularities(listingOrRelease?: SavedListing | Discog
   // 1. Custom Merchant Particularity (Highest priority if provided)
   if (listing?.specialEditionDetails && listing.specialEditionDetails.trim().length > 0) {
     const customText = listing.specialEditionDetails.trim();
-    add({
-      id: 'custom_particularity',
-      label: customText,
-      shortLabel: customText.length > 20 ? `${customText.slice(0, 18)}...` : customText,
-      icon: '⭐',
-      type: 'custom',
-      badgeClass: 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black border border-yellow-300 shadow-md',
-      pillClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold',
-      description: customText
-    });
+    // Do not treat generic VA / compilation labels as physical edition particularities
+    const isGenericVaText = /colet[aâ]nea|v[aá]rios\s+artistas|various\s+artists|\bv\.?a\.?\b/i.test(customText);
+    if (!isGenericVaText) {
+      add({
+        id: 'custom_particularity',
+        label: customText,
+        shortLabel: customText.length > 20 ? `${customText.slice(0, 18)}...` : customText,
+        icon: '⭐',
+        type: 'custom',
+        badgeClass: 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black border border-yellow-300 shadow-md',
+        pillClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold',
+        description: customText
+      });
+    }
   }
 
   // 2. Box Set
@@ -840,20 +953,6 @@ export function getAlbumParticularities(listingOrRelease?: SavedListing | Discog
     });
   }
 
-  // 9. Coletânea / Vários Artistas (VA)
-  if (isVariousArtistsAlbum(listingOrRelease)) {
-    add({
-      id: 'various_artists_va',
-      label: 'Coletânea / Vários Artistas (VA)',
-      shortLabel: 'Coletânea VA',
-      icon: '👥',
-      type: 'custom',
-      badgeClass: 'bg-gradient-to-r from-emerald-800 via-teal-800 to-cyan-900 text-teal-100 font-black border border-teal-400/50 shadow-md',
-      pillClass: 'bg-teal-100 text-teal-900 border border-teal-300 font-black',
-      description: 'Álbum no formato Coletânea / V.A. contendo músicas de múltiplos artistas e bandas consagradas.'
-    });
-  }
-
   return particularities;
 }
 
@@ -1024,7 +1123,6 @@ export function detectReleaseParticularities(release?: DiscogsRelease | null) {
   else if (isDoubleAlbum && isGatefold) suggestedDetails = 'Álbum Duplo com Capa Dupla (Gatefold)';
   else if (isDoubleAlbum) suggestedDetails = 'Álbum Duplo (2 Discos)';
   else if (isGatefold) suggestedDetails = 'Capa Dupla (Gatefold)';
-  else if (isVA) suggestedDetails = 'Coletânea Especial Vários Artistas (V.A.)';
 
   return {
     isDoubleAlbum,
@@ -1297,9 +1395,11 @@ export function cleanTitleRedundancies(title: string, platform: 'mercadolivre' |
   // "Disco de Vinil", "Disco Vinil" sem LP -> "Vinil"
   cleaned = cleaned.replace(/^(?:disco\s+de\s+vinil|disco\s+vinil)\s*[:-]?\s*/i, 'Vinil ');
 
-  // 3. Remove termos vazios/genéricos de coletânea do início
-  cleaned = cleaned.replace(/^(?:v[áa]rios\s+artistas|various\s+artists|colet[âa]nea)\s*[-–—:]\s*/i, '');
-  cleaned = cleaned.replace(/^(?:v[áa]rios\s+artistas|various\s+artists|colet[âa]nea)\s+/i, '');
+  // 3. Substitui 'Various Artists', 'Vários Artistas' por 'VA' ou 'Coletânea'
+  // Remove termos vazios/genéricos de coletânea do início se forem redundantes, ou normaliza para 'VA' / 'Coletânea'
+  cleaned = cleaned.replace(/\bvarious\s+artists\b/gi, 'VA');
+  cleaned = cleaned.replace(/\bv[áa]rios\s+artistas\b/gi, 'VA');
+  cleaned = cleaned.replace(/^(?:v\.?a\.?|colet[âa]nea)\s*[-–—:]\s*/i, '');
 
   // 4. Encurta avisos de condição no Mercado Livre (onde o limite é 60 caracteres)
   if (platform === 'mercadolivre') {

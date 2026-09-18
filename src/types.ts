@@ -209,6 +209,7 @@ export interface SavedListing {
   personalFiles?: PersonalFile[]; // Valdir's personal files/documents (e.g., invoices, memos, receipts)
   quantity?: number; // Stock quantity (default 1)
   isNativista?: boolean; // Música Gaúcha e Nativista / Tradicionalismo do Rio Grande do Sul (identificado como Folk pelo Discogs)
+  isNovela?: boolean; // Trilha Sonora de Novela (Nacional / Internacional / Som Livre / Rede Globo)
   isGarimpo?: boolean; // Deprecated - replaced by special sessions
   garimpoDetails?: string; // Details/notes about why it is in garimpo (e.g. risco superficial, capa desgastada, etc.)
   isOnlineExclusive?: boolean; // Item raro vendido exclusivamente pelo site / loja online

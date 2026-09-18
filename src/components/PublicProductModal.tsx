@@ -42,6 +42,7 @@ interface PublicProductModalProps {
   isInCart: boolean;
   whatsappNumber?: string;
   onOpenAuthModal?: () => void;
+  onSelectArtist?: (artistName: string) => void;
 }
 
 export function PublicProductModal({
@@ -51,7 +52,8 @@ export function PublicProductModal({
   onAddToCart,
   isInCart,
   whatsappNumber = '5555981164666',
-  onOpenAuthModal
+  onOpenAuthModal,
+  onSelectArtist
 }: PublicProductModalProps) {
   const { isCustomerLoggedIn, isInWishlist, toggleWishlist } = useCustomerAuth();
   const [activeImageIdx, setActiveImageIdx] = useState(0);
@@ -151,10 +153,10 @@ export function PublicProductModal({
           className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col"
         >
           {/* Top Bar */}
-          <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-slate-50/80">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-100 bg-slate-50/90">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0 flex-1 pr-2">
               {/* Format Badge */}
-              <span className={`h-7 px-3 text-xs font-black rounded-lg uppercase tracking-wider inline-flex items-center shadow-2xs ${
+              <span className={`h-6 sm:h-7 px-2.5 sm:px-3 text-[11px] sm:text-xs font-black rounded-lg uppercase tracking-wider inline-flex items-center shadow-2xs ${
                 formatInfo.type === 'cd' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
                 formatInfo.type === 'dvd' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
                 formatInfo.type === 'cassette' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
@@ -164,7 +166,7 @@ export function PublicProductModal({
               </span>
 
               {/* Novo / Usado Badge */}
-              <span className={`h-7 px-3 text-xs font-black rounded-lg uppercase tracking-wider inline-flex items-center shadow-2xs ${
+              <span className={`h-6 sm:h-7 px-2.5 sm:px-3 text-[11px] sm:text-xs font-black rounded-lg uppercase tracking-wider inline-flex items-center shadow-2xs ${
                 conditionInfo.isNew
                   ? 'bg-emerald-600 text-white'
                   : 'bg-slate-100 text-slate-800 border border-slate-300/80'
@@ -174,7 +176,7 @@ export function PublicProductModal({
 
               {/* Nativista / Música Gaúcha Badge */}
               {isNativistaGauchoItem(listing) && (
-                <span className="h-7 px-2.5 text-xs font-black rounded-lg uppercase tracking-wider bg-emerald-800 text-white shadow-2xs inline-flex items-center gap-1 border border-emerald-600/40">
+                <span className="h-6 sm:h-7 px-2 text-[11px] sm:text-xs font-black rounded-lg uppercase tracking-wider bg-emerald-800 text-white shadow-2xs inline-flex items-center gap-1 border border-emerald-600/40">
                   <span>🧉</span>
                   Música Gaúcha
                 </span>
@@ -182,31 +184,20 @@ export function PublicProductModal({
 
               {/* Exclusivo Loja Online Badge */}
               {isOnlineExclusiveItem(listing) && (
-                <span className="h-7 px-2.5 text-xs font-black rounded-lg uppercase tracking-wider bg-amber-100 text-amber-950 shadow-2xs inline-flex items-center gap-1 border border-amber-300">
+                <span className="h-6 sm:h-7 px-2 text-[11px] sm:text-xs font-black rounded-lg uppercase tracking-wider bg-amber-100 text-amber-950 shadow-2xs inline-flex items-center gap-1 border border-amber-300">
                   <Star className="h-3 w-3 fill-amber-500 text-amber-600" />
                   Exclusivo Site
                 </span>
               )}
 
-              {/* Genuine Edition Particularities (insert excluded to avoid duplication) */}
-              {editionParticularities.map((part) => (
-                <span
-                  key={part.id}
-                  className={`h-7 px-2.5 text-xs font-bold rounded-lg uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs border ${part.badgeClass}`}
-                >
-                  <span>{part.icon}</span>
-                  <span>{part.label}</span>
-                </span>
-              ))}
-
               {listing.barcode && (
-                <span className="h-7 px-2.5 text-xs font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200/80 rounded-lg inline-flex items-center shadow-2xs">
+                <span className="h-6 sm:h-7 px-2 text-[11px] sm:text-xs font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200/80 rounded-lg inline-flex items-center shadow-2xs">
                   #{listing.barcode}
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={handleFavoriteClick}
@@ -231,6 +222,7 @@ export function PublicProductModal({
                 type="button"
                 onClick={onClose}
                 className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-xl transition-colors cursor-pointer"
+                title="Fechar"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -258,21 +250,21 @@ export function PublicProductModal({
                     </div>
                   )}
                   
-                  {/* Subtle Vinyl Groove Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-40 pointer-events-none" />
-
-                  {/* Badges on Modal Photo (excluding insert to prevent duplication) */}
-                  {editionParticularities.length > 0 && (
-                    <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5 pointer-events-none z-10">
-                      {editionParticularities.map((part) => (
-                        <span
-                          key={part.id}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg border backdrop-blur-xs ${part.badgeClass}`}
-                        >
-                          <span>{part.icon}</span>
-                          <span>{part.label}</span>
-                        </span>
-                      ))}
+                  {/* Subtle physical format badge on photo corner if multi-disc or box set */}
+                  {editionParticularities.some(p => p.type === 'disc_count' || p.type === 'box') && (
+                    <div className="absolute top-3 left-3 pointer-events-none z-10">
+                      {editionParticularities
+                        .filter(p => p.type === 'disc_count' || p.type === 'box')
+                        .slice(0, 1)
+                        .map((part) => (
+                          <span
+                            key={part.id}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 bg-black/75 text-amber-300 border border-amber-400/40 backdrop-blur-md shadow-lg"
+                          >
+                            <span>{part.icon}</span>
+                            <span>{part.shortLabel}</span>
+                          </span>
+                        ))}
                     </div>
                   )}
                 </div>
@@ -330,9 +322,26 @@ export function PublicProductModal({
                   <h3 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight leading-tight">
                     {release.title}
                   </h3>
-                  <p className="text-base sm:text-lg font-bold text-amber-700">
-                    {release.artist}
-                  </p>
+                  <div>
+                    {onSelectArtist ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onSelectArtist(release.artist);
+                        }}
+                        className="text-base sm:text-lg font-bold text-amber-800 hover:text-amber-950 hover:underline inline-flex items-center gap-1 cursor-pointer transition-colors text-left group"
+                        title={`Ver todos os álbuns cadastrados de ${release.artist}`}
+                      >
+                        <span>{release.artist}</span>
+                        <ExternalLink className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    ) : (
+                      <p className="text-base sm:text-lg font-bold text-amber-700">
+                        {release.artist}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Sold Alert Banner if applicable */}
@@ -649,11 +658,6 @@ export function PublicProductModal({
                           <Music className="h-4 w-4 text-amber-700" />
                           Faixas do Álbum ({release.tracklist.length})
                         </span>
-                        {isVA && (
-                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-                            ✨ Coletânea V.A. (Artistas Identificados)
-                          </span>
-                        )}
                       </div>
 
                       <div className="max-h-56 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5 divide-y divide-slate-200/60">
@@ -666,9 +670,23 @@ export function PublicProductModal({
                                   {trInfo.position || `${idx + 1}`}
                                 </span>
                                 {trInfo.artist && (
-                                  <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50/90 border border-indigo-200/80 px-1.5 py-0.5 rounded shrink-0">
-                                    {trInfo.artist}
-                                  </span>
+                                  onSelectArtist ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        onClose();
+                                        onSelectArtist(trInfo.artist!);
+                                      }}
+                                      className="text-[11px] font-bold text-indigo-700 hover:text-indigo-950 bg-indigo-50/90 hover:bg-indigo-100 border border-indigo-200/80 px-1.5 py-0.5 rounded shrink-0 transition-colors cursor-pointer"
+                                      title={`Filtrar acervo por ${trInfo.artist}`}
+                                    >
+                                      {trInfo.artist}
+                                    </button>
+                                  ) : (
+                                    <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50/90 border border-indigo-200/80 px-1.5 py-0.5 rounded shrink-0">
+                                      {trInfo.artist}
+                                    </span>
+                                  )
                                 )}
                                 <span className="font-semibold text-slate-800 truncate">
                                   {trInfo.title}

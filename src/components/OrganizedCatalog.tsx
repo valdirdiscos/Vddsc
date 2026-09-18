@@ -16,7 +16,7 @@ import { SavedListing, Customer } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { SalesChannel } from '../types';
 import { getSalesChannelMeta } from '../utils/qrcode';
-import { isNativistaGauchoItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist, getListingFormatInfo, detectReleaseParticularities, buildMercadoLivreOrderTxt, cleanLocationCode, cleanTitleRedundancies, buildOptimizedTitle } from '../utils/formatHelper';
+import { isNativistaGauchoItem, isNovelaItem, isOnlineExclusiveItem, getOnlineExclusiveReason, getAlbumParticularities, isVariousArtistsAlbum, formatTrackWithArtist, getListingFormatInfo, detectReleaseParticularities, buildMercadoLivreOrderTxt, cleanLocationCode, cleanTitleRedundancies, buildOptimizedTitle } from '../utils/formatHelper';
 import { CatalogViewMode, getSavedCatalogViewMode, saveCatalogViewMode } from '../utils/cookieStorage';
 import { BatchQRCodeModal } from './BatchQRCodeModal';
 import { DiscQRCodeModal } from './DiscQRCodeModal';
@@ -479,6 +479,8 @@ export const OrganizedCatalog: React.FC<OrganizedCatalogProps> = ({
       matchesChannel = isOnlineExclusiveItem(item);
     } else if (selectedChannel === 'nativista') {
       matchesChannel = isNativistaGauchoItem(item);
+    } else if (selectedChannel === 'novela') {
+      matchesChannel = isNovelaItem(item);
     } else if (selectedChannel === 'none') {
       const channels = item.salesChannels;
       matchesChannel = !channels || channels.length === 0 || channels.includes('none');
@@ -1214,6 +1216,7 @@ Colecionar é preservar a história.`;
                   <option value="all">Todos os Canais e Formatos</option>
                   <option value="lote">📦 Lotes de 4 Discos ({listings.filter(i => i.isLote).length})</option>
                   <option value="promocoes">🏷️ Promoções Ativas (% OFF) ({listings.filter(i => i.promoActive || i.pricing?.promoActive || (i.discountPercent && i.discountPercent > 0)).length})</option>
+                  <option value="novela">📺 Trilhas de Novela ({listings.filter(i => isNovelaItem(i)).length})</option>
                   <option value="nativista">🧉 Música Gaúcha & Nativista (RS) ({listings.filter(i => isNativistaGauchoItem(i)).length})</option>
                   <option value="online_exclusive">⭐ Exclusivos Loja Online (Raros)</option>
                   <option value="online_store">🌐 Loja Online (Ativos no Site)</option>
@@ -1367,7 +1370,16 @@ Colecionar é preservar a história.`;
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-slate-500 line-clamp-1">{item.release.artist}</p>
+                              <p 
+                                className="text-[11px] text-slate-500 hover:text-indigo-600 hover:underline transition-colors cursor-pointer line-clamp-1 font-medium"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSearch(item.release.artist);
+                                }}
+                                title={`Filtrar inventário por ${item.release.artist}`}
+                              >
+                                {item.release.artist}
+                              </p>
                               <span className="text-[10px] text-slate-400 font-mono">{item.release.year || 'Ano N/D'} • {item.release.label}</span>
                             </div>
                           </td>
@@ -1736,7 +1748,16 @@ Colecionar é preservar a história.`;
                         <h4 className="text-xs font-black text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">
                           {item.release.title}
                         </h4>
-                        <p className="text-[10px] font-bold text-slate-500 line-clamp-1">{item.release.artist}</p>
+                        <p 
+                          className="text-[10px] font-bold text-slate-500 hover:text-indigo-600 hover:underline transition-colors cursor-pointer line-clamp-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSearch(item.release.artist);
+                          }}
+                          title={`Filtrar inventário por ${item.release.artist}`}
+                        >
+                          {item.release.artist}
+                        </p>
                         
                         {item.customerName && (
                           <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black flex items-center gap-1 max-w-fit truncate border mt-1 ${
@@ -2583,7 +2604,16 @@ Colecionar é preservar a história.`;
                     <h3 className="text-lg font-black text-slate-900 leading-tight">
                       {selectedListing.release.title}
                     </h3>
-                    <p className="text-sm font-bold text-slate-600">{selectedListing.release.artist}</p>
+                    <p 
+                      className="text-sm font-bold text-slate-600 hover:text-indigo-600 hover:underline transition-colors cursor-pointer inline-block"
+                      onClick={() => {
+                        setSearch(selectedListing.release.artist);
+                        setSelectedListing(null);
+                      }}
+                      title={`Filtrar inventário por ${selectedListing.release.artist}`}
+                    >
+                      {selectedListing.release.artist}
+                    </p>
 
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs pt-2 border-t border-slate-100">
                       <div><span className="text-slate-400 block font-medium">Gravadora:</span> <strong className="text-slate-700 font-bold">{selectedListing.release.label}</strong></div>
@@ -2794,11 +2824,6 @@ Colecionar é preservar a história.`;
                         <Play className="h-3.5 w-3.5 text-indigo-500" />
                         Faixas do Álbum ({selectedListing.release.tracklist.length})
                       </h4>
-                      {isVariousArtistsAlbum(selectedListing.release.artist, undefined, selectedListing.release.tracklist) && (
-                        <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                          Coletânea V.A. (Artistas Identificados)
-                        </span>
-                      )}
                     </div>
                     <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-xs max-h-[160px] overflow-y-auto font-medium text-slate-700 divide-y divide-slate-200/50">
                       {selectedListing.release.tracklist.map((track, i) => {

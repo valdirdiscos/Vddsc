@@ -173,13 +173,18 @@ export default function App() {
   // App Mode ('storefront' = public e-commerce for customers, 'intranet' = internal store POS & backoffice)
   const [appMode, setAppMode] = useState<'storefront' | 'intranet'>('storefront');
 
-  // Maintenance / Under Construction Mode for domain stability & WhatsApp direct sales
+  // Maintenance / Under Construction Mode for domain stability & WhatsApp direct sales (Loja aberta por padrão)
   const [maintenanceMode, setMaintenanceMode] = useState<boolean>(() => {
     try {
-      const stored = localStorage.getItem('valdir_maintenance_mode');
-      return stored !== null ? stored === 'true' : true;
+      // Limpar chave legada temporária para garantir que a loja volte ao ar imediatamente
+      const legacy = localStorage.getItem('valdir_maintenance_mode');
+      if (legacy === 'true') {
+        localStorage.removeItem('valdir_maintenance_mode');
+      }
+      const stored = localStorage.getItem('valdir_maintenance_mode_active');
+      return stored === 'true';
     } catch {
-      return true;
+      return false;
     }
   });
   const [previewStorefrontOverride, setPreviewStorefrontOverride] = useState<boolean>(false);
@@ -489,7 +494,8 @@ export default function App() {
   const handleToggleMaintenanceMode = (enabled: boolean) => {
     setMaintenanceMode(enabled);
     try {
-      localStorage.setItem('valdir_maintenance_mode', enabled ? 'true' : 'false');
+      localStorage.setItem('valdir_maintenance_mode_active', enabled ? 'true' : 'false');
+      localStorage.removeItem('valdir_maintenance_mode');
       setDoc(doc(db, 'settings', 'store_config'), { 
         maintenanceMode: enabled, 
         updatedAt: new Date().toISOString() 

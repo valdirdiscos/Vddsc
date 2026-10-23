@@ -282,65 +282,117 @@ DIRETRIZES DE RECOMENDAÇÃO:
   // Artist Bio Endpoint (Discogs-style profile with optional biography)
   app.get("/api/artist-bio", async (req, res) => {
     const artistName = (req.query.artist as string || "").trim();
-    if (!artistName || /various|v[áa]rios|colet[âa]nea/i.test(artistName)) {
+    const artistId = (req.query.artistId as string || "").trim();
+    const discogsOnly = req.query.discogsOnly === 'true' || req.query.source === 'discogs';
+
+    if ((!artistName && !artistId) || /various|v[áa]rios|colet[âa]nea/i.test(artistName)) {
       return res.json({ success: true, artist: artistName, bio: null });
     }
 
     try {
-      // 1. Try Discogs API first if token or public search
-      try {
-        const searchUrl = `https://api.discogs.com/database/search?q=${encodeURIComponent(artistName)}&type=artist`;
-        const discogsSearchRes = await fetch(searchUrl, {
-          headers: {
-            'User-Agent': 'ValdirDiscosShopeeExtractor/2.0 (+https://valdirdiscos.com; contact@valdirdiscos.com)',
-            'Accept': 'application/json',
-            ...(process.env.DISCOGS_TOKEN ? { 'Authorization': `Discogs token=${process.env.DISCOGS_TOKEN}` } : {})
-          },
-          signal: AbortSignal.timeout(3500)
-        });
+      // Helper function to format and clean Discogs bio
+      const formatDiscogsBio = (artistDetail: any) => {
+        let profile = (artistDetail.profile || "").trim();
+        if (!profile) return null;
 
-        if (discogsSearchRes.ok) {
-          const searchJson: any = await discogsSearchRes.json();
-          const firstResult = searchJson.results?.[0];
-          if (firstResult && firstResult.id) {
-            const artistDetailRes = await fetch(`https://api.discogs.com/artists/${firstResult.id}`, {
-              headers: {
-                'User-Agent': 'ValdirDiscosShopeeExtractor/2.0 (+https://valdirdiscos.com; contact@valdirdiscos.com)',
-                'Accept': 'application/json',
-                ...(process.env.DISCOGS_TOKEN ? { 'Authorization': `Discogs token=${process.env.DISCOGS_TOKEN}` } : {})
-              },
-              signal: AbortSignal.timeout(3500)
-            });
+        // Strip Discogs bbcode tags like [a=Raul Seixas], [a123], [b], [i], [l=Selo], [url=...]
+        profile = profile
+          .replace(/\[a=([^\]]+)\]/g, '$1')
+          .replace(/\[url=[^\]]+\]([^\[]+)\[\/url\]/g, '$1')
+          .replace(/\[url=[^\]]+\]/g, '')
+          .replace(/\[\/?(url|b|i|u|quote|s)\]/g, '')
+          .replace(/\[[almr]=\d+\]/g, '')
+          .replace(/\[[almr]=\S+\]/g, '')
+          .replace(/\[[a-z]\d+\]/gi, '')
+          .replace(/\r\n/g, '\n')
+          .replace(/\r/g, '\n')
+          .trim();
 
-            if (artistDetailRes.ok) {
-              const artistDetail: any = await artistDetailRes.json();
-              let profile = (artistDetail.profile || "").trim();
-              if (profile) {
-                // Strip Discogs bbcode tags like [a=Raul Seixas], [b], [i], [l=Selo]
-                profile = profile
-                  .replace(/\[[abi]=([^\]]+)\]/g, '$1')
-                  .replace(/\[\/?(b|i|u|url|quote)\]/g, '')
-                  .replace(/\[l=[^\]]+\]/g, '')
-                  .replace(/\[m=\d+\]/g, '')
-                  .replace(/\[r=\d+\]/g, '');
-                
-                return res.json({
-                  success: true,
-                  artist: artistName,
-                  bio: profile,
-                  realname: artistDetail.realname || null,
-                  profileImage: artistDetail.images?.[0]?.resource_url || artistDetail.images?.[0]?.uri || null,
-                  source: 'discogs'
-                });
+        if (!profile) return null;
+
+        return {
+          success: true,
+          artist: artistDetail.name || artistName,
+          artistId: artistDetail.id,
+          bio: profile,
+          realname: artistDetail.realname || null,
+          profileImage: artistDetail.images?.[0]?.resource_url || artistDetail.images?.[0]?.uri || null,
+          discogsUrl: artistDetail.uri ? (artistDetail.uri.startsWith('http') ? artistDetail.uri : `https://www.discogs.com${artistDetail.uri}`) : (artistDetail.resource_url || null),
+          source: 'discogs'
+        };
+      };
+
+      // 1. If artistId is provided, fetch directly from Discogs Artists API
+      if (artistId && /^\d+$/.test(artistId)) {
+        try {
+          const directArtistRes = await fetch(`https://api.discogs.com/artists/${artistId}`, {
+            headers: {
+              'User-Agent': 'ValdirDiscosShopeeExtractor/2.0 (+https://valdirdiscos.com; contact@valdirdiscos.com)',
+              'Accept': 'application/json',
+              ...(process.env.DISCOGS_TOKEN ? { 'Authorization': `Discogs token=${process.env.DISCOGS_TOKEN}` } : {})
+            },
+            signal: AbortSignal.timeout(4000)
+          });
+
+          if (directArtistRes.ok) {
+            const detail: any = await directArtistRes.json();
+            const formatted = formatDiscogsBio(detail);
+            if (formatted) {
+              return res.json(formatted);
+            }
+          }
+        } catch (directErr) {
+          console.warn(`Direct Discogs artist fetch error for ID ${artistId}:`, directErr);
+        }
+      }
+
+      // 2. Try Discogs API search if token or public search
+      if (artistName) {
+        try {
+          const searchUrl = `https://api.discogs.com/database/search?q=${encodeURIComponent(artistName)}&type=artist`;
+          const discogsSearchRes = await fetch(searchUrl, {
+            headers: {
+              'User-Agent': 'ValdirDiscosShopeeExtractor/2.0 (+https://valdirdiscos.com; contact@valdirdiscos.com)',
+              'Accept': 'application/json',
+              ...(process.env.DISCOGS_TOKEN ? { 'Authorization': `Discogs token=${process.env.DISCOGS_TOKEN}` } : {})
+            },
+            signal: AbortSignal.timeout(4000)
+          });
+
+          if (discogsSearchRes.ok) {
+            const searchJson: any = await discogsSearchRes.json();
+            const results: any[] = searchJson.results || [];
+            const matched = results.find(r => r.title && r.title.toLowerCase() === artistName.toLowerCase()) || results[0];
+            if (matched && matched.id) {
+              const artistDetailRes = await fetch(`https://api.discogs.com/artists/${matched.id}`, {
+                headers: {
+                  'User-Agent': 'ValdirDiscosShopeeExtractor/2.0 (+https://valdirdiscos.com; contact@valdirdiscos.com)',
+                  'Accept': 'application/json',
+                  ...(process.env.DISCOGS_TOKEN ? { 'Authorization': `Discogs token=${process.env.DISCOGS_TOKEN}` } : {})
+                },
+                signal: AbortSignal.timeout(4000)
+              });
+
+              if (artistDetailRes.ok) {
+                const artistDetail: any = await artistDetailRes.json();
+                const formatted = formatDiscogsBio(artistDetail);
+                if (formatted) {
+                  return res.json(formatted);
+                }
               }
             }
           }
+        } catch (discogsErr: any) {
+          // Discogs search error
         }
-      } catch (discogsErr: any) {
-        // Fallback gracefully to Gemini if Discogs API is slow or unavailable
       }
 
-      // 2. Fallback to Gemini for clean factual music bio (Discogs profile style)
+      // If discogsOnly is requested and Discogs has no bio, return null! (Never synthesize bio when Discogs bio is explicitly requested)
+      if (discogsOnly) {
+        return res.json({ success: true, artist: artistName, bio: null, source: 'discogs' });
+      }
+
+      // 3. Fallback to Gemini for clean factual music bio (Discogs profile style)
       try {
         const ai = getGeminiClient();
         const bioPrompt = `Escreva uma biografia factual, concisa e de referência (no estilo perfil do Discogs / AllMusic) em português para o artista/banda de música: "${artistName}".
@@ -974,6 +1026,7 @@ Retorne um array JSON com a lista completa das faixas contendo os campos: positi
           id: releaseId,
           title: data.title || "Álbum Desconhecido",
           artist: artistsName,
+          artistId: data.artists?.[0]?.id || undefined,
           label: labelsName,
           catno: catalogNo,
           year: data.released_year || data.year || data.released || "N/A",
@@ -1249,6 +1302,11 @@ Gere o anúncio estruturado estritamente em JSON contendo os seguintes campos:
 
       if (isImported && importTag) {
         shopeeConditionSuffix += ` ${importTag}`;
+      }
+
+      if (isCompilation || /various|v[áa]rios/i.test(release.artist || "")) {
+        titleShopee = titleShopee.replace(/^(various\s+artists|vários\s+artistas|varios\s+artistas|various|vários|varios|va)\s*[-–—:]\s*/i, "").trim();
+        titleShopee = titleShopee.replace(/^(various\s+artists|vários\s+artistas|varios\s+artistas|various|vários|varios|va)\s+/i, "").trim();
       }
 
       // Clean existing condition/import/drawer phrases from body of titleShopee to prevent duplication

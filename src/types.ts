@@ -20,6 +20,7 @@ export interface DiscogsRelease {
   id: string | number;
   title: string;
   artist: string;
+  artistId?: number | string;
   label: string;
   catno: string;
   year: number | string;
@@ -32,6 +33,7 @@ export interface DiscogsRelease {
   notes?: string;
   lowestPriceUsd?: number;
   isManual?: boolean;
+  artistBio?: string;
 }
 
 export type MediaFormatType = 'vinyl' | 'cd' | 'dvd' | 'other';

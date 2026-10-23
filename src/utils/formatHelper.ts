@@ -195,14 +195,8 @@ export function getListingFormatInfo(listingOrRelease?: SavedListing | DiscogsRe
   const is78Rpm = allFmtText.includes('78 rpm') || allFmtText.includes('78rpm') || /\b78\s*rpm\b/i.test(fullText);
   const defaultVinylSpeed = is45Rpm ? '45 rpm' : is78Rpm ? '78 rpm' : '33,3 rpm';
 
-  const has12Inch = 
-    allFmtText.includes('12"') || 
-    allFmtText.includes('12 inch') || 
-    allFmtText.includes('12-inch') || 
-    allFmtText.includes('12 polegadas') ||
-    allFmtText.includes('maxi-single') ||
-    allFmtText.includes('maxi single') ||
-    /\b12"\b|\b12\s*inch\b|\b12-inch\b|\bmaxi-single\b|\bmaxi\s+single\b/i.test(fullText);
+  const hasLp = allFmtText.includes('lp') || /\blp\b/i.test(allFmtText);
+  const hasAlbum = allFmtText.includes('album') || /\balbum\b/i.test(allFmtText);
 
   const has7Inch = 
     allFmtText.includes('7"') || 
@@ -217,15 +211,36 @@ export function getListingFormatInfo(listingOrRelease?: SavedListing | DiscogsRe
     allFmtText.includes('10-inch') || 
     /\b10"\b|\b10\s*inch\b|\b10-inch\b/i.test(fullText);
 
+  const has12Inch = 
+    allFmtText.includes('12"') || 
+    allFmtText.includes('12 inch') || 
+    allFmtText.includes('12-inch') || 
+    allFmtText.includes('12 polegadas') ||
+    allFmtText.includes('maxi-single') ||
+    allFmtText.includes('maxi single') ||
+    (hasLp && !has7Inch && !has10Inch) ||
+    /\b12"\b|\b12\s*inch\b|\b12-inch\b|\bmaxi-single\b|\bmaxi\s+single\b/i.test(fullText);
+
   const hasMaxi = allFmtText.includes('maxi-single') || allFmtText.includes('maxi single') || allFmtText.includes('maxi') || /\bmaxi\b/i.test(fullText);
-  const hasSingle = allFmtText.includes('single') || /\bsingle\b/i.test(fullText);
+
+  // Notas em inglês no Discogs frequentemente usam "released in a single cardboard sleeve" para indicar capa simples (não gatefold).
+  // Isso não deve ser confundido com o formato musical Compacto / Single!
+  const notesWithoutPackagingSingle = notes
+    .replace(/\bsingle\s+(cardboard\s+)?(sleeve|jacket|cover|pocket|gatefold|ply|layer|leaf|disc|record|lp)\b/gi, '')
+    .replace(/\b(issued|released|housed|packaged)\s+in\s+a\s+single\b/gi, '');
+
+  const hasSingleInFormat = allFmtText.includes('single') || /\bsingle\b/i.test(allFmtText);
+  const hasSingleInTitle = /\bsingle\b/i.test(title);
+  const hasSingleInNotes = /\bsingle\b/i.test(notesWithoutPackagingSingle);
+  const hasSingle = hasSingleInFormat || hasSingleInTitle || hasSingleInNotes;
+
   const hasEp = allFmtText.includes('ep') || allFmtText.includes('mini-album') || /\bep\b|\bmini-album\b/i.test(allFmtText);
   const isShortTracklist = (release.tracklist?.length || 0) > 0 && (release.tracklist?.length || 0) <= 4;
 
   // 4. VINIL 12" SINGLE / MAXI-SINGLE / EP (12 POLEGADAS)
   // Se possui 12" e é Single, Maxi-Single, EP ou Mini-Album, É UM SINGLE DE 12 POLEGADAS (tamanho de LP), NUNCA UM COMPACTO 7"!
   const is12InchSingleOrEp = 
-    has12Inch && (hasMaxi || hasSingle || hasEp || (isShortTracklist && !allFmtText.includes('album') && !allFmtText.includes('lp')));
+    has12Inch && !hasLp && (hasMaxi || hasSingle || hasEp || (isShortTracklist && !hasAlbum));
 
   if (is12InchSingleOrEp || (hasMaxi && !has7Inch)) {
     let label = 'Single 12"';
@@ -245,11 +260,20 @@ export function getListingFormatInfo(listingOrRelease?: SavedListing | DiscogsRe
   }
 
   // 5. VINIL 7" COMPACTO (SINGLE / EP 7 POLEGADAS)
-  const isSingle7 = 
+  // Discos com LP ou Álbum completo (5+ faixas) NUNCA são compactos a menos que tenham menção explícita de 7" ou "compacto" no formato
+  const isExplicitCompacto = 
     has7Inch || 
     allFmtText.includes('compacto') ||
-    /\bcompacto\b/i.test(fullText) ||
-    ((hasSingle || hasEp || is45Rpm) && !has12Inch && !has10Inch);
+    /\bcompacto\b/i.test(title) ||
+    /\bcompacto\s+(simples|duplo)\b/i.test(fullText);
+
+  const isSingle7 = 
+    isExplicitCompacto || 
+    (!hasLp && !has12Inch && !has10Inch && (
+      (hasSingle && (release.tracklist?.length || 0) <= 4) || 
+      (hasEp && (release.tracklist?.length || 0) <= 6 && !hasAlbum) || 
+      (is45Rpm && (release.tracklist?.length || 0) <= 4 && !hasAlbum)
+    ));
 
   if (isSingle7 && !has12Inch) {
     const isDoubleCompacto = allFmtText.includes('compacto duplo') || (hasEp && !hasSingle);
@@ -1395,11 +1419,20 @@ export function cleanTitleRedundancies(title: string, platform: 'mercadolivre' |
   // "Disco de Vinil", "Disco Vinil" sem LP -> "Vinil"
   cleaned = cleaned.replace(/^(?:disco\s+de\s+vinil|disco\s+vinil)\s*[:-]?\s*/i, 'Vinil ');
 
-  // 3. Substitui 'Various Artists', 'Vários Artistas' por 'VA' ou 'Coletânea'
-  // Remove termos vazios/genéricos de coletânea do início se forem redundantes, ou normaliza para 'VA' / 'Coletânea'
-  cleaned = cleaned.replace(/\bvarious\s+artists\b/gi, 'VA');
-  cleaned = cleaned.replace(/\bv[áa]rios\s+artistas\b/gi, 'VA');
-  cleaned = cleaned.replace(/^(?:v\.?a\.?|colet[âa]nea)\s*[-–—:]\s*/i, '');
+  // 3. Elimina completamente termos genéricos vazios em coletâneas ('Various', 'Various Artists', 'Vários Artistas', 'VA', 'Coletânea')
+  // Diretriz estrita da Valdir Discos: NUNCA usar palavras genéricas ou vazias em títulos de marketplace.
+  // 3a. Remove 'Various -', 'Various Artists -', etc. após o prefixo de formato (ex: "LP Various - Roque Santeiro" -> "LP Roque Santeiro")
+  cleaned = cleaned.replace(
+    /^(LP|CD|DVD|K7|Fita\s+K7|Compacto(?:\s+7")?|Single(?:\s+12")?|Vinil(?:\s+10")?)\s+(?:various(?:\s+artists)?|v[áa]rios(?:\s+artistas)?|v\.?a\.?|colet[âa]nea)\s*[-–—:]?\s*/i,
+    '$1 '
+  );
+  // 3b. Remove no início do título
+  cleaned = cleaned.replace(/^(?:various(?:\s+artists)?|v[áa]rios(?:\s+artistas)?|v\.?a\.?|colet[âa]nea)\s*[-–—:]?\s*/i, '');
+  // 3c. Remove no meio ou após hífens
+  cleaned = cleaned.replace(/\s*[-–—:]\s*(?:various(?:\s+artists)?|v[áa]rios(?:\s+artistas)?|v\.?a\.?)\s*[-–—:]\s*/gi, ' - ');
+  cleaned = cleaned.replace(/\b(?:various\s+artists|v[áa]rios\s+artistas)\s*[-–—:]?\s*/gi, '');
+  cleaned = cleaned.replace(/\bvarious\s*[-–—:]\s*/gi, '');
+  cleaned = cleaned.replace(/\bva\s*[-–—:]\s*/gi, '');
 
   // 4. Encurta avisos de condição no Mercado Livre (onde o limite é 60 caracteres)
   if (platform === 'mercadolivre') {
@@ -1489,7 +1522,7 @@ export function buildOptimizedTitle(params: {
     const cleanTit = (title || '').trim();
     const yearStr = (!isML && year) ? ` (${year})` : '';
 
-    const isVA = /^(?:various\s+artists|v[áa]rios\s+artistas|colet[âa]nea)/i.test(cleanArt);
+    const isVA = isVariousArtistsAlbum(cleanArt) || /^(?:various(\s+artists)?|v[áa]rios(\s+artistas)?|v\.?a\.?|colet[âa]nea)\b/i.test(cleanArt);
     if (isVA) {
       base = `${cleanTit}${yearStr}`.trim();
     } else if (cleanArt && cleanTit) {

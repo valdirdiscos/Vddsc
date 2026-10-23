@@ -22,6 +22,8 @@ import {
   Save, 
   ExternalLink,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Info,
   HelpCircle,
   ArrowRight,
@@ -68,6 +70,7 @@ import { ThermalPrintModal } from './components/ThermalPrintModal';
 import { PublicStorefront } from './components/PublicStorefront';
 import { OnlineOrdersIntranetTab } from './components/OnlineOrdersIntranetTab';
 import { IntranetAuthModal } from './components/IntranetAuthModal';
+import { UnderConstructionPage } from './components/UnderConstructionPage';
 import { useCustomerAuth } from './context/CustomerAuthContext';
 import { getSalesChannelMeta } from './utils/qrcode';
 import { detectReleaseParticularities, cleanLocationCode, cleanTitleRedundancies, buildOptimizedTitle } from './utils/formatHelper';
@@ -169,6 +172,41 @@ export default function App() {
 
   // App Mode ('storefront' = public e-commerce for customers, 'intranet' = internal store POS & backoffice)
   const [appMode, setAppMode] = useState<'storefront' | 'intranet'>('storefront');
+
+  // Maintenance / Under Construction Mode for domain stability & WhatsApp direct sales
+  const [maintenanceMode, setMaintenanceMode] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('valdir_maintenance_mode');
+      return stored !== null ? stored === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+  const [previewStorefrontOverride, setPreviewStorefrontOverride] = useState<boolean>(false);
+
+  // Auto-detect URL shortcuts like #cadastro, #intranet, ?cadastro=1 to go straight to product registration
+  useEffect(() => {
+    const handleUrlRoute = () => {
+      try {
+        const hash = (window.location.hash || '').toLowerCase();
+        const search = (window.location.search || '').toLowerCase();
+        if (
+          hash.includes('cadastro') || 
+          search.includes('cadastro') || 
+          hash.includes('anunciar') || 
+          hash.includes('intranet') || 
+          search.includes('intranet') || 
+          search.includes('admin')
+        ) {
+          setAppMode('intranet');
+          setMainTab('announce');
+        }
+      } catch {}
+    };
+    handleUrlRoute();
+    window.addEventListener('hashchange', handleUrlRoute);
+    return () => window.removeEventListener('hashchange', handleUrlRoute);
+  }, []);
 
   // Main Tab Navigation ('store_pos' = physical store real-time POS, 'online_orders' = website orders, 'marketplaces' = Shopee & Mercado Livre hub, 'digital_storage' = hi-res music & storage manager, 'announce' = create announcements, 'catalog' = organized database catalog, 'omnichannel' = sales channels, 'playlists' = dj sets, 'clients' = customer management)
   const [mainTab, setMainTab] = useState<'store_pos' | 'online_orders' | 'marketplaces' | 'digital_storage' | 'announce' | 'catalog' | 'omnichannel' | 'playlists' | 'clients'>('store_pos');
@@ -447,6 +485,22 @@ export default function App() {
   const [saveToast, setSaveToast] = useState<{ message: string; title: string; id: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const handleToggleMaintenanceMode = (enabled: boolean) => {
+    setMaintenanceMode(enabled);
+    try {
+      localStorage.setItem('valdir_maintenance_mode', enabled ? 'true' : 'false');
+      setDoc(doc(db, 'settings', 'store_config'), { 
+        maintenanceMode: enabled, 
+        updatedAt: new Date().toISOString() 
+      }, { merge: true }).catch(() => {});
+    } catch {}
+    setSuccessMsg(
+      enabled
+        ? '✓ Modo Em Construção / WhatsApp ATIVADO para clientes no domínio.'
+        : '✓ Modo Em Construção DESATIVADO. Vitrine online aberta ao público!'
+    );
+  };
   const [isCapturing, setIsCapturing] = useState(false);
   const [exportingImage, setExportingImage] = useState(false);
 
@@ -463,6 +517,18 @@ export default function App() {
   // Cover image source selector: 'discogs' or 'real' (product photos)
   const [coverSource, setCoverSource] = useState<'discogs' | 'real'>('discogs');
 
+  // Artist Discogs biography state
+  const [artistBio, setArtistBio] = useState<{
+    artist: string;
+    artistId?: number | string;
+    bio: string | null;
+    realname?: string | null;
+    profileImage?: string | null;
+    discogsUrl?: string | null;
+    source?: string;
+  } | null>(null);
+  const [isBioExpanded, setIsBioExpanded] = useState<boolean>(false);
+
   const [activePlatform, setActivePlatform] = useState<'shopee' | 'mercadolivre'>('shopee');
 
   // QR Code Modal State
@@ -472,6 +538,43 @@ export default function App() {
 
   // Saved listings state (loaded from local storage)
   const [savedListings, setSavedListings] = useState<SavedListing[]>([]);
+
+  // Busca e sincroniza a biografia oficial do artista via Discogs
+  useEffect(() => {
+    setIsBioExpanded(false);
+    const artistName = release?.artist?.trim();
+    const artistId = (release as any)?.artistId;
+
+    if (!artistName || /various|v[áa]rios|colet[âa]nea/i.test(artistName)) {
+      setArtistBio(null);
+      return;
+    }
+
+    let isMounted = true;
+    const idQuery = artistId ? `&artistId=${encodeURIComponent(String(artistId))}` : '';
+    const url = `/api/artist-bio?artist=${encodeURIComponent(artistName)}${idQuery}&discogsOnly=true`;
+
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted) {
+          if (data && data.success && data.bio && typeof data.bio === 'string' && data.bio.trim() !== '') {
+            setArtistBio(data);
+          } else {
+            setArtistBio(null);
+          }
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setArtistBio(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [release?.artist, (release as any)?.artistId]);
 
   // Load and sync saved listings on mount (from Firestore and LocalStorage fallback)
   useEffect(() => {
@@ -1930,8 +2033,66 @@ export default function App() {
     : (release?.coverImage || '');
 
   if (appMode === 'storefront' || !isStaff) {
+    if (maintenanceMode && !previewStorefrontOverride) {
+      return (
+        <>
+          <UnderConstructionPage
+            onOpenIntranet={(targetTab = 'announce') => {
+              setMainTab(targetTab);
+              if (isStaff) {
+                setAppMode('intranet');
+              } else {
+                setIsIntranetAuthModalOpen(true);
+              }
+            }}
+            onPreviewStorefront={() => setPreviewStorefrontOverride(true)}
+            whatsappNumber="5555981164666"
+            storeName="Valdir Discos"
+          />
+
+          {/* Intranet Staff Login Gate Modal */}
+          <IntranetAuthModal
+            isOpen={isIntranetAuthModalOpen}
+            onClose={() => setIsIntranetAuthModalOpen(false)}
+            onSuccess={() => {
+              setIsIntranetAuthModalOpen(false);
+              setAppMode('intranet');
+              setMainTab('announce');
+            }}
+          />
+        </>
+      );
+    }
+
     return (
       <>
+        {previewStorefrontOverride && (
+          <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-black flex flex-wrap items-center justify-between sticky top-0 z-50 shadow-md gap-2">
+            <span className="flex items-center gap-1.5">
+              <span>👁️</span> 
+              <span>Modo de Pré-visualização da Vitrine (Seus clientes continuam vendo a página de Atendimento WhatsApp)</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPreviewStorefrontOverride(false)}
+                className="px-3 py-1 bg-slate-950 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Voltar para Página WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAppMode('intranet');
+                  setMainTab('announce');
+                }}
+                className="px-3 py-1 bg-white text-slate-950 rounded-lg text-xs font-black hover:bg-slate-100 transition-colors cursor-pointer shadow-sm"
+              >
+                Ir para Cadastro de Discos &rarr;
+              </button>
+            </div>
+          </div>
+        )}
         <PublicStorefront
           listings={savedListings}
           playlists={playlists}
@@ -1953,6 +2114,7 @@ export default function App() {
           onSuccess={() => {
             setIsIntranetAuthModalOpen(false);
             setAppMode('intranet');
+            setMainTab('announce');
           }}
         />
 
@@ -2030,10 +2192,48 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Direct Cadastrar Discos Shortcut Button */}
+            <button
+              type="button"
+              onClick={() => setMainTab('announce')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm ${
+                mainTab === 'announce'
+                  ? 'bg-indigo-600 text-white shadow-indigo-200 ring-2 ring-indigo-400/30'
+                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
+              }`}
+              title="Acesso direto ao Cadastro de Produtos, Busca Discogs e Lotes"
+            >
+              <Sparkles className="h-4 w-4 text-amber-400" />
+              <span>Cadastrar Discos</span>
+            </button>
+
+            {/* Maintenance Mode / WhatsApp Direct Toggle */}
+            <button
+              type="button"
+              onClick={() => handleToggleMaintenanceMode(!maintenanceMode)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                maintenanceMode
+                  ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300 ring-2 ring-amber-400/30'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+              }`}
+              title={
+                maintenanceMode
+                  ? 'Modo Atendimento WhatsApp ATIVO no domínio público. Clique para reabrir a vitrine completa.'
+                  : 'Vitrine pública normal. Clique para ativar a página de atendimento WhatsApp no domínio.'
+              }
+            >
+              <span className={`w-2 h-2 rounded-full ${maintenanceMode ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'}`} />
+              <span className="hidden sm:inline">{maintenanceMode ? 'WhatsApp Ativo' : 'Loja Aberta'}</span>
+              <span className="sm:hidden">{maintenanceMode ? 'WhatsApp' : 'Loja'}</span>
+            </button>
+
             {/* View Online Store Button */}
             <button
               type="button"
-              onClick={() => setAppMode('storefront')}
+              onClick={() => {
+                setPreviewStorefrontOverride(true);
+                setAppMode('storefront');
+              }}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-xs font-black text-amber-900 transition-all cursor-pointer shadow-xs"
               title="Visualizar a Loja Virtual Pública dos Clientes"
             >
@@ -2103,6 +2303,50 @@ export default function App() {
             </a>
           </div>
         </header>
+
+        {/* Maintenance / WhatsApp Banner Alert in Intranet */}
+        {maintenanceMode && (
+          <div className="bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-amber-50/40 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                ⚡
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black text-amber-950">
+                    Modo Em Construção & Atendimento WhatsApp Ativo no Domínio
+                  </span>
+                  <span className="text-[10px] bg-amber-200 text-amber-950 font-bold px-2 py-0.5 rounded-full">
+                    Domínio Protegido Contra Quedas
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-900/90 mt-0.5">
+                  Seus clientes veem a página rápida com botão direto para seu WhatsApp e os 4 selos de qualidade Valdir Discos (Goldmine sob luz forte, higienização profissional e embalagem blindada). Você pode cadastrar discos normalmente!
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewStorefrontOverride(true);
+                  setAppMode('storefront');
+                }}
+                className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-amber-300 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              >
+                Ver Vitrine Completa
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleMaintenanceMode(false)}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs"
+              >
+                Desativar e Abrir Loja
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Main Tab Navigation */}
         <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto whitespace-nowrap gap-1" id="main-tabs-selector">
@@ -3130,6 +3374,84 @@ export default function App() {
                   )}
                 </div>
               </div>
+
+              {/* Seção da Biografia do Artista (via Discogs) */}
+              {artistBio && artistBio.bio && artistBio.bio.trim() !== '' && (
+                <div 
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3.5 transition-all"
+                  id="artist-discogs-bio-card"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="text-xs font-bold text-slate-900 tracking-tight">
+                            Biografia do Artista
+                          </h3>
+                          <span className="text-[9px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded tracking-wider uppercase">
+                            Discogs
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-semibold text-slate-500">
+                          {artistBio.artist}
+                          {artistBio.realname && artistBio.realname.toLowerCase() !== artistBio.artist.toLowerCase() ? ` (${artistBio.realname})` : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    {artistBio.discogsUrl && (
+                      <a
+                        href={artistBio.discogsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 shrink-0 hover:underline"
+                        title="Ver perfil oficial no Discogs"
+                      >
+                        <span>Discogs</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3.5 items-start">
+                    {artistBio.profileImage && (
+                      <img
+                        src={artistBio.profileImage}
+                        alt={artistBio.artist}
+                        className="h-16 w-16 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs mt-0.5"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
+                    <div className="space-y-2 flex-1 min-w-0">
+                      <p className={`text-xs text-slate-600 leading-relaxed whitespace-pre-line ${!isBioExpanded && artistBio.bio.length > 280 ? 'line-clamp-4' : ''}`}>
+                        {artistBio.bio}
+                      </p>
+                      {artistBio.bio.length > 280 && (
+                        <button
+                          type="button"
+                          onClick={() => setIsBioExpanded(!isBioExpanded)}
+                          className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer pt-0.5"
+                        >
+                          {isBioExpanded ? (
+                            <>
+                              <span>Recolher</span>
+                              <ChevronUp className="h-3 w-3" />
+                            </>
+                          ) : (
+                            <>
+                              <span>Ler biografia completa</span>
+                              <ChevronDown className="h-3 w-3" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Fotos Reais do Produto Card */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4" id="workspace-photos-card">
